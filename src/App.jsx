@@ -1373,8 +1373,30 @@ function normalizeRows(rows) {
   }
   function getVal(row, idx) { return idx>=0 && idx<row.length ? String(row[idx]||'').trim() : ''; }
   function parseMonto(v) {
-    var s=String(v||'').trim().replace(/[$ ]/g,'').replace(/\./g,'').replace(',','.');
-    var n=parseFloat(s); return isNaN(n)?null:n;
+    // Si SheetJS ya entregó un número JS (raw:true), usarlo directo sin conversión a string
+    if (typeof v === 'number') { return isNaN(v) ? null : v; }
+    var s = String(v || '').trim().replace(/[$\s]/g, '');
+    if (!s) return null;
+    // Detección inteligente de separadores:
+    // Si tiene ambos (ej: 1.234,56 europeo ó 1,234.56 americano)
+    var lastDot   = s.lastIndexOf('.');
+    var lastComma = s.lastIndexOf(',');
+    if (lastDot > -1 && lastComma > -1) {
+      if (lastDot > lastComma) {
+        // Formato americano: 1,234.56 → eliminar comas
+        s = s.replace(/,/g, '');
+      } else {
+        // Formato europeo: 1.234,56 → eliminar puntos y reemplazar coma
+        s = s.replace(/\./g, '').replace(',', '.');
+      }
+    } else if (lastComma > -1) {
+      // Solo coma: si va seguida de 1-2 dígitos al final, es decimal; si no, es miles
+      if (/,\d{1,2}$/.test(s)) { s = s.replace(',', '.'); }
+      else { s = s.replace(/,/g, ''); }
+    }
+    // Solo punto o sin separadores: parseFloat directo (punto = decimal)
+    var n = parseFloat(s);
+    return isNaN(n) ? null : n;
   }
 
   var txns = [];
@@ -1382,7 +1404,8 @@ function normalizeRows(rows) {
     var row = rows[i];
     if (!row || !row.some(function(c){return c!==null&&c!==undefined&&c!=='';}) ) continue;
 
-    var montoRaw = getVal(row, iM);
+    // Usar el valor raw del array (número JS de SheetJS) sin pasar por getVal/String
+    var montoRaw = (iM >= 0 && iM < row.length) ? row[iM] : '';
     var monto = parseMonto(montoRaw);
     if (monto === null || monto === 0) continue;
 
