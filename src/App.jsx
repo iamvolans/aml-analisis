@@ -5028,6 +5028,595 @@ function PatronesView() {
   );
 }
 
+// ─── WIKI ─────────────────────────────────────────────────────────────────────
+function WikiView() {
+  var searchState = useState(''); var search = searchState[0]; var setSearch = searchState[1];
+  var activeState = useState('inicio'); var active = activeState[0]; var setActive = activeState[1];
+  var tooltipState = useState(null); var tooltip = tooltipState[0]; var setTooltip = tooltipState[1];
+  var animStepState = useState(-1); var animStep = animStepState[0]; var setAnimStep = animStepState[1];
+
+  // CSS animations injected once
+  var styleId = 'wiki-styles';
+  if (typeof document !== 'undefined' && !document.getElementById(styleId)) {
+    var s = document.createElement('style');
+    s.id = styleId;
+    s.textContent = `
+      @keyframes wikiSlideIn { from { opacity:0; transform:translateX(-12px); } to { opacity:1; transform:translateX(0); } }
+      @keyframes wikiFadeUp  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+      @keyframes wikiPulse   { 0%,100% { box-shadow:0 0 0 0 rgba(59,109,170,0.4); } 50% { box-shadow:0 0 0 8px rgba(59,109,170,0); } }
+      @keyframes wikiStepIn  { from { opacity:0; transform:translateX(-16px) scale(0.96); } to { opacity:1; transform:translateX(0) scale(1); } }
+      .wiki-section { animation: wikiSlideIn 0.28s ease both; }
+      .wiki-card-hover:hover { border-color: #3B6DAA !important; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(27,42,74,0.1); transition: all 0.18s; }
+      .wiki-step-anim { animation: wikiStepIn 0.3s ease both; }
+      .wiki-nav-item:hover { background: rgba(59,109,170,0.08) !important; }
+      .wiki-tooltip { position:absolute; background:#1B2A4A; color:white; font-size:11px; padding:6px 10px; border-radius:6px; white-space:nowrap; z-index:999; box-shadow:0 4px 12px rgba(0,0,0,0.2); pointer-events:none; animation:wikiFadeUp 0.15s ease; }
+      .wiki-tooltip::before { content:''; position:absolute; top:-5px; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top:none; border-bottom-color:#1B2A4A; }
+      .wiki-flow-node { transition: all 0.2s; cursor:default; }
+      .wiki-flow-node:hover { filter: brightness(1.08); transform: scale(1.03); }
+    `;
+    document.head.appendChild(s);
+  }
+
+  var W = C;
+
+  // ── Tooltip component ─────────────────────────────────────────────────────
+  function Tip(props) {
+    var hoverState = useState(false); var hovered = hoverState[0]; var setHovered = hoverState[1];
+    return React.createElement('span', {
+      style:{ position:'relative', display:'inline-block', cursor:'help' },
+      onMouseEnter:function(){ setHovered(true); },
+      onMouseLeave:function(){ setHovered(false); }
+    },
+      React.createElement('span', {
+        style:{ borderBottom:'1px dashed #3B6DAA', color:'#2C4A7C', fontWeight:600 }
+      }, props.label),
+      hovered && React.createElement('div', {
+        className:'wiki-tooltip',
+        style:{ bottom:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)' }
+      }, props.text)
+    );
+  }
+
+  // ── Badge ─────────────────────────────────────────────────────────────────
+  function Badge(props) {
+    var map = {
+      red:    ['#FDEDEC','#E74C3C'], orange:['#FEF3E8','#E67E22'],
+      yellow: ['#FFFDE7','#B7770D'], green: ['#EBF9F0','#27AE60'],
+      blue:   ['#EBF5FB','#2C4A7C'], gray:  ['#F4F6F9','#7F8C8D'],
+      purple: ['#F5EEF8','#7D3C98'],
+    };
+    var c = map[props.type] || map.blue;
+    return React.createElement('span', {
+      style:{ background:c[0], color:c[1], borderRadius:12, padding:'2px 10px', fontSize:11, fontWeight:700, marginRight:4, whiteSpace:'nowrap', display:'inline-block' }
+    }, props.children);
+  }
+
+  // ── Animated steps ────────────────────────────────────────────────────────
+  function StepList(props) {
+    var doneState = useState([]); var done = doneState[0]; var setDone = doneState[1];
+    var steps = props.steps;
+    function toggle(i) { setDone(function(prev){ return prev.indexOf(i)>=0 ? prev.filter(function(x){return x!==i;}) : prev.concat([i]); }); }
+    return React.createElement('div', { style:{ marginBottom:16 } },
+      steps.map(function(step, i) {
+        var isDone = done.indexOf(i) >= 0;
+        return React.createElement('div', {
+          key:i,
+          className:'wiki-step-anim',
+          style:{ display:'flex', gap:12, marginBottom:8, alignItems:'flex-start', animationDelay:(i*0.06)+'s', opacity:1 }
+        },
+          // Number circle — clickable to mark as done
+          React.createElement('div', {
+            onClick:function(){ toggle(i); },
+            style:{
+              width:28, height:28, borderRadius:'50%', flexShrink:0, marginTop:2,
+              background: isDone ? W.VERDE : W.AM,
+              color:'white', display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:12, fontWeight:700, cursor:'pointer',
+              transition:'all 0.2s',
+              animation: isDone ? 'wikiPulse 0.4s ease' : 'none',
+            }
+          }, isDone ? '✓' : i+1),
+          React.createElement('div', {
+            style:{
+              flex:1, background: isDone ? '#F0FAF4' : 'white',
+              border:'1px solid '+(isDone ? '#A9DFBF' : '#E8EEF4'),
+              borderRadius:8, padding:'10px 14px',
+              transition:'all 0.2s', opacity: isDone ? 0.7 : 1,
+            }
+          },
+            React.createElement('div', { style:{ fontSize:13, fontWeight:600, color: isDone ? W.VERDE : W.AO, marginBottom:3, textDecoration: isDone ? 'line-through' : 'none' } }, step[0]),
+            React.createElement('div', { style:{ fontSize:12.5, color:'#555', lineHeight:1.6 } }, step[1])
+          )
+        );
+      }),
+      React.createElement('div', { style:{ fontSize:11, color:'#aaa', marginTop:4 } }, '💡 Hacé clic en los números para marcar pasos completados')
+    );
+  }
+
+  // ── Info boxes ────────────────────────────────────────────────────────────
+  function Box(props) {
+    var cfg = {
+      tip:    ['#EBF9F0','#A9DFBF','#1E8449','✓'],
+      warn:   ['#FEF3E8','#F0B27A','#B7770D','⚠'],
+      danger: ['#FDEDEC','#F1948A','#922B21','⚠'],
+      info:   ['#EBF5FB','#AED6F1','#1A5276','ℹ'],
+    };
+    var c = cfg[props.type] || cfg.info;
+    return React.createElement('div', {
+      style:{ background:c[0], border:'1px solid '+c[1], borderLeft:'4px solid '+c[1], borderRadius:6, padding:'10px 14px', marginBottom:14, fontSize:12.5, color:c[2], lineHeight:1.6 }
+    }, React.createElement('strong', null, c[3]+' '), props.children);
+  }
+
+  // ── Table ─────────────────────────────────────────────────────────────────
+  function Tbl(props) {
+    return React.createElement('div', { style:{ overflowX:'auto', marginBottom:16 } },
+      React.createElement('table', { style:{ width:'100%', borderCollapse:'collapse', fontSize:12.5 } },
+        React.createElement('thead', null,
+          React.createElement('tr', null,
+            props.headers.map(function(h,i){ return React.createElement('th', { key:i, style:{ background:W.AO, color:'white', padding:'8px 12px', textAlign:'left', fontSize:11, fontWeight:700, letterSpacing:'0.03em' } }, h); })
+          )
+        ),
+        React.createElement('tbody', null,
+          props.rows.map(function(row,ri){ return React.createElement('tr', { key:ri, style:{ background:ri%2===0?'#F8FBFE':'white', transition:'background 0.1s' } },
+            row.map(function(cell,ci){ return React.createElement('td', { key:ci, style:{ padding:'8px 12px', color:'#2C3E50', borderBottom:'1px solid #E8EEF4', verticalAlign:'top', lineHeight:1.6 } }, cell); })
+          ); })
+        )
+      )
+    );
+  }
+
+  // ── Flow diagram ──────────────────────────────────────────────────────────
+  function FlowDiagram(props) {
+    // props.nodes = [{label, color, sub}]
+    // props.title
+    var nodes = props.nodes;
+    var cols = props.cols || nodes.length;
+    var isVertical = props.vertical;
+    return React.createElement('div', { style:{ marginBottom:20 } },
+      props.title && React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:W.AM, letterSpacing:'0.05em', textTransform:'uppercase', marginBottom:10 } }, props.title),
+      React.createElement('div', {
+        style:{
+          display:'flex',
+          flexDirection: isVertical ? 'column' : 'row',
+          alignItems:'center', gap:0, flexWrap:'wrap',
+          background:'#F8FBFE', border:'1px solid #E8EEF4', borderRadius:10, padding:'16px 12px'
+        }
+      },
+        nodes.map(function(node, i) {
+          return React.createElement(React.Fragment, { key:i },
+            // Node box
+            React.createElement('div', {
+              className:'wiki-flow-node',
+              style:{
+                background: node.color || W.AM,
+                color:'white', borderRadius:8,
+                padding: isVertical ? '10px 18px' : '10px 14px',
+                textAlign:'center', minWidth: isVertical ? 200 : 100,
+                flex: isVertical ? 'none' : '1', maxWidth: isVertical ? 260 : 'none',
+                boxShadow:'0 2px 6px rgba(27,42,74,0.15)',
+              }
+            },
+              React.createElement('div', { style:{ fontSize:12.5, fontWeight:700, lineHeight:1.4 } }, node.label),
+              node.sub && React.createElement('div', { style:{ fontSize:10.5, opacity:0.8, marginTop:3, lineHeight:1.4 } }, node.sub)
+            ),
+            // Arrow between nodes
+            i < nodes.length - 1 && React.createElement('div', {
+              style:{
+                color: W.AC, fontSize:18, fontWeight:700,
+                padding: isVertical ? '2px 0' : '0 2px',
+                flexShrink:0, lineHeight:1,
+              }
+            }, isVertical ? '↓' : '→')
+          );
+        })
+      )
+    );
+  }
+
+  // ── Sections nav ──────────────────────────────────────────────────────────
+  var SECTIONS = [
+    { id:'inicio',     icon:'🏠', label:'Inicio' },
+    { id:'roles',      icon:'👤', label:'Roles y accesos' },
+    { id:'dashboard',  icon:'📊', label:'Dashboard' },
+    { id:'legajos',    icon:'📁', label:'Legajos KYB' },
+    { id:'screening',  icon:'🛡',  label:'Screening' },
+    { id:'aml',        icon:'📈', label:'Análisis AML' },
+    { id:'patrones',   icon:'🔍', label:'Patrones AML' },
+    { id:'senales',    icon:'🚨', label:'Señales y resolución' },
+    { id:'rfi',        icon:'📧', label:'Módulo RFI' },
+    { id:'informes',   icon:'📄', label:'Informes' },
+    { id:'ros',        icon:'📋', label:'ROS Borrador' },
+    { id:'tendencias', icon:'📉', label:'Tendencias' },
+    { id:'flujos',     icon:'🔄', label:'Flujos de trabajo' },
+    { id:'glosario',   icon:'📖', label:'Glosario' },
+  ];
+
+  // ── Content ───────────────────────────────────────────────────────────────
+  function renderContent() {
+    var h1 = { fontSize:22, fontWeight:700, color:W.AO, marginBottom:6, marginTop:0 };
+    var h2 = { fontSize:15, fontWeight:700, color:W.AM, marginBottom:10, marginTop:24, paddingBottom:6, borderBottom:'2px solid '+W.CEL };
+    var p  = { fontSize:13, color:'#2C3E50', lineHeight:1.7, marginBottom:10 };
+
+    switch(active) {
+
+      case 'inicio': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('div', { style:{ background:'linear-gradient(135deg, #1B2A4A 0%, #2C4A7C 100%)', borderRadius:12, padding:'24px 28px', marginBottom:24, color:'white' } },
+          React.createElement('div', { style:{ fontSize:11, color:'rgba(255,255,255,0.55)', letterSpacing:'0.07em', textTransform:'uppercase', marginBottom:6 } }, 'GOAT S.A. / Rebit — Departamento PLAFT'),
+          React.createElement('h1', { style:{ fontSize:26, fontWeight:700, margin:'0 0 8px', color:'white' } }, '📚 Wiki — Rebit AML & KYB Tool'),
+          React.createElement('p', { style:{ fontSize:13.5, color:'rgba(255,255,255,0.75)', margin:0, lineHeight:1.6 } }, 'Guía completa de operación para todo el equipo de Compliance. Navegá por las secciones del panel izquierdo o buscá cualquier funcionalidad.')
+        ),
+        // Quick access cards
+        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:24 } },
+          [
+            ['📁','Legajos KYB','Onboarding, documentación, scoring y ciclo de vida','legajos','#EBF5FB','#2C4A7C'],
+            ['📈','Análisis AML','Carga de archivos, métricas, señales y scoring','aml','#EBF9F0','#1E8449'],
+            ['🔄','Flujos','Timelines completos paso a paso','flujos','#FEF3E8','#B7770D'],
+            ['📧','Módulo RFI','Requerimientos y gestión de respuestas','rfi','#F5EEF8','#7D3C98'],
+            ['🛡','Screening','Verificación contra OFAC, ONU, REPET y PEPs','screening','#FDEDEC','#922B21'],
+            ['📋','ROS Borrador','Reporte de Operación Sospechosa','ros','#F8FBFE','#1B2A4A'],
+          ].map(function(item){ return React.createElement('div', {
+            key:item[3], className:'wiki-card-hover',
+            onClick:function(){setActive(item[3]);},
+            style:{ background:item[4], border:'1px solid '+item[4], borderRadius:10, padding:'14px', cursor:'pointer' }
+          },
+            React.createElement('div', { style:{ fontSize:22, marginBottom:6 } }, item[0]),
+            React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:item[5], marginBottom:4 } }, item[1]),
+            React.createElement('div', { style:{ fontSize:11.5, color:'#7F8C8D', lineHeight:1.5 } }, item[2])
+          ); })
+        ),
+        React.createElement(Box, {type:'warn'}, 'Toda la información de legajos y análisis es estrictamente confidencial. No compartir capturas ni datos de clientes fuera del entorno de trabajo autorizado.')
+      );
+
+      case 'roles': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '👤 Roles y Permisos'),
+        React.createElement('p', { style:p }, 'El sistema tiene 5 niveles de acceso. Cada usuario accede con su email y contraseña personal.'),
+        React.createElement(FlowDiagram, { title:'Jerarquía de roles', nodes:[
+          { label:'Admin', sub:'Acceso total', color:'#E74C3C' },
+          { label:'Oficial', sub:'Sin gestión de usuarios', color:'#7D3C98' },
+          { label:'Supervisor', sub:'Sin eliminar legajos', color:'#2C4A7C' },
+          { label:'Analista', sub:'Sin aprobar señales', color:'#27AE60' },
+          { label:'Solo lectura', sub:'Solo consulta', color:'#7F8C8D' },
+        ]}),
+        React.createElement(Tbl, {
+          headers:['Rol','Puede hacer','No puede'],
+          rows:[
+            [React.createElement(Badge,{type:'red'},'Admin'),'Todo: crear/desactivar usuarios, eliminar legajos, configuración','—'],
+            [React.createElement(Badge,{type:'purple'},'Oficial'),'INF-01/02/07, aprobar señales, generar ROS, editar todo','Gestionar usuarios'],
+            [React.createElement(Badge,{type:'blue'},'Supervisor'),'Crear/editar legajos, aprobar señales ALTA, generar informes','Eliminar legajos, usuarios'],
+            [React.createElement(Badge,{type:'green'},'Analista'),'Crear/editar, subir períodos, memos, RFIs, proponer cierre de señales','Eliminar, aprobar señales, ROS'],
+            [React.createElement(Badge,{type:'gray'},'Solo lectura'),'Ver todos los datos','Crear, editar o eliminar cualquier dato'],
+          ]
+        }),
+        React.createElement('h2', { style:h2 }, 'Iniciar sesión'),
+        React.createElement(StepList, { steps:[
+          ['Abrir el navegador','Ingresar a https://rebit-aml-app.vercel.app desde Chrome, Firefox, Safari o Edge.'],
+          ['Ingresar credenciales','Email institucional (ej: analista@goat.ar) y contraseña personal. Sistema verifica contra Supabase Auth.'],
+          ['Cerrar sesión','Botón "Cerrar sesión" en la parte inferior del menú lateral izquierdo.'],
+        ]}),
+        React.createElement(Box, {type:'tip'}, 'Si olvidás tu contraseña, contactá al Admin del sistema — no hay recuperación automática por email.')
+      );
+
+      case 'dashboard': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '📊 Dashboard'),
+        React.createElement(FlowDiagram, { title:'Flujo de lectura del Dashboard', nodes:[
+          { label:'Alertas proactivas', sub:'Plazos regulatorios', color:'#E67E22' },
+          { label:'KPIs de cartera', sub:'Señales · RFIs · Períodos', color:'#2C4A7C' },
+          { label:'Semáforo', sub:'🔴🟡🟢 por cliente', color:'#3B6DAA' },
+          { label:'Acción', sub:'Ir al caso crítico', color:'#27AE60' },
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Pestaña Operacional'),
+        React.createElement(Tbl, { headers:['Elemento','Descripción'], rows:[
+          ['Alerta proactiva 🔔', React.createElement('span', null, 'Panel naranja cuando un cliente supera el plazo sin análisis. ', React.createElement(Tip,{label:'30/60/90 días',text:'ALTO: 30d · MEDIO-ALTO: 60d · MEDIO/BAJO: 90d'}), ' según segmento.')],
+          ['Semáforo de cartera','🔴 señales sin resolver · 🟡 monitoreo reforzado · 🟢 sin alertas activas'],
+          ['Cuentas con señales','Clientes con señales ALTA pendientes ordenados por criticidad'],
+          ['Legajos recientes','Últimos 5 legajos con estado y dictamen'],
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Pestaña Ejecutivo'),
+        React.createElement(Tbl, { headers:['Elemento','Descripción'], rows:[
+          ['KPIs regulatorios','Clientes activos · Señales ALTA · RFIs abiertos · RFIs vencidos · Tasa respuesta RFI %'],
+          ['Semáforo completo','Todos los clientes activos con score AML máximo, señales activas y períodos'],
+          ['Evolución mensual','Gráfico IN/OUT agregado de toda la cartera por período'],
+          ['Panel RFIs','RFIs próximos a vencer + tasa de respuesta por cliente + RFIs vencidos'],
+        ]}),
+        React.createElement(Box, {type:'tip'}, 'Revisá el Dashboard al inicio de cada jornada para priorizar las investigaciones del día.')
+      );
+
+      case 'legajos': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '📁 Módulo Legajos KYB'),
+        React.createElement(FlowDiagram, { title:'Ciclo de vida de un legajo', nodes:[
+          { label:'En Onboarding', sub:'Documentación', color:'#7F8C8D' },
+          { label:'Activa', sub:'Operando normal', color:'#27AE60' },
+          { label:'Monitoreo Ref.', sub:'Con alertas', color:'#E67E22' },
+          { label:'Suspendida', sub:'Bloqueada', color:'#F39C12' },
+          { label:'Cerrada', sub:'INF-07', color:'#E74C3C' },
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Crear un nuevo legajo'),
+        React.createElement(StepList, { steps:[
+          ['Clic en "+ Nuevo Legajo"','Botón azul en la esquina superior derecha de la lista de legajos.'],
+          ['Subir documentos (tab Docs IA)','Arrastrar o clic para subir PDFs e imágenes: estatuto, poderes, DNIs, AFIP, estados contables. Máximo 25 archivos / 90 MB.'],
+          ['Extraer datos con IA','Clic en "Extraer datos con IA". La IA completa todos los campos automáticamente. Proceso: 30–90 segundos.'],
+          ['Revisar y completar (tab Datos)','Verificar campos extraídos. Prestar atención especial a CUIT, montos y beneficiario final.'],
+          ['Completar Checklist','Marcar cada documento como OK / Pendiente / Bloqueante.'],
+          ['Asignar Scoring KYB','Puntaje 1–5 en 8 factores. El sistema calcula el segmento automáticamente.'],
+          ['Ejecutar Screening','Tab Screening → "Ejecutar Screening" contra OFAC, ONU, REPET y PEPs. Obligatorio antes de activar.'],
+          ['Guardar','Clic en "Guardar". Se sincroniza a Supabase y queda disponible en todos los dispositivos.'],
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Pestañas del legajo'),
+        React.createElement(Tbl, { headers:['Pestaña','Contenido'], rows:[
+          ['🤖 Resumen IA','Documentos subidos y resumen generado. Permite re-procesar con nuevos documentos.'],
+          ['📋 Datos','Razón social, CUIT, actividad, facturación, límites CVU, representante, beneficiario final.'],
+          ['✅ Checklist',React.createElement('span',null,'Documentación KYB por ítem. Estado global calculado automáticamente. Hover sobre el ícono de ayuda para ver ',React.createElement(Tip,{label:'criterios de bloqueo',text:'Un ítem Bloqueante impide avanzar con el onboarding hasta ser resuelto.'}),'.')],
+          ['📊 Scoring','8 factores de riesgo con puntaje 1–5. Determina: BAJO / MEDIO / MEDIO-ALTO / ALTO.'],
+          ['🚩 Red Flags','Alertas detectadas por IA o agregadas manualmente con severidad.'],
+          ['🕐 Historial','Registro cronológico de cambios de estado. Respaldo regulatorio ante auditorías UIF.'],
+          ['🛡 Screening','Verificación contra listas de sanciones internacionales.'],
+        ]}),
+        React.createElement(Box, {type:'tip'}, 'Cada cambio de estado queda registrado en el Historial con fecha, hora y nombre del analista. Es el respaldo regulatorio ante inspecciones de la UIF.')
+      );
+
+      case 'screening': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '🛡 Screening de Sanciones'),
+        React.createElement(FlowDiagram, { title:'Proceso de screening', nodes:[
+          { label:'Legajo con datos', sub:'Razón social · Ben. final · Rep. legal', color:'#3B6DAA' },
+          { label:'IA ejecuta búsqueda', sub:'Web search en tiempo real', color:'#2C4A7C' },
+          { label:'4 listas consultadas', sub:'OFAC · ONU · REPET · PEPs', color:'#1B2A4A' },
+          { label:'Resultado', sub:'LIMPIO / REVISAR / COINCIDENCIA', color:'#27AE60' },
+        ]}),
+        React.createElement(Tbl, { headers:['Lista','Organismo','Qué verifica'], rows:[
+          ['OFAC SDN','🇺🇸 USA','Specially Designated Nationals — sanciones del gobierno de EE.UU.'],
+          ['ONU Lista Consolidada','🌐 ONU','Personas y entidades sujetas a medidas restrictivas del Consejo de Seguridad.'],
+          ['REPET UIF','🇦🇷 Argentina','Registro de personas vinculadas a Terrorismo y su Financiamiento. repet.uif.gob.ar'],
+          ['PEPs Argentina (OA)','🇦🇷 Argentina','Personas Políticamente Expuestas según la Oficina Anticorrupción.'],
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Resultados y acciones'),
+        React.createElement(Tbl, { headers:['Resultado','Qué significa','Acción requerida'], rows:[
+          [React.createElement(Badge,{type:'green'},'✅ LIMPIO'),'Sin coincidencias en ninguna lista.','Documentar resultado y continuar el proceso.'],
+          [React.createElement(Badge,{type:'yellow'},'🟡 REVISAR'),'Nombre similar encontrado — puede ser homonimia.','Verificar manualmente antes de avanzar.'],
+          [React.createElement(Badge,{type:'red'},'🔴 COINCIDENCIA'),'Match confirmado en alguna lista.','Suspender operaciones de inmediato y notificar al Oficial.'],
+        ]}),
+        React.createElement(Box, {type:'danger'}, 'Obligación regulatoria: el screening debe realizarse al onboarding y repetirse mínimo una vez al año o ante cualquier cambio en la información del cliente.')
+      );
+
+      case 'aml': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '📈 Análisis AML Transaccional'),
+        React.createElement(FlowDiagram, { title:'Pipeline de análisis de un período', nodes:[
+          { label:'Archivo XLS/CSV', sub:'Exportar del sistema operativo', color:'#7F8C8D' },
+          { label:'Parser universal', sub:'Detección automática de columnas', color:'#3B6DAA' },
+          { label:'16 métricas', sub:'HHI · Pass-through · Circularidad...', color:'#2C4A7C' },
+          { label:'12 patrones AML', sub:'PAT-01 a PAT-12', color:'#E67E22' },
+          { label:'Score 0–5', sub:'BAJO / MEDIO / ALTO', color:'#E74C3C' },
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Cargar un período'),
+        React.createElement(StepList, { steps:[
+          ['Seleccionar el legajo','En el selector "Legajo", elegir el cliente a analizar.'],
+          ['Ingresar nombre del período','Ej: "Enero 2026 — 1/10". Si se deja vacío se usa el nombre del archivo.'],
+          ['Subir el archivo','Clic o arrastrar. Formatos: CSV, XLS, XLSX, ODS. El sistema detecta columnas automáticamente.'],
+          ['Cargar y analizar','El sistema procesa txns, calcula métricas, detecta señales y guarda todo en Supabase.'],
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Clasificaciones de riesgo'),
+        React.createElement(Tbl, { headers:['Score','Clasificación','Acción recomendada'], rows:[
+          ['0 – 2', React.createElement(Badge,{type:'green'},'BAJO'), 'Monitoreo periódico normal. Sin acción inmediata.'],
+          ['2 – 3', React.createElement(Badge,{type:'blue'},'MEDIO'), 'Seguimiento normal. Documentar observaciones en Memos.'],
+          ['3 – 4', React.createElement(Badge,{type:'orange'},'MEDIO-ALTO'), 'Investigar contrapartes. Considerar RFI al cliente.'],
+          ['4 – 5', React.createElement(Badge,{type:'red'},'ALTO'), 'RFI obligatorio. Escalar al Oficial. Posible ROS.'],
+        ]}),
+        React.createElement(Box, {type:'warn'}, 'Si los montos muestran valores inflados al cargar un archivo XLS (ej: $34B en lugar de $2.7B), el archivo tiene un error de exportación. Eliminar el período y cargar el archivo corregido.')
+      );
+
+      case 'patrones': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '🔍 Patrones AML'),
+        React.createElement('p', { style:p }, 'El sistema detecta 11 patrones automáticamente al cargar un período. Ver la sección "Patrones AML" del sidebar para el detalle técnico completo con ejemplos prácticos.'),
+        React.createElement(Tbl, { headers:['Código','Nombre','Tipología UIF','Severidad típica'], rows:[
+          ['PAT-01','Montos exactamente repetidos','T-01',React.createElement(Badge,{type:'orange'},'MEDIA')],
+          ['PAT-02','Montos redondos sistemáticos','T-01',React.createElement(Badge,{type:'orange'},'MEDIA')],
+          ['PAT-03','Circularidad de fondos (Layering)','T-04',React.createElement(Badge,{type:'red'},'ALTA')],
+          ['PAT-04','Smurfing — Contrapartes one-shot','T-02',React.createElement(Badge,{type:'red'},'ALTA')],
+          ['PAT-05','Volumen incompatible con perfil','T-05',React.createElement(Badge,{type:'red'},'ALTA')],
+          ['PAT-06','Concentración extrema','T-03',React.createElement(Badge,{type:'orange'},'MEDIA')],
+          ['PAT-07','Fraccionamiento / Structuring','T-02',React.createElement(Badge,{type:'red'},'ALTA')],
+          ['PAT-08','Horario atípico','T-06',React.createElement(Badge,{type:'orange'},'MEDIA')],
+          ['PAT-09','Pass-through / Cuenta de paso','T-07',React.createElement(Badge,{type:'red'},'ALTA')],
+          ['PAT-11','Nuevas contrapartes masivas','T-08',React.createElement(Badge,{type:'orange'},'MEDIA')],
+          ['PAT-12','Comportamiento atípico histórico','T-09',React.createElement(Badge,{type:'orange'},'MEDIA')],
+        ]}),
+        React.createElement(Box, {type:'info'}, 'La detección de un patrón no implica automáticamente ilicitud. Siempre interpretar en el contexto del perfil completo del cliente y su actividad declarada.')
+      );
+
+      case 'senales': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '🚨 Señales y Resolución'),
+        React.createElement(FlowDiagram, { vertical:true, title:'Flujo de resolución de una señal ALTA', nodes:[
+          { label:'Señal ALTA detectada', sub:'Sistema la marca como ACTIVA', color:'#E74C3C' },
+          { label:'Analista investiga', sub:'Revisa contrapartes, documentación y contexto', color:'#3B6DAA' },
+          { label:'Analista propone cierre', sub:'Escribe justificación en pantalla', color:'#E67E22' },
+          { label:'Supervisor revisa', sub:'Aprueba o rechaza la justificación', color:'#2C4A7C' },
+          { label:'Señal RESUELTA', sub:'Desaparece del Dashboard y semáforo', color:'#27AE60' },
+        ]}),
+        React.createElement(Box, {type:'warn'}, 'Solo Supervisor, Oficial y Admin pueden aprobar el cierre. El analista solo puede proponer.'),
+        React.createElement('h2', { style:h2 }, 'Estados del período AML'),
+        React.createElement(Tbl, { headers:['Estado','Cuándo usarlo'], rows:[
+          [React.createElement(Badge,{type:'blue'},'En revisión'),'Estado inicial. El período fue cargado y está siendo analizado.'],
+          [React.createElement(Badge,{type:'orange'},'RFI enviado'),'Se enviaron requerimientos al cliente y se espera respuesta.'],
+          [React.createElement(Badge,{type:'green'},'Cerrado — sin alerta'),'Todas las señales explicadas satisfactoriamente.'],
+          [React.createElement(Badge,{type:'red'},'Cerrado — con alerta'),'Período con alerta escalada (RFI vencido, ROS generado).'],
+          [React.createElement(Badge,{type:'gray'},'Archivado'),'Período fuera de vigencia. Sin acción requerida.'],
+        ]})
+      );
+
+      case 'rfi': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '📧 Módulo RFI'),
+        React.createElement(FlowDiagram, { title:'Ciclo de vida de un RFI', nodes:[
+          { label:'RFI ENVIADO', sub:'Plazo: 7 días', color:'#F39C12' },
+          { label:'RESPONDIDO', sub:'Respuesta completa', color:'#27AE60' },
+          { label:'RESP. PARCIAL', sub:'Información incompleta', color:'#E67E22' },
+          { label:'SIN RESPUESTA', sub:'Vencido — escalar', color:'#E74C3C' },
+          { label:'CERRADO', sub:'Resuelto', color:'#7F8C8D' },
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Crear un RFI'),
+        React.createElement(StepList, { steps:[
+          ['Ir al tab RFI del período','Análisis AML → seleccionar período → tab "📧 RFI".'],
+          ['Clic en "+ Nuevo RFI"','Se abre el formulario de creación.'],
+          ['Completar el formulario','N° de referencia · Asunto · Texto del requerimiento · Nombre del analista.'],
+          ['Registrar RFI','Clic en "Registrar RFI". Se crea el hilo con estado ENVIADO.'],
+          ['Registrar respuesta del cliente','Al recibir respuesta: clic en "Respuesta/Nota" → tipo → ingresar contenido.'],
+        ]}),
+        React.createElement(Box, {type:'danger'}, 'Los RFIs sin respuesta después de 7 días generan alertas automáticas en el Dashboard Ejecutivo. Si vence sin respuesta, escalar al Oficial de Cumplimiento.')
+      );
+
+      case 'informes': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '📄 Generación de Informes'),
+        React.createElement(FlowDiagram, { title:'Informes disponibles', nodes:[
+          { label:'INF-01', sub:'KYB — Onboarding', color:'#3B6DAA' },
+          { label:'INF-02', sub:'AML — Monitoreo', color:'#2C4A7C' },
+          { label:'INF-07', sub:'Cierre de cuenta', color:'#E74C3C' },
+        ]}),
+        React.createElement(Tbl, { headers:['Informe','Dónde generarlo','Quién puede','Contenido principal'], rows:[
+          ['INF-01','Detalle del legajo → botón "INF-01"','Todos excepto Solo lectura','Datos del cliente, checklist, scoring, red flags, dictamen.'],
+          ['INF-02','Análisis AML → botón "INF-02"','Todos excepto Solo lectura','Métricas del período, señales con tipología UIF, scoring, memos.'],
+          ['INF-07','Detalle del legajo → botón "Cierre"','Supervisor, Oficial, Admin','Motivo del cierre, historial de estados, análisis IA. Cierra la cuenta.'],
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Exportar como PDF'),
+        React.createElement(StepList, { steps:[
+          ['Generar el informe','Clic en el botón correspondiente (INF-01, INF-02 o INF-07).'],
+          ['Revisar en el visor','El documento se abre con todos los datos pre-completados.'],
+          ['Clic en "Imprimir / PDF"','Botón en la barra del visor.'],
+          ['Guardar como PDF','En el diálogo de impresión del navegador, seleccionar "Guardar como PDF" como destino.'],
+        ]}),
+        React.createElement(Box, {type:'tip'}, 'Todos los informes generados quedan registrados en el audit trail con usuario, fecha y hora.')
+      );
+
+      case 'ros': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '📋 ROS Borrador UIF'),
+        React.createElement(Box, {type:'danger'}, 'El ROS tiene carácter estrictamente confidencial (Art. 22 Ley 25.246). No puede ser revelado al cliente ni a terceros no autorizados.'),
+        React.createElement(FlowDiagram, { title:'Flujo de generación del ROS', nodes:[
+          { label:'Caso con señales ALTA', sub:'RFI vencido / sin justificación', color:'#E74C3C' },
+          { label:'Seleccionar períodos', sub:'Pre-selecciona los con señales ALTA', color:'#E67E22' },
+          { label:'Generar borrador', sub:'8 secciones pre-completadas', color:'#2C4A7C' },
+          { label:'Editar narrativa', sub:'Descripción y conclusión editables', color:'#3B6DAA' },
+          { label:'Presentar en SIROS', sub:'Portal UIF — presentación formal', color:'#27AE60' },
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Secciones del documento ROS'),
+        React.createElement(Tbl, { headers:['Sección','Contenido','Editable en app'], rows:[
+          ['1. Encabezado','N° correlativo ROS-YYYY-NNN · Fecha · CONFIDENCIAL','No'],
+          ['2. Sujeto Obligado','Datos fijos de GOAT S.A. / Rebit','No'],
+          ['3. Cliente Reportado','Datos del legajo KYB','No'],
+          ['4. Descripción de Operaciones','Métricas agregadas de los períodos seleccionados','Sí'],
+          ['5. Señales Detectadas','PAT codes con tipología UIF correspondiente','No'],
+          ['6. Top 20 Operaciones','Las 20 operaciones más relevantes por monto','No'],
+          ['7. Diligencias Realizadas','Checklist KYB + RFIs enviados y sus respuestas','No'],
+          ['8. Conclusión y Firma','Fundamento del reporte + firma del Oficial','Sí'],
+        ]})
+      );
+
+      case 'tendencias': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '📉 Tendencias Multi-período'),
+        React.createElement('p', { style:p }, 'Cuando un legajo tiene 2 o más períodos, aparece el toggle "📊 Tendencias" junto al selector de período.'),
+        React.createElement(Tbl, { headers:['Elemento','Descripción'], rows:[
+          ['KPIs de tendencia','Variación % del volumen IN entre primer y último período. Tendencia del score (▲ más riesgo / ▼ mejora). Clasificación actual.'],
+          ['Gráfico IN/OUT','Líneas verde (IN) y roja (OUT) por período. Identifica crecimientos anómalos.'],
+          ['Score trend','Evolución del score 0–5. Puntos de color según nivel en cada período.'],
+          ['Tabla comparativa','Todos los períodos como columnas con métricas clave como filas.'],
+          [React.createElement('span',null,React.createElement(Tip,{label:'Rotación de contrapartes',text:'> 60% nuevas en un período = alerta automática de posible atomización'})),'Por cada período vs. el anterior: nuevas, perdidas, recurrentes y % de rotación.'],
+        ]}),
+        React.createElement(Box, {type:'warn'}, 'Alerta automática: si más del 60% de las contrapartes son nuevas en un período, el sistema alerta "Alta rotación — posible atomización". Indica posible fragmentación deliberada de la red de pagos.')
+      );
+
+      case 'flujos': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '🔄 Flujos de Trabajo'),
+        React.createElement('h2', { style:h2 }, 'Timeline: Onboarding de nuevo cliente'),
+        React.createElement(StepList, { steps:[
+          ['Día 1 — Recepción documental','Estatuto, poderes, DNIs, constancia AFIP/ARCA, estados contables del último ejercicio.'],
+          ['Día 1 — Crear legajo y extraer datos con IA','Legajos KYB → "+ Nuevo Legajo" → subir documentos → "Extraer datos con IA".'],
+          ['Día 1 — Checklist, Scoring y Screening','Completar los tres antes de emitir dictamen. El Screening es obligatorio.'],
+          ['Día 2 — Dictamen y generación de INF-01','Establecer APROBADO / CONDICIONAL / RECHAZADO. Generar y archivar el INF-01.'],
+          ['Día 2 — Activar la cuenta','Cambiar estado de "En Onboarding" a "Activa". El historial registra automáticamente.'],
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Timeline: Monitoreo mensual recurrente'),
+        React.createElement(StepList, { steps:[
+          ['Días 1, 11 y 21 del mes — Obtener archivo XLS','Exportar desde el sistema operativo de Rebit el archivo de 10 días del período.'],
+          ['Cargar en Análisis AML','Seleccionar legajo → nombre del período → subir archivo → "Cargar y analizar".'],
+          ['Revisar métricas y señales','Verificar señales ALTA nuevas que requieran acción inmediata.'],
+          ['Documentar en Memos','Registrar observaciones del analista sobre el período.'],
+          ['Fin de mes — Análisis de tendencias','Con los 3 archivos cargados, activar "Tendencias" para ver la evolución mensual consolidada.'],
+          ['Generar INF-02','Del período más relevante del mes para el expediente del cliente.'],
+        ]}),
+        React.createElement('h2', { style:h2 }, 'Timeline: Caso con señales ALTA'),
+        React.createElement(FlowDiagram, { vertical:true, title:'Árbol de decisión', nodes:[
+          { label:'Señales ALTA detectadas', sub:'Semáforo → 🔴 en Dashboard', color:'#E74C3C' },
+          { label:'Emitir RFI al cliente', sub:'Plazo recomendado: 7 días hábiles', color:'#E67E22' },
+          { label:'¿Respuesta satisfactoria?', sub:'Sí → Proponer cierre / No → Escalar', color:'#2C4A7C' },
+          { label:'Cierre de señales o ROS', sub:'Supervisor aprueba · Oficial evalúa ROS', color:'#1B2A4A' },
+        ]})
+      );
+
+      case 'glosario': return React.createElement('div', { className:'wiki-section' },
+        React.createElement('h1', { style:h1 }, '📖 Glosario'),
+        React.createElement(Tbl, { headers:['Término','Definición'], rows:[
+          ['AML','Anti-Money Laundering. Prevención de lavado de activos y financiamiento del terrorismo.'],
+          ['BCRA','Banco Central de la República Argentina. Regula PSPs mediante Com. A 6885.'],
+          ['CVU','Clave Virtual Uniforme. Identificador de cuentas de pago de PSPs, equivalente al CBU bancario.'],
+          ['Dictamen KYB','Conclusión del onboarding: APROBADO · CONDICIONAL · RECHAZADO.'],
+          ['EDD','Enhanced Due Diligence. Debida diligencia reforzada para clientes de alto riesgo.'],
+          ['HHI','Índice Herfindahl-Hirschman. Mide concentración de contrapartes. Valor 1 = máxima concentración.'],
+          ['INF-01','Informe de Debida Diligencia KYB. Documenta el proceso de onboarding.'],
+          ['INF-02','Informe de Monitoreo Transaccional AML. Resume el análisis de un período.'],
+          ['INF-07','Informe de Cierre/Desvinculación. Cierra automáticamente la cuenta.'],
+          ['KYB','Know Your Business. Conocimiento y verificación de clientes corporativos.'],
+          ['Layering','Segunda etapa del lavado: múltiples transacciones para dificultar el rastreo del origen.'],
+          ['Pass-through','Fondos que ingresan y egresan el mismo día. Cuenta usada como intermediario de paso.'],
+          ['PEP','Persona Políticamente Expuesta. Riesgo regulatorio especial.'],
+          ['PSP','Proveedor de Servicios de Pago. Categoría regulatoria de GOAT S.A. / Rebit.'],
+          ['REPET','Registro Público de Personas vinculadas a Terrorismo. Administrado por la UIF.'],
+          ['RFI','Request for Information. Requerimiento formal de información al cliente.'],
+          ['ROS','Reporte de Operación Sospechosa. Comunicación obligatoria a la UIF (Art. 21 Ley 25.246).'],
+          ['Same name','Transferencia al propio titular (mismo CUIT) en otra entidad al cerrar la cuenta.'],
+          ['SIROS','Sistema Integral de Reporte de Operaciones Sospechosas. Portal web de la UIF.'],
+          ['Smurfing','Uso de múltiples personas para dividir operaciones grandes en muchas pequeñas.'],
+          ['Structuring','Fraccionamiento deliberado para eludir umbrales de reporte obligatorio.'],
+          ['UIF','Unidad de Información Financiera. Organismo de control AML en Argentina.'],
+        ]})
+      );
+
+      default: return React.createElement('div', null, 'Sección no encontrada.');
+    }
+  }
+
+  var visibleSections = SECTIONS.filter(function(s){
+    if (!search) return true;
+    return s.label.toLowerCase().includes(search.toLowerCase());
+  });
+
+  return (
+    <div style={{ display:'flex', gap:0, minHeight:'calc(100vh - 60px)' }}>
+      {/* Nav lateral */}
+      <div style={{ width:200, flexShrink:0, background:'#F4F6F9', borderRight:'1px solid #E8EEF4', padding:'14px 0', overflowY:'auto' }}>
+        <div style={{ padding:'0 10px 10px', borderBottom:'1px solid #E8EEF4', marginBottom:8 }}>
+          <input
+            value={search}
+            onChange={function(e){ setSearch(e.target.value); }}
+            placeholder="Buscar sección..."
+            style={{ width:'100%', padding:'6px 10px', border:'1px solid #D6E4F0', borderRadius:6, fontSize:12, color:'#2C3E50', background:'white' }}
+          />
+        </div>
+        {visibleSections.map(function(s){
+          var isOn = active === s.id;
+          return (
+            <button key={s.id} className="wiki-nav-item"
+              onClick={function(){ setActive(s.id); setSearch(''); }}
+              style={{ display:'block', width:'100%', textAlign:'left', padding:'7px 16px', border:'none', background: isOn ? '#EBF5FB' : 'transparent', color: isOn ? C.AO : '#555', fontWeight: isOn ? 700 : 400, fontSize:12, cursor:'pointer', borderLeft:'3px solid '+(isOn ? C.AC : 'transparent'), transition:'all 0.12s' }}
+            >
+              <span style={{ marginRight:6 }}>{s.icon}</span>{s.label}
+            </button>
+          );
+        })}
+      </div>
+      {/* Contenido */}
+      <div style={{ flex:1, padding:'28px 32px', overflowY:'auto', maxWidth:860 }}>
+        {renderContent()}
+      </div>
+    </div>
+  );
+}
+
 function UsuariosView(props) {
   var currentUser = props.currentUser;
   var usuariosState = useState([]); var usuarios=usuariosState[0]; var setUsuarios=usuariosState[1];
@@ -5441,7 +6030,7 @@ export default function App() {
 
   var NAV = [
     ['dashboard','🏠','Dashboard'],['legajos','📁','Legajos KYB'],['analisis','📊','Analisis AML'],
-    ['alertas','🚨','Alertas'],['normativa','⚖️','Normativa'],['patrones','🔍','Patrones AML']
+    ['alertas','🚨','Alertas'],['normativa','⚖️','Normativa'],['patrones','🔍','Patrones AML'],['wiki','📚','Wiki']
   ];
   if (currentUser && puedeGestionarUsuarios(currentUser.rol)) {
     NAV.push(['usuarios','👥','Usuarios']);
@@ -5665,6 +6254,7 @@ export default function App() {
         {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos}/> : null}
         {view==='normativa' ? <NormativaView/> : null}
         {view==='patrones' ? <PatronesView/> : null}
+        {view==='wiki' ? <WikiView/> : null}
         {view==='usuarios' && currentUser && puedeGestionarUsuarios(currentUser.rol) ? <UsuariosView currentUser={currentUser}/> : null}
       </div>
     </div>
