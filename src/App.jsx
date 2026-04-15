@@ -79,7 +79,8 @@ function infTbl(thead, rows) { return '<table style="width:100%;border-collapse:
 function infTh(cols) { return '<thead><tr>'+cols.map(function(c){return '<th style="background:#1B2A4A;color:white;padding:6px 10px;text-align:left">'+c+'</th>';}).join('')+'</tr></thead>'; }
 function infTd(row) { return '<tr>'+row.map(function(c){return '<td style="padding:5px 10px;border-bottom:1px solid #eee">'+c+'</td>';}).join('')+'</tr>'; }
 
-function genINF01(legajo, periodos) {
+function genINF01(legajo, periodos, memosList) {
+  memosList = memosList || [];  // defensive: nunca undefined
   var fecha = new Date().toLocaleDateString('es-AR');
   var empresa = legajo.razonSocial || 'N/D';
   var cl = legajo.checklist || {};
@@ -2904,7 +2905,7 @@ function LegajosView(props) {
           </div>
           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
             <button onClick={function(){
-              onReport(genINF01(sel, periodos));
+              onReport(genINF01(sel, periodos, []));
               auditLog(currentUser,'generar_inf01','legajo',sel.id,{razonSocial:sel.razonSocial,cuit:sel.cuit});
             }} style={btnB}>📄 INF-01</button>
             {puedeAprobar(currentUser.rol) && <button onClick={function(){
