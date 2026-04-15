@@ -594,6 +594,7 @@ var PAT_UIF_MAP = {
   'PAT-07': { tip:'T-01', desc:'Patrón de montos exactamente repetidos en múltiples operaciones' },
   'PAT-08': { tip:'T-06', desc:'Actividad transaccional concentrada en horarios atípicos (nocturnos o fines de semana)' },
   'PAT-09': { tip:'T-07', desc:'Uso de la cuenta como intermediario de paso (pass-through): fondos que ingresan y egresan en forma inmediata' },
+  'PAT-10': { tip:'T-02', desc:'Near-threshold structuring: acumulación de 5 o más operaciones por debajo del umbral UIF ($800K) con la misma contraparte' },
   'PAT-11': { tip:'T-08', desc:'Incorporación masiva de nuevas contrapartes en un período reducido, sin correlato operativo aparente' },
   'PAT-12': { tip:'T-09', desc:'Comportamiento transaccional atípico en relación al perfil histórico del cliente' },
 };
@@ -1515,13 +1516,30 @@ function calcMetricas(txns, perfil) {
   var repeatedAmts = Object.entries(amtCount).filter(function(e) { return e[1] >= 3; }).map(function(e) { return { monto:Number(e[0]), count:e[1] }; });
   var cpOutSet = new Set(Object.keys(cpOut));
   var circularCps = Object.keys(cpIn).filter(function(k) { return cpOutSet.has(k); });
+  // PAT-10 — Near-threshold structuring: ops entre $680K–$799.999 agrupadas por contraparte
+  var NT_LOW = 680000, NT_HIGH = 800000;
+  var ntCpIn = {}, ntCpOut = {};
+  ins.forEach(function(t) {
+    if (t.monto >= NT_LOW && t.monto < NT_HIGH) {
+      var k = t.contraparte_cuit || t.contraparte_nombre || 'Desconocido';
+      ntCpIn[k] = (ntCpIn[k]||0) + 1;
+    }
+  });
+  outs.forEach(function(t) {
+    if (t.monto >= NT_LOW && t.monto < NT_HIGH) {
+      var k = t.contraparte_cuit || t.contraparte_nombre || 'Desconocido';
+      ntCpOut[k] = (ntCpOut[k]||0) + 1;
+    }
+  });
+  var ntGroupsIn  = Object.entries(ntCpIn).filter(function(e) { return e[1] >= 5; });
+  var ntGroupsOut = Object.entries(ntCpOut).filter(function(e) { return e[1] >= 5; });
   var dailyMap = {};
   txns.forEach(function(t) { var d=t.fecha||'N/D'; if(!dailyMap[d]) dailyMap[d]={d:d,in:0,out:0}; if(t.tipo==='IN') dailyMap[d].in+=t.monto; else dailyMap[d].out+=t.monto; });
   var dates = Object.keys(dailyMap).sort();
   var dailyVol = dates.map(function(d) { return dailyMap[d]; });
   var withHour = txns.filter(function(t) { return t.hora; });
   var atypical = withHour.filter(function(t) { var h=parseInt((t.hora||'').split(':')[0]); return h < 8 || h >= 20; });
-  return { tIn:tIn, tOut:tOut, tVol:tVol, balanceNeto:tIn-tOut, countIn:ins.length, countOut:outs.length, totalTxns:txns.length, avg:avg, maxMonto:montos[montos.length-1]||0, minMonto:montos[0]||0, cpIn:cpIn, cpOut:cpOut, sortedIn:sortedIn, sortedOut:sortedOut, uniqueCpIn:Object.keys(cpIn).length, uniqueCpOut:Object.keys(cpOut).length, top1In:tIn>0?(sortedIn[0]?sortedIn[0][1]:0)/tIn*100:0, top1Out:tOut>0?(sortedOut[0]?sortedOut[0][1]:0)/tOut*100:0, hhiIn:hhiIn, hhiOut:hhiOut, ratioCpEmbudo:Object.keys(cpIn).length/(Object.keys(cpOut).length||1), ratioIO:tVol>0?tIn/tVol:0.5, ratioVP:perfil&&perfil.facturacionMensual>0?tVol/Number(perfil.facturacionMensual):null, splitDays:splitDays, splitGroupsCount:splitGroups.length, pctRound:txns.length>0?roundCount/txns.length*100:0, pctOneShot:totalUcp>0?oneShotCnt/totalUcp*100:0, repeatedAmts:repeatedAmts, circularCps:circularCps, circularCount:circularCps.length, activeDays:dates.length, opsByDay:txns.length/(dates.length||1), dates:dates, dailyVol:dailyVol, passThrough:tIn>0?tOut/tIn:0, pctAtypicalHour:withHour.length>0?atypical.length/withHour.length*100:null };
+return { tIn:tIn, tOut:tOut, tVol:tVol, balanceNeto:tIn-tOut, countIn:ins.length, countOut:outs.length, totalTxns:txns.length, avg:avg, maxMonto:montos[montos.length-1]||0, minMonto:montos[0]||0, cpIn:cpIn, cpOut:cpOut, sortedIn:sortedIn, sortedOut:sortedOut, uniqueCpIn:Object.keys(cpIn).length, uniqueCpOut:Object.keys(cpOut).length, top1In:tIn>0?(sortedIn[0]?sortedIn[0][1]:0)/tIn*100:0, top1Out:tOut>0?(sortedOut[0]?sortedOut[0][1]:0)/tOut*100:0, hhiIn:hhiIn, hhiOut:hhiOut, ratioCpEmbudo:Object.keys(cpIn).length/(Object.keys(cpOut).length||1), ratioIO:tVol>0?tIn/tVol:0.5, ratioVP:perfil&&perfil.facturacionMensual>0?tVol/Number(perfil.facturacionMensual):null, splitDays:splitDays, splitGroupsCount:splitGroups.length, pctRound:txns.length>0?roundCount/txns.length*100:0, pctOneShot:totalUcp>0?oneShotCnt/totalUcp*100:0, repeatedAmts:repeatedAmts, circularCps:circularCps, circularCount:circularCps.length, activeDays:dates.length, opsByDay:txns.length/(dates.length||1), dates:dates, dailyVol:dailyVol, passThrough:tIn>0?tOut/tIn:0, pctAtypicalHour:withHour.length>0?atypical.length/withHour.length*100:null, ntGroupsIn:ntGroupsIn, ntGroupsOut:ntGroupsOut };
 }
 
 function detectPatrones(m, perfil) {
@@ -1542,8 +1560,19 @@ function detectPatrones(m, perfil) {
   if (m.repeatedAmts.length > 0) add('PAT-07', 'MEDIA', 'Montos exactamente repetidos', m.repeatedAmts.length + ' monto(s) con 3+ ocurrencias.', 'T-01');
   if (m.pctAtypicalHour !== null && m.pctAtypicalHour > 30) add('PAT-08', 'MEDIA', 'Operaciones en horario atipico', m.pctAtypicalHour.toFixed(1) + '% fuera de 08:00-20:00.', 'T-05');
   if (m.passThrough > 0.90 && m.tIn > 0) add('PAT-09', 'ALTA', 'Pass-through — alta rotacion de fondos', 'Cash-out = ' + (m.passThrough*100).toFixed(1) + '% del cash-in.', 'T-04');
-  if (m.ratioIO > 0.95) add('PAT-10', 'MEDIA', 'Unidireccional — solo cash-in', (m.ratioIO*100).toFixed(1) + '% ingresos.', 'T-05');
-  else if (m.ratioIO < 0.05) add('PAT-10', 'ALTA', 'Unidireccional — solo cash-out', ((1-m.ratioIO)*100).toFixed(1) + '% egresos sin ingresos.', 'T-05');
+  // PAT-10 — Near-threshold structuring (contraparte recurrente)
+  if (m.ntGroupsIn && m.ntGroupsIn.length > 0) {
+    m.ntGroupsIn.forEach(function(g) {
+      add('PAT-10', 'ALTA', 'Near-threshold structuring — cash-in',
+        'Contraparte "' + g[0] + '": ' + g[1] + ' ops entre $680K–$799.999 (debajo umbral UIF $800K). Posible evasion de reporte obligatorio.', 'T-02');
+    });
+  }
+  if (m.ntGroupsOut && m.ntGroupsOut.length > 0) {
+    m.ntGroupsOut.forEach(function(g) {
+      add('PAT-10', 'ALTA', 'Near-threshold structuring — cash-out',
+        'Contraparte "' + g[0] + '": ' + g[1] + ' ops entre $680K–$799.999 (debajo umbral UIF $800K). Posible evasion de reporte obligatorio.', 'T-02');
+    });
+  }
   if (m.opsByDay > 50) add('PAT-11', 'ALTA', 'Velocidad operativa anomala', m.opsByDay.toFixed(1) + ' ops/dia (umbral: 50/dia).', 'T-04');
   if (m.uniqueCpIn > 20 && m.uniqueCpOut < 5 && m.tOut > 0) add('PAT-12', 'ALTA', 'Embudo multiple (muchos-a-pocos)', m.uniqueCpIn + ' origenes hacia ' + m.uniqueCpOut + ' destino(s).', 'T-04');
   return sigs;
@@ -4218,7 +4247,7 @@ function AnalisisView(props) {
               if (s.pat==='PAT-07') accionesSugeridas.push({ tipo:'RFI', urgencia:'MEDIA', texto:'Alto ratio pass-through detectado. Solicitar justificación del flujo de fondos: origen, destino final y propósito económico de los fondos que ingresan y salen en períodos cortos.' });
               if (s.pat==='PAT-08') accionesSugeridas.push({ tipo:'RFI', urgencia:'MEDIA', texto:'Proporción significativa de montos exactos/redondos. Solicitar facturas o comprobantes que respalden los montos operados y confirmen transacciones comerciales reales.' });
               if (s.pat==='PAT-09') accionesSugeridas.push({ tipo:'RFI', urgencia:'MEDIA', texto:'Operaciones fuera del horario comercial habitual. Solicitar justificación operativa de las transacciones realizadas en horario atípico.' });
-              if (s.pat==='PAT-10') accionesSugeridas.push({ tipo:'EDD', urgencia:'MEDIA', texto:'Operatoria unidireccional (solo cash-in sin egresos proporcionales). Solicitar documentación que explique el destino de los fondos recibidos y la actividad comercial subyacente.' });
+              if (s.pat==='PAT-10') accionesSugeridas.push({ tipo:'RFI', urgencia:'ALTA', texto:'Near-threshold structuring detectado: operaciones recurrentes entre $680K y $799.999 con la misma contraparte. Solicitar justificación económica de cada operación, documentación respaldatoria y confirmar que no existe fraccionamiento deliberado para eludir el umbral de reporte obligatorio de $800.000 ARS establecido por la UIF.' });
               if (s.pat==='PAT-11') accionesSugeridas.push({ tipo:'EDD', urgencia:'ALTA', texto:'Velocidad operativa anómala detectada. Solicitar justificación operativa, contratos y documentación de respaldo para las transacciones de mayor frecuencia.' });
               if (s.pat==='PAT-12') accionesSugeridas.push({ tipo:'EDD', urgencia:'ALTA', texto:'Inconsistencias entre el perfil de contrapartes y la actividad declarada. Requerir documentación que acredite la naturaleza de las operaciones y la identidad de las partes.' });
             });
@@ -4909,6 +4938,12 @@ function PatronesView() {
       que_sugiere:'Uso de la cuenta como intermediario de paso — la cuenta no acumula fondos propios sino que los recibe y redistribuye inmediatamente, típico de cuentas usadas para mover fondos de terceros.',
     },
     {
+      code:'PAT-10', name:'Near-threshold structuring', tip:'T-02', sev:'ALTA',
+      desc:'Se detectan 5 o más operaciones en el rango $680.000–$799.999 (85%–99,9% del umbral UIF de $800.000 ARS) realizadas con la misma contraparte, en cualquier dirección (IN o OUT). El umbral de $800K es el nivel de reporte obligatorio para PSPs según normativa UIF vigente.',
+      ejemplo:'Una misma empresa le transfiere al cliente $750.000 en 7 oportunidades distintas durante el mes — cada operación por debajo del umbral de $800K, pero acumulando $5.25M con esa contraparte.',
+      que_sugiere:'Structuring deliberado — técnica de mantener cada operación individual por debajo del umbral de reporte obligatorio para evitar la notificación a la UIF. A diferencia del PAT-07 (fraccionamiento clásico), aquí la recurrencia está concentrada en una misma contraparte, lo que sugiere un acuerdo sistemático entre las partes para eludir los controles.',
+    },
+    {
       code:'PAT-11', name:'Nuevas contrapartes masivas', tip:'T-08', sev:'MEDIA',
       desc:'En un período determinado aparece una cantidad desproporcionada de contrapartes nuevas que no habían operado antes con la cuenta. Alerta automática cuando la rotación supera el 60% respecto al período anterior.',
       ejemplo:'En enero el cliente operó con 50 contrapartes habituales. En febrero aparecen 180 contrapartes nuevas que nunca operaron antes — 78% de rotación.',
@@ -4931,7 +4966,7 @@ function PatronesView() {
     <div style={{padding:22, maxWidth:960}}>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:6}}>
         <h2 style={{color:C.AO,fontSize:19,fontWeight:700,margin:0}}>🔍 Patrones AML — Referencia</h2>
-        <span style={{background:C.AO,color:'white',borderRadius:10,padding:'2px 10px',fontSize:11,fontWeight:700}}>11 patrones activos</span>
+        <span style={{background:C.AO,color:'white',borderRadius:10,padding:'2px 10px',fontSize:11,fontWeight:700}}>12 patrones activos</span>
       </div>
       <p style={{fontSize:12,color:'#666',marginBottom:20}}>
         Catálogo completo de patrones de comportamiento transaccional inusual detectados por el sistema.
@@ -5312,7 +5347,7 @@ function WikiView() {
       case 'patrones': return (
         <div>
           <h1 style={H1}>Patrones AML</h1>
-          <p style={PP}>El sistema detecta 11 patrones al cargar un período. Ver "Patrones AML" en el sidebar para el detalle técnico con ejemplos prácticos.</p>
+          <p style={PP}>El sistema detecta 12 patrones al cargar un período. Ver "Patrones AML" en el sidebar para el detalle técnico con ejemplos prácticos.</p>
           <WikiTbl headers={['Código','Nombre','Tip. UIF','Severidad']} rows={[
             ['PAT-01','Montos exactamente repetidos','T-01',<WikiBadge key="p1" type="orange">MEDIA</WikiBadge>],
             ['PAT-02','Montos redondos sistemáticos','T-01',<WikiBadge key="p2" type="orange">MEDIA</WikiBadge>],
@@ -5323,6 +5358,7 @@ function WikiView() {
             ['PAT-07','Fraccionamiento / Structuring','T-02',<WikiBadge key="p7" type="red">ALTA</WikiBadge>],
             ['PAT-08','Horario atípico','T-06',<WikiBadge key="p8" type="orange">MEDIA</WikiBadge>],
             ['PAT-09','Pass-through / Cuenta de paso','T-07',<WikiBadge key="p9" type="red">ALTA</WikiBadge>],
+            ['PAT-10','Near-threshold structuring','T-02',<WikiBadge key="p10" type="red">ALTA</WikiBadge>],
             ['PAT-11','Nuevas contrapartes masivas','T-08',<WikiBadge key="p11" type="orange">MEDIA</WikiBadge>],
             ['PAT-12','Comportamiento atípico histórico','T-09',<WikiBadge key="p12" type="orange">MEDIA</WikiBadge>],
           ]}/>
