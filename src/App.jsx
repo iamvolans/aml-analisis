@@ -1727,17 +1727,18 @@ function ReportModal(props) {
   );
 }
 
+function parseFechaAR(str) {
+  if (!str) return null;
+  var p = str.split('/');
+  return p.length===3 ? new Date(p[2],p[1]-1,p[0]) : null;
+}
+
 function DashboardView(props) {
   var legajos = props.legajos, periodos = props.periodos, setLegajos = props.setLegajos || function(){};
   var dashTabState = useState('operacional'); var dashTab=dashTabState[0]; var setDashTab=dashTabState[1];
 
   // ── DATOS COMUNES ────────────────────────────────────────────────────────────
   var hoy = new Date();
-  function parseFechaAR(str) {
-    if (!str) return null;
-    var p = str.split('/');
-    return p.length===3 ? new Date(p[2],p[1]-1,p[0]) : null;
-  }
   var total = legajos.length;
   var aprobados = legajos.filter(function(l){return l.dictamen==='APROBADO';}).length;
   var cond = legajos.filter(function(l){return l.dictamen==='CONDICIONAL';}).length;
@@ -5444,6 +5445,7 @@ function WikiView() {
     {id:'aml',icon:'📈',label:'Análisis AML'},
     {id:'patrones',icon:'🔍',label:'Patrones AML'},
     {id:'senales',icon:'🚨',label:'Señales y resolución'},
+    {id:'alertas',icon:'🔔',label:'Centro de Alertas'},
     {id:'rfi',icon:'📧',label:'Módulo RFI'},
     {id:'informes',icon:'📄',label:'Informes'},
     {id:'ros',icon:'📋',label:'ROS Borrador'},
@@ -5644,6 +5646,49 @@ function WikiView() {
             ['PAT-12','Comportamiento atípico histórico','T-09',<WikiBadge key="p12" type="orange">MEDIA</WikiBadge>],
           ]}/>
           <WikiBox type="info">La detección de un patrón no implica ilicitud automáticamente. Siempre interpretar en contexto del perfil completo del cliente y su actividad declarada.</WikiBox>
+        </div>
+      );
+
+      case 'alertas': return (
+        <div>
+          <h1 style={H1}>🔔 Centro de Alertas</h1>
+          <p style={PP}>Panel unificado de monitoreo activo. Muestra automáticamente todas las alertas pendientes de toda la cartera sin necesidad de entrar a cada legajo o período.</p>
+          <WikiFlow title="Tres tipos de alertas en un solo panel" nodes={[
+            {label:'🚨 Señales AML',sub:'Patrones detectados activos',color:'#E74C3C'},
+            {label:'📧 RFIs vencidos',sub:'Sin respuesta +7 días',color:'#E67E22'},
+            {label:'⏱ Sin analizar',sub:'Fuera del plazo regulatorio',color:'#F39C12'},
+          ]}/>
+          <h2 style={H2}>Pestaña Señales</h2>
+          <p style={PP}>Muestra todas las señales AML activas (no resueltas) de todos los períodos de toda la cartera, ordenadas por severidad. Las señales se cargan desde las métricas guardadas en Supabase — no hace falta haber abierto Análisis AML previamente.</p>
+          <WikiTbl headers={['Elemento','Descripción']} rows={[
+            ['Código PAT + Badge','Identifica el patrón y su severidad ALTA/MEDIA.'],
+            ['Legajo y período','A qué cliente y qué período pertenece la señal.'],
+            ['Descripción','Detalle técnico del patrón detectado con cifras reales.'],
+            ['Campo de justificación','Texto libre para documentar por qué se resuelve la señal.'],
+            ['Botón ✓ Resolver','Marca la señal como RESUELTA y la elimina del panel inmediatamente.'],
+            ['Botón Ver período →','Navega directamente a Análisis AML con ese legajo y período preseleccionados.'],
+          ]}/>
+          <h2 style={H2}>Cómo resolver una señal desde Alertas</h2>
+          <WikiStepList steps={[
+            ['Ir a la pestaña 🚨 Señales','Todas las señales activas de la cartera aparecen ordenadas por severidad.'],
+            ['Revisar el contexto','Leé la descripción de la señal. Si necesitás más detalle, clic en "Ver período →" para ir al análisis completo.'],
+            ['Escribir la justificación','En el campo de texto bajo la señal, describí brevemente por qué se resuelve (ej: "Cliente presentó contratos con Gadran SRL que justifican los movimientos observados").'],
+            ['Clic en ✓ Resolver','La señal desaparece del panel inmediatamente y queda registrada como RESUELTA en el período con tu nombre y la fecha.'],
+          ]}/>
+          <WikiBox type="tip">La resolución desde Alertas tiene el mismo efecto que resolver desde la pestaña Señales dentro de Análisis AML — el estado se guarda en el período y se refleja en el Dashboard.</WikiBox>
+          <h2 style={H2}>Pestaña RFIs vencidos</h2>
+          <WikiTbl headers={['Estado','Criterio','Acción sugerida']} rows={[
+            ['🔴 Vencido','Más de 7 días desde el envío sin respuesta del cliente','Escalar al Oficial de Cumplimiento. Evaluar cambio de estado del período y posible ROS.'],
+            ['🟡 Próximo a vencer','Entre 5 y 7 días desde el envío','Hacer seguimiento con el cliente. El botón "Ver legajo →" navega al legajo para gestionar el RFI.'],
+          ]}/>
+          <h2 style={H2}>Pestaña Sin analizar</h2>
+          <p style={PP}>Muestra clientes que superaron el plazo regulatorio de análisis sin tener métricas cargadas. El plazo varía según el segmento de riesgo asignado en el KYB.</p>
+          <WikiTbl headers={['Segmento','Plazo máximo sin análisis']} rows={[
+            ['ALTO','30 días corridos desde el alta o último análisis'],
+            ['MEDIO-ALTO','60 días corridos'],
+            ['MEDIO / BAJO','90 días corridos'],
+          ]}/>
+          <WikiBox type="warn">El panel de Alertas se alimenta de las métricas guardadas en Supabase. Si un período fue cargado pero nunca se guardaron las métricas (por ejemplo, si se interrumpió el proceso), las señales no aparecerán hasta cargar el archivo nuevamente.</WikiBox>
         </div>
       );
 
