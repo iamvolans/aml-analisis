@@ -4629,36 +4629,316 @@ function AnalisisView(props) {
 }
 
 function AlertasView(props) {
-  var periodos=props.periodos, legajos=props.legajos;
+  var periodos = props.periodos, legajos = props.legajos;
+  var setPeriodos = props.setPeriodos;
+  var onNavAnalisis = props.onNavAnalisis; // function(leg, per)
+  var currentUser = props.currentUser || {rol:'analista', nombre:'Analista'};
+
+  var tabState = useState('senales'); var tab=tabState[0]; var setTab=tabState[1];
+  var justState = useState({}); var justMap=justState[0]; var setJustMap=justState[1]; // {key: texto}
+
+  var hoy = new Date(); hoy.setHours(0,0,0,0);
+
+  // ── 1. SEÑALES ACTIVAS — desde metricas guardadas (no requiere txns en memoria) ──
   var allSigs = [];
   periodos.forEach(function(p) {
-    if (p.txns && p.txns.length) {
-      var leg = legajos.find(function(l){return l.id===p.legajoId;});
-      var m = calcMetricas(p.txns, leg);
-      if (m) {
-        var sigs = detectPatrones(m, leg);
-        sigs.forEach(function(s){ allSigs.push(Object.assign({}, s, {legajoNom:(leg&&leg.razonSocial)||'N/D', periodo:p.nombre})); });
+    var leg = legajos.find(function(l){return l.id===p.legajoId;});
+    // Usar metricas guardadas si existen, sino calcular si hay txns
+    var m = p.metricas || (p.txns && p.txns.length ? calcMetricas(p.txns, leg) : null);
+    if (!m) return;
+    var sigs = detectPatrones(m, leg);
+    sigs.forEach(function(s) {
+      var res = (p.sigsResolucion||{})[s.pat];
+      if (res && res.estado === 'RESUELTA') return; // ya resuelta
+      allSigs.push(Object.assign({}, s, {
+        legajoNom: (leg&&leg.razonSocial)||'N/D',
+        legajoId:  p.legajoId,
+        periodoId: p.id,
+        periodoNom: p.nombre,
+        leg: leg,
+        per: p,
+      }));
+    });
+  });
+  allSigs.sort(function(a,b){
+    var sevOrd = {ALTA:0, MEDIA:1, BAJA:2};
+    return (sevOrd[a.sev]||2) - (sevOrd[b.sev]||2);
+  });
+
+  // ── 2. RFIs VENCIDOS ─────────────────────────────────────────────────────────
+  var todosRfis = [];
+  legajos.forEach(function(l){
+    try {
+      var r = JSON.parse(localStorage.getItem('rfi_'+l.id)||'[]');
+      r.forEach(function(rfi){ todosRfis.push(Object.assign({},rfi,{legajoNombre:l.razonSocial,legajoId:l.id,leg:l})); });
+    } catch(e){}
+  });
+  var rfisVencidos = todosRfis.filter(function(r){
+    if (r.estado==='CERRADO'||r.estado==='RESPONDIDO') return false;
+    var f = parseFechaAR(r.createdAt);
+    return f && Math.floor((hoy-f)/86400000) > 7;
+  });
+  var rfisProximos = todosRfis.filter(function(r){
+    if (r.estado==='CERRADO'||r.estado==='RESPONDIDO') return false;
+    var f = parseFechaAR(r.createdAt);
+    if (!f) return false;
+    var dias = Math.floor((hoy-f)/86400000);
+    return dias >= 5 && dias <= 7;
+  });
+
+  // ── 3. PERÍODOS SIN ANALIZAR ─────────────────────────────────────────────────
+  var sinAnalizar = [];
+  legajos.forEach(function(l){
+    var lPers = periodos.filter(function(p){return p.legajoId===l.id;});
+    if (lPers.length === 0) {
+      // Nunca tuvo período
+      var alta = parseFechaAR(l.createdAt);
+      var diasSinAnalisis = alta ? Math.floor((hoy-alta)/86400000) : 0;
+      var limDias = l.segmento==='ALTO'?30:l.segmento==='MEDIO-ALTO'?60:90;
+      if (diasSinAnalisis > limDias) {
+        sinAnalizar.push({legajoNom:l.razonSocial, legajoId:l.id, leg:l, dias:diasSinAnalisis, limite:limDias, tipo:'sin_periodos'});
+      }
+    } else {
+      // Tiene períodos — verificar si el más reciente tiene métricas
+      var conMetricas = lPers.filter(function(p){return p.metricas||p.txns&&p.txns.length;});
+      if (conMetricas.length === 0) {
+        sinAnalizar.push({legajoNom:l.razonSocial, legajoId:l.id, leg:l, dias:0, limite:0, tipo:'sin_metricas'});
       }
     }
   });
-  allSigs.sort(function(a,b){return sevColor(a.sev)===C.ROJO&&sevColor(b.sev)!==C.ROJO?-1:1;});
+
+  // ── Resolver señal directamente ───────────────────────────────────────────────
+  function resolverSenal(sig, justificacion) {
+    var updatedPers = periodos.map(function(p){
+      if (p.id !== sig.periodoId) return p;
+      var newRes = Object.assign({}, p.sigsResolucion||{});
+      newRes[sig.pat] = {
+        estado: 'RESUELTA',
+        explicacion: justificacion || 'Resuelta desde panel de Alertas.',
+        aprobadoPor: currentUser.nombre || 'Analista',
+        aprobadoAt: todayStr(),
+      };
+      return Object.assign({}, p, {sigsResolucion: newRes});
+    });
+    setPeriodos(updatedPers);
+    try { localStorage.setItem('periodos', JSON.stringify(updatedPers)); } catch(e){}
+    // Limpiar input de justificación
+    var newMap = Object.assign({}, justMap);
+    delete newMap[sig.periodoId+'_'+sig.pat];
+    setJustMap(newMap);
+  }
+
+  var TAB_COUNTS = [
+    ['senales',   '🚨 Señales', allSigs.length],
+    ['rfis',      '📧 RFIs vencidos', rfisVencidos.length + rfisProximos.length],
+    ['analisis',  '⏱ Sin analizar', sinAnalizar.length],
+  ];
+  var totalAlertas = allSigs.length + rfisVencidos.length + sinAnalizar.length;
+
   return (
     <div style={{padding:22}}>
-      <h2 style={{color:C.AO,margin:'0 0 16px',fontSize:19,fontWeight:700}}>Centro de Alertas AML ({allSigs.length})</h2>
-      {allSigs.length === 0 ? <Card title=""><p style={{color:'#888',textAlign:'center',padding:'20px 0'}}>Sin alertas. Carga periodos CSV para generar senales.</p></Card> :
-      allSigs.map(function(s,i){return(
-        <div key={i} style={{background:'white',border:'1px solid #E8EEF4',borderRadius:6,padding:'10px 16px',marginBottom:8,borderLeft:'4px solid '+sevColor(s.sev),boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-            <div style={{display:'flex',gap:8,alignItems:'center'}}>
-              <span style={{fontWeight:700,color:C.AO,fontSize:13}}>{s.pat}</span>
-              <SevBadge sev={s.sev}/>
-              <span style={{fontSize:12,color:'#888'}}>{s.legajoNom} — {s.periodo}</span>
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
+        <h2 style={{color:C.AO,margin:0,fontSize:19,fontWeight:700}}>Centro de Alertas</h2>
+        <span style={{background:totalAlertas>0?C.ROJO:'#27AE60',color:'white',borderRadius:10,padding:'2px 10px',fontSize:11,fontWeight:700}}>
+          {totalAlertas > 0 ? totalAlertas+' activas' : '✓ Sin alertas'}
+        </span>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:'flex',gap:4,marginBottom:16,background:'#F4F6F9',borderRadius:8,padding:4}}>
+        {TAB_COUNTS.map(function(t){
+          var on = tab===t[0];
+          var hasCnt = t[2]>0;
+          return (
+            <button key={t[0]} onClick={function(){setTab(t[0]);}}
+              style={{flex:1,padding:'7px 8px',border:'none',borderRadius:6,cursor:'pointer',
+                background:on?'white':'transparent',
+                fontWeight:on?700:400,fontSize:12,color:on?C.AO:'#666',
+                boxShadow:on?'0 1px 4px rgba(0,0,0,0.08)':'none',transition:'all 0.12s'}}>
+              {t[1]}
+              {hasCnt && <span style={{marginLeft:6,background:on?(t[0]==='senales'?C.ROJO:C.NARANJA):'#ddd',color:'white',borderRadius:10,padding:'0 6px',fontSize:11,fontWeight:700}}>{t[2]}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── TAB: SEÑALES ── */}
+      {tab==='senales' && (
+        <div>
+          {allSigs.length===0 ? (
+            <div style={{background:'#F8FBFE',border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:'#aaa'}}>
+              <div style={{fontSize:32,marginBottom:8}}>✅</div>
+              <div style={{fontSize:14,fontWeight:600,color:'#888'}}>Sin señales activas</div>
+              <div style={{fontSize:12,marginTop:4}}>Todos los períodos analizados están sin alertas pendientes.</div>
             </div>
-          </div>
-          <div style={{fontWeight:700,fontSize:13,color:C.AO}}>{s.titulo}</div>
-          <div style={{fontSize:12,color:'#555',marginTop:2}}>{s.desc}</div>
+          ) : allSigs.map(function(s,i){
+            var key = s.periodoId+'_'+s.pat;
+            var bord = s.sev==='ALTA'?C.ROJO:s.sev==='MEDIA'?C.NARANJA:C.AMARILLO;
+            var bg   = s.sev==='ALTA'?'#FFF8F8':s.sev==='MEDIA'?'#FFFBF5':'#FFFDE7';
+            return (
+              <div key={i} style={{background:bg,border:'1px solid #E8EEF4',borderRadius:8,padding:'12px 16px',marginBottom:10,borderLeft:'4px solid '+bord}}>
+                {/* Cabecera */}
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                  <div>
+                    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:4}}>
+                      <span style={{fontWeight:700,color:C.AM,fontSize:12,fontFamily:'monospace'}}>{s.pat}</span>
+                      <SevBadge sev={s.sev}/>
+                      <span style={{fontSize:12,color:'#888',fontWeight:500}}>{s.legajoNom}</span>
+                      <span style={{fontSize:11,color:'#aaa'}}>· {s.periodoNom}</span>
+                    </div>
+                    <div style={{fontWeight:700,fontSize:13,color:C.AO}}>{s.titulo}</div>
+                    <div style={{fontSize:12,color:'#555',marginTop:2,lineHeight:1.5}}>{s.desc}</div>
+                  </div>
+                  {/* Botón ir al período */}
+                  {onNavAnalisis && s.leg && s.per && (
+                    <button onClick={function(){onNavAnalisis(s.leg, s.per);}}
+                      style={{flexShrink:0,background:'white',border:'1px solid '+C.AC,color:C.AC,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
+                      Ver período →
+                    </button>
+                  )}
+                </div>
+
+                {/* Cierre directo */}
+                <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid rgba(0,0,0,0.06)'}}>
+                  <div style={{fontSize:11,color:'#888',marginBottom:5,fontWeight:600}}>JUSTIFICACIÓN PARA RESOLVER</div>
+                  <div style={{display:'flex',gap:8}}>
+                    <input
+                      value={justMap[key]||''}
+                      onChange={function(e){var m=Object.assign({},justMap); m[key]=e.target.value; setJustMap(m);}}
+                      placeholder="Describí brevemente por qué se resuelve esta señal..."
+                      style={{flex:1,padding:'6px 10px',border:'1px solid #ddd',borderRadius:6,fontSize:12,color:'#333'}}
+                    />
+                    <button
+                      onClick={function(){resolverSenal(s, justMap[key]);}}
+                      style={{background:C.VERDE,color:'white',border:'none',borderRadius:6,padding:'6px 14px',cursor:'pointer',fontSize:12,fontWeight:700,whiteSpace:'nowrap'}}>
+                      ✓ Resolver
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      );})}
+      )}
+
+      {/* ── TAB: RFIs ── */}
+      {tab==='rfis' && (
+        <div>
+          {rfisVencidos.length===0 && rfisProximos.length===0 ? (
+            <div style={{background:'#F8FBFE',border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:'#aaa'}}>
+              <div style={{fontSize:32,marginBottom:8}}>📧</div>
+              <div style={{fontSize:14,fontWeight:600,color:'#888'}}>Sin RFIs vencidos o próximos a vencer</div>
+            </div>
+          ) : (
+            <div>
+              {rfisVencidos.length > 0 && (
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:C.ROJO,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:8}}>
+                    🔴 Vencidos sin respuesta ({rfisVencidos.length})
+                  </div>
+                  {rfisVencidos.map(function(r,i){
+                    var f = parseFechaAR(r.createdAt);
+                    var dias = f ? Math.floor((hoy-f)/86400000) : '?';
+                    return (
+                      <div key={i} style={{background:'#FFF8F8',border:'1px solid #F5C6CB',borderLeft:'4px solid '+C.ROJO,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                          <div>
+                            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
+                              <span style={{fontFamily:'monospace',fontSize:12,fontWeight:700,color:C.AM}}>{r.refNum||'RFI'}</span>
+                              <span style={{background:'#FDEDEC',color:C.ROJO,borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>{dias} días sin respuesta</span>
+                            </div>
+                            <div style={{fontSize:13,fontWeight:600,color:C.AO}}>{r.legajoNombre}</div>
+                            <div style={{fontSize:12,color:'#666',marginTop:2}}>{r.asunto||'Sin asunto'}</div>
+                          </div>
+                          {onNavAnalisis && r.leg && (
+                            <button onClick={function(){
+                              var perAsoc = periodos.find(function(p){return p.legajoId===r.legajoId;});
+                              onNavAnalisis(r.leg, perAsoc||null);
+                            }} style={{flexShrink:0,background:'white',border:'1px solid '+C.AC,color:C.AC,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
+                              Ver legajo →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {rfisProximos.length > 0 && (
+                <div style={{marginTop: rfisVencidos.length>0?14:0}}>
+                  <div style={{fontSize:11,fontWeight:700,color:C.NARANJA,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:8}}>
+                    🟡 Vencen en los próximos 2 días ({rfisProximos.length})
+                  </div>
+                  {rfisProximos.map(function(r,i){
+                    var f = parseFechaAR(r.createdAt);
+                    var dias = f ? Math.floor((hoy-f)/86400000) : '?';
+                    return (
+                      <div key={i} style={{background:'#FFFBF5',border:'1px solid #F5CBA7',borderLeft:'4px solid '+C.NARANJA,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                          <div>
+                            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
+                              <span style={{fontFamily:'monospace',fontSize:12,fontWeight:700,color:C.AM}}>{r.refNum||'RFI'}</span>
+                              <span style={{background:'#FEF3E8',color:C.NARANJA,borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>día {dias} de 7</span>
+                            </div>
+                            <div style={{fontSize:13,fontWeight:600,color:C.AO}}>{r.legajoNombre}</div>
+                            <div style={{fontSize:12,color:'#666',marginTop:2}}>{r.asunto||'Sin asunto'}</div>
+                          </div>
+                          {onNavAnalisis && r.leg && (
+                            <button onClick={function(){
+                              var perAsoc = periodos.find(function(p){return p.legajoId===r.legajoId;});
+                              onNavAnalisis(r.leg, perAsoc||null);
+                            }} style={{flexShrink:0,background:'white',border:'1px solid '+C.AC,color:C.AC,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
+                              Ver legajo →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB: SIN ANALIZAR ── */}
+      {tab==='analisis' && (
+        <div>
+          {sinAnalizar.length===0 ? (
+            <div style={{background:'#F8FBFE',border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:'#aaa'}}>
+              <div style={{fontSize:32,marginBottom:8}}>⏱</div>
+              <div style={{fontSize:14,fontWeight:600,color:'#888'}}>Todos los clientes tienen análisis reciente</div>
+            </div>
+          ) : sinAnalizar.map(function(item,i){
+            return (
+              <div key={i} style={{background:'#FFFBF5',border:'1px solid #F5CBA7',borderLeft:'4px solid '+C.NARANJA,borderRadius:8,padding:'12px 16px',marginBottom:8}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:C.AO,marginBottom:3}}>{item.legajoNom}</div>
+                    {item.tipo==='sin_periodos' ? (
+                      <div style={{fontSize:12,color:'#666'}}>
+                        Sin períodos cargados · {item.dias} días desde el alta · Límite para segmento {item.leg&&item.leg.segmento||'N/D'}: {item.limite} días
+                      </div>
+                    ) : (
+                      <div style={{fontSize:12,color:'#666'}}>
+                        Tiene períodos pero sin métricas calculadas — cargar archivo XLS para analizar
+                      </div>
+                    )}
+                  </div>
+                  {onNavAnalisis && item.leg && (
+                    <button onClick={function(){onNavAnalisis(item.leg, null);}}
+                      style={{flexShrink:0,background:C.AC,color:'white',border:'none',borderRadius:6,padding:'6px 12px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
+                      Cargar período →
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -6195,7 +6475,7 @@ export default function App() {
         {view==='dashboard' ? <DashboardView legajos={legajos} periodos={periodos} setLegajos={setLegajos}/> : null}
         {view==='legajos' ? <LegajosView legajos={legajos} setLegajos={setLegajos} periodos={periodos} setPeriodos={setPeriodos} onAnalizar={handleAnalizar} onReport={function(html){setReportHTML(html);}} onSync={syncToCloud} currentUser={currentUser}/> : null}
         {view==='analisis' ? <AnalisisView legajos={legajos} periodos={periodos} setPeriodos={setPeriodos} onReport={function(html){setReportHTML(html);}} initLegajo={analTarget.leg} initPeriodo={analTarget.per} onSync={syncToCloud} currentUser={currentUser}/> : null}
-        {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos}/> : null}
+        {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos} setPeriodos={setPeriodos} onNavAnalisis={handleAnalizar} currentUser={currentUser}/> : null}
         {view==='normativa' ? <NormativaView/> : null}
         {view==='patrones' ? <PatronesView/> : null}
         {view==='wiki' ? <WikiView/> : null}
