@@ -1848,20 +1848,49 @@ function DashboardView(props) {
     return tiempos.length > 0 ? (tiempos.reduce(function(a,b){return a+b;},0)/tiempos.length).toFixed(1) : null;
   })();
 
-  // Evolución mensual: volumen IN/OUT agregado por período
+  // Evolución mensual: volumen IN/OUT agregado por mes — Opción A
+  // Extrae mes/año del nombre del período y agrupa toda la cartera
+  var MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  function extraerMesAnio(nombre) {
+    if (!nombre) return null;
+    // Intentar extraer "Mes YYYY" del nombre — ej: "Enero 2026 — 1/10", "cravero_enero_2026..."
+    var mesIdx = -1, anio = null;
+    var n = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    MESES_ES.forEach(function(m, i) {
+      if (n.includes(m.toLowerCase())) { mesIdx = i; }
+    });
+    var matchAnio = nombre.match(/20\d{2}/);
+    if (matchAnio) anio = parseInt(matchAnio[0]);
+    // Fallback: intentar extraer de formato MM/YYYY o YYYY-MM
+    if (mesIdx === -1) {
+      var m2 = nombre.match(/(\d{1,2})[\/\-](\d{4})/);
+      if (m2) { mesIdx = parseInt(m2[1])-1; anio = parseInt(m2[2]); }
+    }
+    if (mesIdx === -1 || !anio) return null;
+    return { mesIdx: mesIdx, anio: anio, key: anio*100 + mesIdx, label: MESES_CORTO[mesIdx]+' '+anio };
+  }
+
   var evolucionMap = {};
   periodos.forEach(function(p){
     var leg = legajos.find(function(l){return l.id===p.legajoId;});
     var m = getMetricasPeriodo(p, leg);
     if (!m) return;
-    var key = p.nombre || p.createdAt || 'N/D';
-    if (!evolucionMap[key]) evolucionMap[key] = {nombre:key, tIn:0, tOut:0, sigs:0};
-    evolucionMap[key].tIn += m.tIn;
-    evolucionMap[key].tOut += m.tOut;
+    // Solo sumar si hay datos reales en ambas direcciones
+    var extracted = extraerMesAnio(p.nombre);
+    var key = extracted ? extracted.key : ('z_'+p.nombre); // z_ para que queden al final si no parsea
+    var label = extracted ? extracted.label : (p.nombre||'N/D').slice(0,12);
+    if (!evolucionMap[key]) evolucionMap[key] = {nombre:label, tIn:0, tOut:0, sigs:0, sortKey: extracted ? extracted.key : 999999};
+    evolucionMap[key].tIn  += (m.tIn  || 0);
+    evolucionMap[key].tOut += (m.tOut || 0);
     var sigsActivas = getSigsActivas(detectPatrones(m, leg), p.sigsResolucion);
     evolucionMap[key].sigs += sigsActivas.filter(function(s){return s.sev==='ALTA';}).length;
   });
-  var evolucionData = Object.values(evolucionMap).slice(-8);
+  // Ordenar cronológicamente por mes/año y tomar los últimos 8
+  var evolucionData = Object.values(evolucionMap)
+    .sort(function(a,b){ return a.sortKey - b.sortKey; })
+    .slice(-8);
 
   // Ranking de clientes por riesgo acumulado
   var rankingRiesgo = legajos.map(function(l){
@@ -2083,18 +2112,25 @@ function DashboardView(props) {
           </Card>
 
           {/* Evolución mensual */}
-          <Card title="📈 Evolución mensual — Volumen IN/OUT agregado">
-            {evolucionData.length === 0 ? <div style={{textAlign:'center',color:'#aaa',padding:'40px 0',fontSize:13}}>Sin períodos con transacciones cargadas.</div> : (
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={evolucionData} margin={{top:5,right:10,left:0,bottom:30}}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
-                  <XAxis dataKey="nombre" tick={{fontSize:9}} angle={-30} textAnchor="end"/>
-                  <YAxis tickFormatter={function(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v;}} tick={{fontSize:9}}/>
-                  <Tooltip formatter={function(v){return fmtM(v);}}/>
-                  <Line type="monotone" dataKey="tIn" stroke={C.VERDE} strokeWidth={2} dot={{r:4}} name="Vol IN"/>
-                  <Line type="monotone" dataKey="tOut" stroke={C.ROJO} strokeWidth={2} dot={{r:4}} name="Vol OUT"/>
-                </LineChart>
-              </ResponsiveContainer>
+          <Card title="📈 Evolución mensual — Volumen IN/OUT agregado (cartera completa)">
+            {evolucionData.length === 0 ? <div style={{textAlign:'center',color:'#aaa',padding:'40px 0',fontSize:13}}>Sin períodos con métricas cargadas.</div> : (
+              <div>
+                <div style={{display:'flex',gap:16,marginBottom:8,fontSize:11,color:'#666'}}>
+                  <span><span style={{display:'inline-block',width:12,height:3,background:C.VERDE,borderRadius:2,marginRight:4,verticalAlign:'middle'}}></span>Volumen IN</span>
+                  <span><span style={{display:'inline-block',width:12,height:3,background:C.ROJO,borderRadius:2,marginRight:4,verticalAlign:'middle'}}></span>Volumen OUT</span>
+                  <span style={{marginLeft:'auto',color:'#aaa'}}>{evolucionData.length} mes{evolucionData.length!==1?'es':''} · {legajos.filter(function(l){return l.estadoCuenta!=='CERRADA';}).length} clientes activos</span>
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={evolucionData} margin={{top:5,right:10,left:0,bottom:30}}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+                    <XAxis dataKey="nombre" tick={{fontSize:10}} angle={-25} textAnchor="end" interval={0}/>
+                    <YAxis tickFormatter={function(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v;}} tick={{fontSize:10}} width={45}/>
+                    <Tooltip formatter={function(v,name){return [fmtM(v), name==='tIn'?'Vol IN':'Vol OUT'];}} labelStyle={{fontWeight:700,color:C.AO}}/>
+                    <Line type="monotone" dataKey="tIn" stroke={C.VERDE} strokeWidth={2.5} dot={{r:4,fill:C.VERDE}} activeDot={{r:6}} name="tIn"/>
+                    <Line type="monotone" dataKey="tOut" stroke={C.ROJO} strokeWidth={2.5} dot={{r:4,fill:C.ROJO}} activeDot={{r:6}} name="tOut"/>
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </Card>
         </div>
