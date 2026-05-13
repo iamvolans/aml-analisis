@@ -1126,7 +1126,7 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
       if (proxyResp.status === 429 || proxyErrMsg.indexOf('rate limit') >= 0 || proxyErrMsg.indexOf('tokens per minute') >= 0) {
         throw new Error('RATE_LIMIT:' + proxyErrMsg);
       }
-      console.warn('[Rebit IA] Proxy falló (' + proxyResp.status + '), usando llamada directa...');
+      throw new Error(proxyErrMsg);
     } catch(proxyErr) {
       if (proxyErr.message && proxyErr.message.indexOf('RATE_LIMIT:') === 0) throw proxyErr;
       console.warn('[Rebit IA] Proxy no alcanzable:', proxyErr.message);
