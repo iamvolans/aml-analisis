@@ -1134,8 +1134,8 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
 
     // 2. Fallback: llamada directa
     var apiKey = provider === 'openai'
-      ? localStorage.getItem('openai_api_key') || ''
-      : localStorage.getItem('anthropic_api_key') || '';
+      ? (_KEYS.openai || '')
+      : (_KEYS.anthropic || '');
     if (!apiKey) throw new Error('Sin API key configurada. Verificá las variables de entorno en Vercel.');
 
     try {
@@ -1208,7 +1208,7 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
 
 // ─── GPT EXTRACTION ───────────────────────────────────────────────────────────
 async function extractWithGPT(contentBlocks) {
-  var apiKey = localStorage.getItem('openai_api_key') || '';
+  var apiKey = _KEYS.openai || '';
   if (!apiKey) throw new Error('API key de OpenAI no configurada. Ingresá tu key en ⚙️ Configuración.');
 
   var hoy = new Date().toLocaleDateString('es-AR');
@@ -1604,6 +1604,15 @@ function calcScoring(m, sigs) {
 // ─── CLOUD SYNC via Vercel API proxy ─────────────────────────────────────────
 var APP_TOKEN = '123aml2026'; // mismo que contraseña de login
 
+// Almacén de API keys en memoria — se populan desde Vercel env vars al iniciar.
+// Nunca se guardan en localStorage.
+var _KEYS = { anthropic: '', openai: '', provider: 'claude' };
+function setModuleKeys(anthropic, openai, provider) {
+  if (anthropic) _KEYS.anthropic = anthropic;
+  if (openai)    _KEYS.openai    = openai;
+  if (provider)  _KEYS.provider  = provider;
+}
+
 async function serverSave(data) {
   try {
     // Limpiar txns antes de enviar — se guardan por separado en /api/sync?action=txns
@@ -1653,20 +1662,25 @@ async function serverSaveKV(k, v) {
   } catch(e) { console.warn('[Sync] Error guardando KV:', e.message); }
 }
 
+async function serverLoadKV(k) {
+  try {
+    var r = await fetch('/api/sync?action=kv&k=' + encodeURIComponent(k), {
+      headers: { 'x-app-token': APP_TOKEN }
+    });
+    if (!r.ok) return null;
+    var d = await r.json();
+    return (d && d.v !== undefined) ? d.v : null;
+  } catch(e) { return null; }
+}
+
 async function serverLoad() {
   try {
     var r = await fetch('/api/sync', { headers: { 'x-app-token': APP_TOKEN } });
     if (!r.ok) return null;
     var data = await r.json();
     if (!data || data.error) return null;
-    // Fusionar períodos de Supabase con txns del localStorage local
-    var localTxnsMap = {};
-    try {
-      var localPers = JSON.parse(localStorage.getItem('periodos')) || [];
-      localPers.forEach(function(p){ if (p.txns && p.txns.length) localTxnsMap[p.id] = p.txns; });
-    } catch(e){}
     var periodos = (data.periodos||[]).map(function(p){
-      return Object.assign({}, p, { txns: localTxnsMap[p.id] || p.txns || [] });
+      return Object.assign({}, p, { txns: [] });
     });
     return { legajos: data.legajos || [], periodos: periodos };
   } catch(e) { console.warn('[Sync] Error cargando:', e.message); return null; }
@@ -1818,7 +1832,7 @@ function DashboardView(props) {
   var todosRfis = [];
   legajos.forEach(function(l){
     try {
-      var r = JSON.parse(localStorage.getItem('rfi_'+l.id)||'[]');
+      var r = [];
       r.forEach(function(rfi){ todosRfis.push(Object.assign({},rfi,{legajoNombre:l.razonSocial,legajoId:l.id})); });
     } catch(e){}
   });
@@ -1952,7 +1966,7 @@ function DashboardView(props) {
                         var val = document.getElementById('ext_'+n.l.id).value.trim();
                         if (!val) return;
                         var updated = Object.assign({},n.l,{ultimoAnalisisExterno:val});
-                        props.setLegajos(function(prev){var arr=prev.map(function(x){return x.id===n.l.id?updated:x;});try{localStorage.setItem('legajos',JSON.stringify(arr));}catch(e){}return arr;});
+                        props.setLegajos(function(prev){var arr=prev.map(function(x){return x.id===n.l.id?updated:x;});return arr;});
                       }} style={{background:'#27AE60',color:'white',border:'none',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>✓</button>
                     </div>
                   </td>
@@ -2247,7 +2261,7 @@ function LegajosView(props) {
     var kybSc = {}; KYB_FACTORS.forEach(function(f){kybSc[f]=2;});
     return { id:uid(), razonSocial:'', cuit:'', actividad:'', facturacionMensual:0, limiteDiario:0, limiteMensual:0, segmento:'MEDIO', dictamen:'CONDICIONAL', beneficiarioFinal:'', domicilio:'', checklist:cl, kybScores:kybSc, redFlags:[], observaciones:[], docsIA:[], createdAt:todayStr(), estadoCuenta:'EN_ONBOARDING', estadoCuentaUpdatedAt:todayStr(), estadoHistorial:[{estado:'EN_ONBOARDING', fecha:todayStr(), hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}), analista:'Sistema'}] };
   }
-  function saveList(updated) { setLegajos(updated); try { localStorage.setItem('legajos', JSON.stringify(updated)); } catch(e){} onSync(updated, periodos); }
+  function saveList(updated) { setLegajos(updated); onSync(updated, periodos); }
   function handleSave() {
     console.log('[Rebit] Guardando legajo:', form.razonSocial, form.cuit, form);
     if (!form.razonSocial && !form.cuit) {
@@ -2326,7 +2340,7 @@ function LegajosView(props) {
       setUploadMsg('Analizando ' + files.length + ' documentos con IA — procesando en lotes, puede tardar unos minutos...');
 
       // Llamar al proveedor seleccionado
-      var provider = localStorage.getItem('ai_provider') || 'claude';
+      var provider = _KEYS.provider || 'claude';
       var extracted;
       if (provider === 'openai') {
         // Para GPT pasamos los content blocks SIN el prompt (lo agrega extractWithGPT)
@@ -2968,7 +2982,7 @@ function LegajosView(props) {
           {rosOpen && sel && (function(){
             var lp = periodos.filter(function(p){return p.legajoId===sel.id;});
             var rfisLegajo = [];
-            try { rfisLegajo = JSON.parse(localStorage.getItem('rfi_'+sel.id)||'[]'); } catch(e){}
+            // rfisLegajo se carga desde Supabase KV via useEffect en AnalisisView
             return (
               <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
                 <div style={{background:'white',borderRadius:8,padding:28,width:560,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
@@ -3103,9 +3117,9 @@ function LegajosView(props) {
                       var lastM2 = lastP&&lastP.txns?calcMetricas(lastP.txns,sel):null;
                       var lastSigs2 = lastM2?detectPatrones(lastM2,sel):[];
                       var lastSc2 = lastM2?calcScoring(lastM2,lastSigs2):null;
-                      var apiKey2 = localStorage.getItem('anthropic_api_key')||'';
-                      var oaiKey2 = localStorage.getItem('openai_api_key')||'';
-                      var provider2 = localStorage.getItem('ai_provider')||'claude';
+                      var apiKey2 = _KEYS.anthropic || '';
+                      var oaiKey2 = _KEYS.openai || '';
+                      var provider2 = _KEYS.provider || 'claude';
                       if (!apiKey2 && !oaiKey2) { alert('Configurá una API key en ⚙️'); setCierreLoading(false); return; }
                       var contexto = 'Empresa: '+sel.razonSocial+' | CUIT: '+(sel.cuit||'N/D')+' | Actividad: '+(sel.actividad||'N/D')+' | Segmento: '+(sel.segmento||'MEDIO')+' | Dictamen: '+(sel.dictamen||'N/D')+' | Red Flags KYB: '+(safeArr(sel.redFlags).join('; ')||'ninguna')+' | Períodos AML analizados: '+lPers2.length+(lastM2?' | Último período ('+( lastP.nombre)+'): Vol IN '+fmtM(lastM2.tIn)+', Vol OUT '+fmtM(lastM2.tOut)+', '+lastSigs2.length+' señales ('+lastSigs2.filter(function(s){return s.sev==='ALTA';}).length+' ALTA), Score AML '+(lastSc2?lastSc2.promedio.toFixed(2)+'/5 '+lastSc2.clasificacion:'N/D'):'');
                       var promptCierre = 'Sos analista senior Compliance de GOAT S.A./Rebit (PSP argentino). Redactá un análisis ejecutivo profesional de máximo 3 párrafos fundamentando el cierre de cuenta del siguiente cliente. Sé objetivo, técnico y basate estrictamente en los datos. Cita los indicadores concretos. Evaluá si corresponde considerar un ROS ante UIF. No uses bullets, escribe en prosa.\n\nDatos del cliente:\n'+contexto+'\n\nMotivo declarado de cierre: '+cierreTipo+'\nDetalle: '+(cierreMot||'Sin detalle adicional.');
@@ -3206,7 +3220,6 @@ function LegajosView(props) {
     var newLegs = legajos.filter(function(l){return selected.indexOf(l.id)<0;});
     var newPers = periodos.filter(function(p){return selected.indexOf(p.legajoId)<0;});
     saveList(newLegs); setPeriodos(newPers);
-    try{localStorage.setItem('periodos',JSON.stringify(newPers));}catch(e){}
     setSelected([]); setSelectMode(false);
   }
   function duplicateLegajo(l) {
@@ -3228,7 +3241,6 @@ function LegajosView(props) {
     var newLegs = legajos.filter(function(x){return x.id!==l.id;});
     var newPers = periodos.filter(function(p){return p.legajoId!==l.id;});
     saveList(newLegs); setPeriodos(newPers);
-    try{localStorage.setItem('periodos',JSON.stringify(newPers));}catch(e){}
   }
 
   return (
@@ -3478,51 +3490,34 @@ function AnalisisView(props) {
   var sigs = m ? detectPatrones(m, selLegajo) : [];
   var sc = m ? (selPeriodo && selPeriodo.scoring ? selPeriodo.scoring : calcScoring(m, sigs)) : null;
 
-  // MEMOS
+  // MEMOS — siempre desde Supabase KV
   var memoKey = selLegajo && selPeriodo ? 'memo_' + selLegajo.id + '_' + selPeriodo.id : null;
-  var memoState = useState(function(){
-    if (!memoKey) return [];
-    try { return JSON.parse(localStorage.getItem(memoKey)) || []; } catch(e) { return []; }
-  });
-  var memos = memoState[0]; var setMemos = memoState[1];
+  var memoState = useState([]); var memos = memoState[0]; var setMemos = memoState[1];
   var newMemoState = useState(''); var newMemo = newMemoState[0]; var setNewMemo = newMemoState[1];
   var analista = useState('Analista'); var analistaVal = analista[0]; var setAnalista = analista[1];
 
-  // Reload memos when period changes
   useEffect(function() {
     if (!memoKey) { setMemos([]); return; }
-    try { setMemos(JSON.parse(localStorage.getItem(memoKey)) || []); } catch(e) { setMemos([]); }
+    setMemos([]); // limpiar mientras carga
+    serverLoadKV(memoKey).then(function(v) {
+      setMemos(v && Array.isArray(v) ? v : []);
+    });
   }, [memoKey]);
 
-  // RFIs — historial de intercambios por legajo (no por período, para tener visión global)
+  // RFIs — siempre desde Supabase KV
   var rfiKey = selLegajo ? 'rfi_' + selLegajo.id : null;
-  var rfiState = useState(function(){
-    if (!rfiKey) return [];
-    try { return JSON.parse(localStorage.getItem(rfiKey)) || []; } catch(e) { return []; }
-  });
-  var rfis = rfiState[0]; var setRfis = rfiState[1];
+  var rfiState = useState([]); var rfis = rfiState[0]; var setRfis = rfiState[1];
 
   useEffect(function() {
     if (!rfiKey) { setRfis([]); return; }
-    // Cargar de localStorage primero
-    var local = null;
-    try { local = JSON.parse(localStorage.getItem(rfiKey)); } catch(e){}
-    if (local && local.length) { setRfis(local); return; }
-    // Si no hay en localStorage, intentar cargar de Supabase KV
-    fetch('/api/sync?action=kv&k=' + encodeURIComponent(rfiKey), {
-      headers: { 'x-app-token': APP_TOKEN }
-    }).then(function(r){ return r.json(); }).then(function(d){
-      if (d && d.v && d.v.length) {
-        setRfis(d.v);
-        try { localStorage.setItem(rfiKey, JSON.stringify(d.v)); } catch(e){}
-      }
-    }).catch(function(){});
+    setRfis([]);
+    serverLoadKV(rfiKey).then(function(v) {
+      setRfis(v && Array.isArray(v) ? v : []);
+    });
   }, [rfiKey]);
 
   function saveRfis(updated) {
     setRfis(updated);
-    try { if (rfiKey) localStorage.setItem(rfiKey, JSON.stringify(updated)); } catch(e) {}
-    // Sincronizar RFIs a Supabase KV
     if (rfiKey) serverSaveKV(rfiKey, updated);
     if (onSync) onSync();
   }
@@ -3553,7 +3548,6 @@ function AnalisisView(props) {
           return p.id === selPeriodo.id ? updatedPer : p;
         });
         props.setPeriodos(updated);
-        try { localStorage.setItem('periodos', JSON.stringify(updated)); } catch(e){}
         setSelPeriodo(updatedPer);
         // Guardar métricas en Supabase si las acabamos de calcular
         if (!selPeriodo.metricas) {
@@ -3657,15 +3651,12 @@ function AnalisisView(props) {
     var entry = { id:uid(), texto:newMemo.trim(), autor:analistaVal||'Analista', fecha:todayStr(), hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) };
     var updated = memos.concat([entry]);
     setMemos(updated);
-    try { localStorage.setItem(memoKey, JSON.stringify(updated)); } catch(e) {}
-    // Sincronizar memos a Supabase KV
     serverSaveKV(memoKey, updated);
     setNewMemo('');
   }
   function deleteMemo(id) {
     var updated = memos.filter(function(m){return m.id!==id;});
     setMemos(updated);
-    try { localStorage.setItem(memoKey, JSON.stringify(updated)); } catch(e) {}
     serverSaveKV(memoKey, updated);
   }
 
@@ -3675,9 +3666,7 @@ function AnalisisView(props) {
   // Auto-carga de txns desde Supabase cuando se selecciona un período sin txns en memoria
   function handleSelectPeriodo(p) {
     if (!p) { setSelPeriodo(null); return; }
-    // Si ya tiene txns en memoria, usar directo
     if (p.txns && p.txns.length > 0) { setSelPeriodo(p); return; }
-    // Si tiene métricas pero no txns — cargar desde Supabase en background
     setSelPeriodo(p);
     if (p.metricas) {
       setTxnsLoading(true);
@@ -3685,11 +3674,8 @@ function AnalisisView(props) {
         if (txns && txns.length > 0) {
           var updatedP = Object.assign({}, p, { txns: txns });
           setSelPeriodo(updatedP);
-          // Actualizar en el estado global de periodos
           var updatedAll = periodos.map(function(x){ return x.id===p.id ? updatedP : x; });
           props.setPeriodos(updatedAll);
-          try { localStorage.setItem('periodos', JSON.stringify(updatedAll)); } catch(e) {}
-        }
         setTxnsLoading(false);
       }).catch(function(){ setTxnsLoading(false); });
     }
@@ -3742,7 +3728,6 @@ function AnalisisView(props) {
     };
     var updated = periodos.concat([p]);
     setPeriodos(updated);
-    try { localStorage.setItem('periodos', JSON.stringify(updated)); } catch(e){}
     onSync(legajos, updated);
     serverSaveTxns(p.id, csv.txns);
     setSelPeriodo(p); setCsv(null); setPeriodoNombre('');
@@ -3791,7 +3776,6 @@ function AnalisisView(props) {
                   if (!window.confirm('Eliminar período "' + selPeriodo.nombre + '"?\n\nEsto elimina el período y sus transacciones. No se puede deshacer.')) return;
                   var updatedPers = periodos.filter(function(p){return p.id!==selPeriodo.id;});
                   props.setPeriodos(updatedPers);
-                  try{localStorage.setItem('periodos',JSON.stringify(updatedPers));}catch(e){}
                   fetch('/api/sync?action=txns', {
                     method:'POST',
                     headers:{'Content-Type':'application/json','x-app-token':APP_TOKEN},
@@ -4041,7 +4025,6 @@ function AnalisisView(props) {
                     var updatedPer = Object.assign({},selPeriodo,{estadoPeriodo:nuevoEstado});
                     var updatedPers = periodos.map(function(p){return p.id===selPeriodo.id?updatedPer:p;});
                     props.setPeriodos(updatedPers);
-                    try{localStorage.setItem('periodos',JSON.stringify(updatedPers));}catch(ex){}
                     setSelPeriodo(updatedPer);
                     onSync(legajos, updatedPers);
                     auditLog(currentUser,'cambiar_estado_periodo','periodo',selPeriodo.id,{razonSocial:selLegajo.razonSocial,periodo:selPeriodo.nombre,estado:nuevoEstado});
@@ -4099,7 +4082,6 @@ function AnalisisView(props) {
               var updatedPer = Object.assign({}, selPeriodo, {sigsResolucion: nuevaSigsRes});
               var updatedPers = periodos.map(function(p){return p.id===selPeriodo.id?updatedPer:p;});
               props.setPeriodos(updatedPers);
-              try{localStorage.setItem('periodos',JSON.stringify(updatedPers));}catch(ex){}
               setSelPeriodo(updatedPer);
               onSync(legajos, updatedPers);
             }
@@ -4389,9 +4371,7 @@ function AnalisisView(props) {
                       var entry = { id:uid(), texto:texto, autor:analistaVal||'Sistema — Memo Compliance', fecha:fecha, hora:hora, tipo:'compliance' };
                       var memoKey2 = 'memos_'+( selPeriodo&&selPeriodo.id||'x');
                       var updated = memos.concat([entry]);
-                      setMemos(updated);
-                      try{localStorage.setItem(memoKey2,JSON.stringify(updated));}catch(e){}
-                    }}
+                      setMemos(updated);                    }}
                     style={{background:'#2471A3',color:'white',border:'none',borderRadius:4,padding:'9px 18px',cursor:'pointer',fontWeight:700,fontSize:12}}
                   >
                     📋 Generar memo de cumplimiento
@@ -4706,7 +4686,7 @@ function AlertasView(props) {
   var todosRfis = [];
   legajos.forEach(function(l){
     try {
-      var r = JSON.parse(localStorage.getItem('rfi_'+l.id)||'[]');
+      var r = [];
       r.forEach(function(rfi){ todosRfis.push(Object.assign({},rfi,{legajoNombre:l.razonSocial,legajoId:l.id,leg:l})); });
     } catch(e){}
   });
@@ -4758,7 +4738,6 @@ function AlertasView(props) {
       return Object.assign({}, p, {sigsResolucion: newRes});
     });
     setPeriodos(updatedPers);
-    try { localStorage.setItem('periodos', JSON.stringify(updatedPers)); } catch(e){}
     // Limpiar input de justificación
     var newMap = Object.assign({}, justMap);
     delete newMap[sig.periodoId+'_'+sig.pat];
@@ -5123,7 +5102,6 @@ function LoginScreen(props) {
     try {
       var res = await serverLogin(email.trim(), pass);
       if (res.ok && res.usuario) {
-        try { localStorage.setItem('rebit_usuario', JSON.stringify(res.usuario)); } catch(e){}
         props.onLogin(res.usuario);
       } else {
         setErr(res.error || 'Email o contraseña incorrectos.');
@@ -6104,9 +6082,8 @@ function UsuariosView(props) {
 }
 
 export default function App() {
-  var authState = useState(function(){
-    try { return JSON.parse(localStorage.getItem('rebit_usuario')); } catch(e){ return null; }
-  });
+  // Sesión: solo en memoria — login requerido en cada apertura
+  var authState = useState(null);
   var currentUser=authState[0]; var setCurrentUser=authState[1];
   var isAuth = !!currentUser;
   var legState = useState([]); var legajos=legState[0]; var setLegajos=legState[1];
@@ -6115,12 +6092,10 @@ export default function App() {
   var viewState = useState('dashboard'); var view=viewState[0]; var setView=viewState[1];
   var repState = useState(null); var reportHTML=repState[0]; var setReportHTML=repState[1];
   var analState = useState({leg:null,per:null}); var analTarget=analState[0]; var setAnalTarget=analState[1];
-  var apiKeyState = useState(function(){ return localStorage.getItem('anthropic_api_key')||''; });
-  var apiKey=apiKeyState[0]; var setApiKey=apiKeyState[1];
-  var oaiKeyState = useState(function(){ return localStorage.getItem('openai_api_key')||''; });
-  var oaiKey=oaiKeyState[0]; var setOaiKey=oaiKeyState[1];
-  var providerState = useState(function(){ return localStorage.getItem('ai_provider')||'claude'; });
-  var provider=providerState[0]; var setProvider=providerState[1];
+  // API keys: se cargan del servidor (variables de entorno Vercel) — no de localStorage
+  var apiKeyState = useState(''); var apiKey=apiKeyState[0]; var setApiKey=apiKeyState[1];
+  var oaiKeyState = useState(''); var oaiKey=oaiKeyState[0]; var setOaiKey=oaiKeyState[1];
+  var providerState = useState('claude'); var provider=providerState[0]; var setProvider=providerState[1];
   var showKeyState = useState(false); var showKey=showKeyState[0]; var setShowKey=showKeyState[1];
   var showOaiKeyState = useState(false); var showOaiKey=showOaiKeyState[0]; var setShowOaiKey=showOaiKeyState[1];
   var configOpenState = useState(false); var configOpen=configOpenState[0]; var setConfigOpen=configOpenState[1];
@@ -6138,131 +6113,88 @@ export default function App() {
   }
 
   useEffect(function() {
-    // 1. Cargar localStorage inmediatamente (respuesta instantánea)
-    var localLegs = null, localPers = null;
-    try { localLegs = JSON.parse(localStorage.getItem('legajos')); } catch(e){}
-    try { localPers = JSON.parse(localStorage.getItem('periodos')); } catch(e){}
-    if (localLegs) setLegajos(localLegs);
-    if (localPers) setPeriodos(localPers);
     setSyncStatus('loading');
 
-    // 2. Config del servidor (API keys centralizadas)
+    // 1. Config del servidor — API keys desde variables de entorno Vercel
     fetchServerConfig().then(function(cfg) {
       if (cfg) {
-        if (cfg.anthropicKey) { setApiKey(cfg.anthropicKey); try{localStorage.setItem('anthropic_api_key', cfg.anthropicKey);}catch(e){} }
-        if (cfg.openaiKey) { setOaiKey(cfg.openaiKey); try{localStorage.setItem('openai_api_key', cfg.openaiKey);}catch(e){} }
-        if (cfg.defaultProvider) { setProvider(cfg.defaultProvider); try{localStorage.setItem('ai_provider', cfg.defaultProvider);}catch(e){} }
+        if (cfg.anthropicKey) { setApiKey(cfg.anthropicKey); setModuleKeys(cfg.anthropicKey, null, null); }
+        if (cfg.openaiKey) { setOaiKey(cfg.openaiKey); setModuleKeys(null, cfg.openaiKey, null); }
+        if (cfg.defaultProvider) { setProvider(cfg.defaultProvider); setModuleKeys(null, null, cfg.defaultProvider); }
       }
     }).catch(function(){});
 
-    // 3. Sincronizar desde Supabase (fuente de verdad)
+    // 2. Cargar todo desde Supabase (única fuente de verdad)
     serverLoad().then(function(cloudData) {
       if (cloudData && cloudData.legajos !== undefined) {
         var cloudLegs = cloudData.legajos || [];
         var cloudPers = cloudData.periodos || [];
 
-        // Fusionar con txns del localStorage (si existen en este dispositivo)
-        var localTxnsMap = {};
-        try {
-          var lp = JSON.parse(localStorage.getItem('periodos')) || [];
-          lp.forEach(function(p){ if (p.txns && p.txns.length) localTxnsMap[p.id] = p.txns; });
-        } catch(e){}
-
-        // Aplicar txns locales a los períodos de Supabase
-        var mergedPers = cloudPers.map(function(p) {
-          var txns = localTxnsMap[p.id] || [];
-          // Si tiene txns locales y no tiene métricas, calcular ahora
-          if (txns.length > 0 && !p.metricas) {
-            var leg = cloudLegs.find(function(l){ return l.id === p.legajoId; });
-            var m = calcMetricas(txns, leg);
-            var sigs = m ? detectPatrones(m, leg) : [];
-            var sc = m ? calcScoring(m, sigs) : null;
-            return Object.assign({}, p, { txns:txns, metricas:m||null, scoring:sc||null, estadoPeriodo:p.estadoPeriodo||'EN_REVISION', sigsResolucion:p.sigsResolucion||{} });
-          }
-          return Object.assign({}, p, { txns: txns });
-        });
-
         setLegajos(cloudLegs);
-        setPeriodos(mergedPers);
-        try { localStorage.setItem('legajos', JSON.stringify(cloudLegs)); } catch(e){}
-        try { localStorage.setItem('periodos', JSON.stringify(mergedPers)); } catch(e){}
+        setPeriodos(cloudPers);
         setSyncStatus('ok');
         setLoading(false);
 
-        // ── MIGRACIÓN EN SEGUNDO PLANO ────────────────────────────────────────
-        // Para períodos sin métricas Y sin txns locales: cargar txns desde Supabase,
-        // calcular métricas y guardarlas — solo ocurre una vez hasta que todos
-        // los períodos tengan sus métricas guardadas en Supabase.
-        var sinMetricas = mergedPers.filter(function(p){ return !p.metricas; });
+        // ── Migración en background: períodos sin métricas → cargar txns y calcular ──
+        var sinMetricas = cloudPers.filter(function(p){ return !p.metricas; });
         if (sinMetricas.length > 0) {
-          console.log('[Rebit] Migrando métricas de', sinMetricas.length, 'período(s) en segundo plano...');
           setSyncStatus('saving');
           (function migrarEnBackground() {
-            var allPers = mergedPers.slice(); // copia de trabajo
-            var legs = cloudLegs;
+            var allPers = cloudPers.slice();
             var pendiente = sinMetricas.slice();
             var procesados = 0;
-
             function procesarSiguiente() {
               if (pendiente.length === 0) {
-                // Todos procesados — guardar en Supabase y actualizar estado
-                setLegajos(legs);
+                setLegajos(cloudLegs);
                 setPeriodos(allPers);
-                try { localStorage.setItem('periodos', JSON.stringify(allPers)); } catch(e){}
-                serverSave({ legajos: legs, periodos: allPers })
-                  .then(function(){ setSyncStatus('ok'); console.log('[Rebit] Migración completa —', procesados, 'períodos actualizados.'); })
+                serverSave({ legajos: cloudLegs, periodos: allPers })
+                  .then(function(){ setSyncStatus('ok'); })
                   .catch(function(){ setSyncStatus('ok'); });
                 return;
               }
               var p = pendiente.shift();
               serverLoadTxns(p.id).then(function(txns) {
                 if (txns && txns.length > 0) {
-                  var leg = legs.find(function(l){ return l.id === p.legajoId; });
+                  var leg = cloudLegs.find(function(l){ return l.id === p.legajoId; });
                   var m = calcMetricas(txns, leg);
                   var sigs = m ? detectPatrones(m, leg) : [];
                   var sc = m ? calcScoring(m, sigs) : null;
                   var updatedP = Object.assign({}, p, {
-                    txns: txns,
-                    metricas: m || null,
-                    scoring: sc || null,
-                    estadoPeriodo: p.estadoPeriodo || 'EN_REVISION',
-                    sigsResolucion: p.sigsResolucion || {}
+                    txns: txns, metricas: m||null, scoring: sc||null,
+                    estadoPeriodo: p.estadoPeriodo||'EN_REVISION',
+                    sigsResolucion: p.sigsResolucion||{}
                   });
                   var idx = allPers.findIndex(function(x){ return x.id === p.id; });
                   if (idx >= 0) allPers[idx] = updatedP;
                   procesados++;
-                  // Actualizar el estado de forma incremental para que el dashboard
-                  // se vaya poblando período a período sin esperar a que terminen todos
                   setPeriodos(allPers.slice());
-                  try { localStorage.setItem('periodos', JSON.stringify(allPers)); } catch(e){}
                 }
-                // Procesar el siguiente con un pequeño delay para no saturar la API
                 setTimeout(procesarSiguiente, 300);
-              }).catch(function(){
-                setTimeout(procesarSiguiente, 300);
-              });
+              }).catch(function(){ setTimeout(procesarSiguiente, 300); });
             }
             procesarSiguiente();
           })();
         }
 
       } else {
-        setSyncStatus('idle');
+        // Supabase no disponible — mostrar aviso pero dejar la app usable
+        setSyncStatus('error');
         setLoading(false);
       }
     }).catch(function() {
-      setSyncStatus('idle');
+      setSyncStatus('error');
       setLoading(false);
     });
 
-    if (!localStorage.getItem('anthropic_api_key') && !localStorage.getItem('openai_api_key')) {
-      fetchServerConfig().then(function(cfg){ if(!cfg || (!cfg.anthropicKey && !cfg.openaiKey)) setConfigOpen(true); });
-    }
+    // Verificar si hay API keys configuradas en servidor
+    fetchServerConfig().then(function(cfg){
+      if (!cfg || (!cfg.anthropicKey && !cfg.openaiKey)) setConfigOpen(true);
+    }).catch(function(){});
   }, []);
 
-  function saveApiKey(val) { var t=val.trim(); setApiKey(t); try{localStorage.setItem('anthropic_api_key',t);}catch(e){} }
-  function saveOaiKey(val) { var t=val.trim(); setOaiKey(t); try{localStorage.setItem('openai_api_key',t);}catch(e){} }
-  function saveProvider(val) { setProvider(val); try{localStorage.setItem('ai_provider',val);}catch(e){} }
+  function saveApiKey(val) { var t=val.trim(); setApiKey(t); setModuleKeys(t, null, null); }
+  function saveOaiKey(val) { var t=val.trim(); setOaiKey(t); setModuleKeys(null, t, null); }
+  function saveProvider(val) { setProvider(val); setModuleKeys(null, null, val); }
 
   function syncToCloud(legs, pers, deletedLegajoIds, deletedPeriodoIds) {
     setSyncStatus('saving');
@@ -6324,8 +6256,6 @@ export default function App() {
         }
         setLegajos(newLegs);
         setPeriodos(newPers);
-        try { localStorage.setItem('legajos', JSON.stringify(newLegs)); } catch(err){}
-        try { localStorage.setItem('periodos', JSON.stringify(newPers)); } catch(err){}
         syncToCloud(newLegs, newPers);
       } catch(err) { alert('Error al leer el archivo: ' + err.message); }
     };
@@ -6419,7 +6349,7 @@ export default function App() {
           </div>
 
           <div style={{background:'#F8FBFE',border:'1px solid #D6E4F0',borderRadius:4,padding:'10px 12px',fontSize:11,color:'#555',lineHeight:1.6}}>
-            🔒 Las keys se guardan solo en tu browser (localStorage). Nunca se envían a ningún servidor externo.<br/>
+            🔒 Las keys se cargan desde las variables de entorno del servidor (Vercel). Nunca se almacenan en el browser.<br/>
             💡 Podés configurar ambas keys y cambiar de proveedor en cualquier momento.
           </div>
 
@@ -6442,37 +6372,6 @@ export default function App() {
               <button onClick={function(){syncToCloud(legajos,periodos);}} style={{marginTop:8,width:'100%',background:'#F0F7FF',border:'1px solid #AED6F1',color:C.AM,borderRadius:4,padding:'7px 0',cursor:'pointer',fontSize:12,fontWeight:600}}>
                 🔄 Sincronizar ahora ({legajos.length} legajos, {periodos.length} periodos)
               </button>
-
-              {/* Migración de txns — para períodos subidos antes de Supabase */}
-              <button
-                onClick={async function(){
-                  var localPers = [];
-                  try { localPers = JSON.parse(localStorage.getItem('periodos')) || []; } catch(e){}
-                  var conTxns = localPers.filter(function(p){ return p.txns && p.txns.length > 0; });
-                  if (!conTxns.length) { alert('No hay transacciones en localStorage para migrar.'); return; }
-                  if (!window.confirm('Migrar transacciones de ' + conTxns.length + ' período(s) a Supabase?\n\nEsto puede tardar unos minutos según el volumen de datos.')) return;
-                  setSyncStatus('saving');
-                  var ok = 0; var err = 0;
-                  for (var i = 0; i < conTxns.length; i++) {
-                    var p = conTxns[i];
-                    try {
-                      var r = await fetch('/api/sync?action=txns', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
-                        body: JSON.stringify({ periodo_id: p.id, txns: p.txns })
-                      });
-                      var res = await r.json();
-                      if (res.ok) ok++; else err++;
-                    } catch(e) { err++; }
-                  }
-                  setSyncStatus(err === 0 ? 'ok' : 'error');
-                  alert('Migración completada:\n✅ ' + ok + ' período(s) migrados correctamente\n' + (err > 0 ? '❌ ' + err + ' error(es)' : ''));
-                }}
-                style={{marginTop:6,width:'100%',background:'#FEF9E7',border:'1px solid #F39C12',color:'#E67E22',borderRadius:4,padding:'7px 0',cursor:'pointer',fontSize:12,fontWeight:600}}
-              >
-                📦 Migrar transacciones históricas a Supabase ({(function(){ try{ return (JSON.parse(localStorage.getItem('periodos'))||[]).filter(function(p){return p.txns&&p.txns.length>0;}).length; }catch(e){return 0;} })()} períodos con txns en este dispositivo)
-              </button>
-              <div style={{fontSize:10,color:'#aaa',marginTop:4}}>Ejecutar una vez desde el dispositivo que tiene los datos originales para que otros dispositivos puedan acceder a las transacciones.</div>
             </div>
           </div>
 
@@ -6549,10 +6448,20 @@ export default function App() {
           <span style={{color:syncStatus==='ok'?'rgba(39,174,96,0.6)':syncStatus==='error'?'rgba(231,76,60,0.6)':syncStatus==='saving'?'rgba(241,196,15,0.6)':'rgba(255,255,255,0.2)'}}>
             {syncStatus==='ok'?'☁ Supabase ✓':syncStatus==='saving'?'☁ guardando...':syncStatus==='loading'?'☁ cargando...':syncStatus==='error'?'☁ sync ⚠':'☁ —'}<br/>
           </span>
-          <button onClick={function(){if(window.confirm('¿Cerrar sesión?')){try{localStorage.removeItem('rebit_usuario');}catch(e){}setCurrentUser(null);}}} style={{background:'none',border:'none',color:'rgba(255,255,255,0.25)',cursor:'pointer',fontSize:9,padding:0,marginTop:4,textDecoration:'underline'}}>Cerrar sesión</button>
+          <button onClick={function(){if(window.confirm('¿Cerrar sesión?')){setCurrentUser(null);}}} style={{background:'none',border:'none',color:'rgba(255,255,255,0.25)',cursor:'pointer',fontSize:9,padding:0,marginTop:4,textDecoration:'underline'}}>Cerrar sesión</button>
         </div>
       </div>
       <div style={{flex:1,overflowY:'auto',maxHeight:'100vh'}}>
+        {syncStatus==='error' && (
+          <div style={{background:'#FEF3E8',borderBottom:'1px solid #F0B27A',padding:'8px 20px',display:'flex',alignItems:'center',gap:10,fontSize:12}}>
+            <span style={{fontSize:16}}>⚠</span>
+            <span style={{color:'#B7770D',fontWeight:600}}>Sin conexión a Supabase</span>
+            <span style={{color:'#555'}}>— Los datos que ves están en memoria. Los cambios se guardarán cuando se restaure la conexión.</span>
+            <button onClick={function(){setSyncStatus('loading');serverLoad().then(function(d){if(d){setLegajos(d.legajos||[]);setPeriodos(d.periodos||[]);setSyncStatus('ok');}else{setSyncStatus('error');}});}} style={{marginLeft:'auto',background:'white',border:'1px solid #F0B27A',color:'#E67E22',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:600}}>
+              Reintentar
+            </button>
+          </div>
+        )}
         {view==='dashboard' ? <DashboardView legajos={legajos} periodos={periodos} setLegajos={setLegajos}/> : null}
         {view==='legajos' ? <LegajosView legajos={legajos} setLegajos={setLegajos} periodos={periodos} setPeriodos={setPeriodos} onAnalizar={handleAnalizar} onReport={function(html){setReportHTML(html);}} onSync={syncToCloud} currentUser={currentUser}/> : null}
         {view==='analisis' ? <AnalisisView legajos={legajos} periodos={periodos} setPeriodos={setPeriodos} onReport={function(html){setReportHTML(html);}} initLegajo={analTarget.leg} initPeriodo={analTarget.per} onSync={syncToCloud} currentUser={currentUser}/> : null}
