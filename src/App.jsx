@@ -3,13 +3,20 @@ import { useState, useEffect, useRef } from "react";
 import { BarChart, Bar, LineChart, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
 
-var C = { AO:'#1B2A4A', AM:'#2C4A7C', AC:'#3B6DAA', CEL:'#D6E4F0', VERDE:'#27AE60', AMARILLO:'#F39C12', NARANJA:'#E67E22', ROJO:'#E74C3C' };
+var C = { AO:'#1B2A4A', AM:'#2C4A7C', AC:'#3B6DAA', CEL:'#D6E4F0', VERDE:'#00E676', AMARILLO:'#FFB830', NARANJA:'#FF8C00', ROJO:'#FF4455' };
+var T = {
+  BG:  '#0D1520', BG2: '#111D2E', BG3: '#162035', BG4: '#1A2940',
+  BORDER: '#1E3050', BORDER2: '#253A5E', BORDER3: '#2E4870',
+  TEXT: '#E2EAF4', TEXT2: '#8BA3C0', TEXT3: '#4A6A8A', TEXT4: '#2D4A6A',
+  GREEN: '#00E676', CYAN: '#00D4FF', AMBER: '#FFB830', RED: '#FF4455',
+  MONO: "'JetBrains Mono','Fira Code','Consolas',monospace"
+};
 var ESTADOS_CUENTA = [
-  { id:'EN_ONBOARDING',   label:'En Onboarding',              color:'#7F8C8D', bg:'#F2F3F4', desc:'Legajo en proceso, cuenta no habilitada' },
-  { id:'ACTIVA',          label:'Activa',                     color:'#27AE60', bg:'#EBF9F0', desc:'Cuenta habilitada y operando' },
-  { id:'ACTIVA_REFORZADO',label:'Activa — Monitoreo Reforzado',color:'#E67E22', bg:'#FEF9E7', desc:'Operando con alertas activas' },
-  { id:'SUSPENDIDA',      label:'Suspendida',                 color:'#F39C12', bg:'#FDFBD5', desc:'Operación pausada temporalmente' },
-  { id:'CERRADA',         label:'Cerrada',                    color:'#E74C3C', bg:'#FDEDEC', desc:'Desvinculada — cuenta inactiva' },
+  { id:'EN_ONBOARDING',   label:'En Onboarding',              color:'#8BA3C0', bg:'rgba(139,163,192,0.1)', desc:'Legajo en proceso, cuenta no habilitada' },
+  { id:'ACTIVA',          label:'Activa',                     color:'#00E676', bg:'rgba(0,230,118,0.1)',   desc:'Cuenta habilitada y operando' },
+  { id:'ACTIVA_REFORZADO',label:'Activa — Monitoreo Reforzado',color:'#FF8C00', bg:'rgba(255,140,0,0.1)',  desc:'Operando con alertas activas' },
+  { id:'SUSPENDIDA',      label:'Suspendida',                 color:'#FFB830', bg:'rgba(255,184,48,0.1)', desc:'Operación pausada temporalmente' },
+  { id:'CERRADA',         label:'Cerrada',                    color:'#FF4455', bg:'rgba(255,68,85,0.1)',   desc:'Desvinculada — cuenta inactiva' },
 ];
 function getEstado(id) { return ESTADOS_CUENTA.find(function(e){return e.id===id;}) || ESTADOS_CUENTA[0]; }
 var CHECKLIST_ITEMS = ['Estatuto / Contrato social','Inscripcion registral (IGJ/INAES)','Constancia CUIT/AFIP','Acta de directorio vigente','Poder / Autorizacion firmante','DNI / Pasaporte firmante','Declaracion beneficiario final (>10%)','Estados contables (3 ejercicios)','Declaracion patrimonial DDJJ','Comprobante domicilio fiscal','Comprobante domicilio comercial','Certificado actividad / habilitacion','DDJJ AML (PEP/SO/UBO)','Constancia IVA / Monotributo','Referencias bancarias / comerciales'];
@@ -27,8 +34,8 @@ function fmtM(v) {
   return s + '$' + a.toLocaleString('es-AR');
 }
 function safeArr(v) { return Array.isArray(v) ? v : []; }
-function segColor(s) { return s==='BAJO' ? C.VERDE : s==='MEDIO' ? C.AMARILLO : s==='MEDIO-ALTO' ? C.NARANJA : C.ROJO; }
-function sevColor(s) { return (s==='ALTA'||s==='CRITICA') ? C.ROJO : s==='MEDIA' ? C.NARANJA : C.AMARILLO; }
+function segColor(s) { return s==='BAJO' ? T.GREEN : s==='MEDIO' ? T.AMBER : s==='MEDIO-ALTO' ? '#FF8C00' : T.RED; }
+function sevColor(s) { return (s==='ALTA'||s==='CRITICA') ? T.RED : s==='MEDIA' ? '#FF8C00' : T.AMBER; }
 
 function fileToBase64(file) {
   return new Promise(function(res, rej) {
@@ -1717,9 +1724,9 @@ async function fetchServerConfig() {
 // UI
 function Card(props) {
   return (
-    <div style={{background:'white',border:'1px solid #E8EEF4',borderRadius:6,marginBottom:14,overflow:'hidden',boxShadow:'0 1px 3px rgba(0,0,0,0.07)'}}>
-      {props.title ? <div style={{background:C.AO,color:'white',padding:'9px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <span style={{fontWeight:700,fontSize:13}}>{props.title}</span>
+    <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:4,marginBottom:14,overflow:'hidden'}}>
+      {props.title ? <div style={{background:T.BG3,borderBottom:'1px solid '+T.BORDER,padding:'9px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <span style={{fontWeight:600,fontSize:12,color:T.TEXT2,letterSpacing:'1px',textTransform:'uppercase'}}>{props.title}</span>
         {props.actions ? props.actions : null}
       </div> : null}
       <div style={{padding:16}}>{props.children}</div>
@@ -1728,10 +1735,11 @@ function Card(props) {
 }
 function Pill(props) {
   if (!props.v) return null;
-  var col = props.v==='APROBADO'||props.v==='BAJO' ? C.VERDE : props.v==='CONDICIONAL'||props.v==='MEDIO' ? C.AMARILLO : props.v==='MEDIO-ALTO' ? C.NARANJA : C.ROJO;
-  return <span style={{display:'inline-block',padding:'2px 10px',borderRadius:10,background:col,color:'white',fontWeight:700,fontSize:11}}>{props.v}</span>;
+  var col = props.v==='APROBADO'||props.v==='BAJO' ? T.GREEN : props.v==='CONDICIONAL'||props.v==='MEDIO' ? T.AMBER : props.v==='MEDIO-ALTO' ? T.AMBER : T.RED;
+  var bg = props.v==='APROBADO'||props.v==='BAJO' ? 'rgba(0,230,118,0.12)' : props.v==='CONDICIONAL'||props.v==='MEDIO' ? 'rgba(255,184,48,0.12)' : props.v==='MEDIO-ALTO' ? 'rgba(255,140,0,0.12)' : 'rgba(255,68,85,0.12)';
+  return <span style={{display:'inline-block',padding:'2px 8px',borderRadius:2,background:bg,color:col,fontWeight:600,fontSize:10,letterSpacing:'0.5px'}}>{props.v}</span>;
 }
-function Badge(props) { return <span style={{display:'inline-block',padding:'2px 10px',borderRadius:12,background:props.col||C.AM,color:'white',fontWeight:700,fontSize:11}}>{props.label}</span>; }
+function Badge(props) { return <span style={{display:'inline-block',padding:'2px 8px',borderRadius:2,background:'rgba(59,109,170,0.2)',color:T.CYAN,fontWeight:600,fontSize:10,letterSpacing:'0.5px'}}>{props.label}</span>; }
 function SevBadge(props) { return <Badge label={props.sev} col={sevColor(props.sev)}/>; }
 
 function ReportModal(props) {
@@ -1749,14 +1757,14 @@ function ReportModal(props) {
   }, [props.html]);
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:2000,display:'flex',flexDirection:'column'}}>
-      <div style={{background:C.AO,color:'white',padding:'10px 18px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+      <div style={{background:T.BG3,color:T.TEXT,padding:'10px 18px',borderBottom:'1px solid '+T.BORDER,display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <span style={{fontWeight:700,fontSize:14}}>Vista previa del informe</span>
         <div style={{display:'flex',gap:8}}>
-          {ready ? <button onClick={function(){iRef.current.contentWindow.print();}} style={{background:C.VERDE,color:'white',border:'none',borderRadius:4,padding:'6px 16px',cursor:'pointer',fontWeight:700}}>🖨 Imprimir / PDF</button> : null}
-          <button onClick={props.onClose} style={{background:C.ROJO,color:'white',border:'none',borderRadius:4,padding:'6px 14px',cursor:'pointer',fontWeight:700}}>✕ Cerrar</button>
+          {ready ? <button onClick={function(){iRef.current.contentWindow.print();}} style={{background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'6px 16px',cursor:'pointer',fontWeight:700}}>🖨 Imprimir / PDF</button> : null}
+          <button onClick={props.onClose} style={{background:'rgba(255,68,85,0.15)',color:T.RED,border:'1px solid rgba(255,68,85,0.3)',borderRadius:3,padding:'6px 14px',cursor:'pointer',fontWeight:700}}>✕ Cerrar</button>
         </div>
       </div>
-      <iframe ref={iRef} style={{flex:1,border:'none',background:'white'}} title="Informe"/>
+      <iframe ref={iRef} style={{flex:1,border:'none',background:T.BG2}} title="Informe"/>
     </div>
   );
 }
@@ -1951,11 +1959,11 @@ function DashboardView(props) {
     <div style={{padding:22}}>
       {/* TABS */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
-        <h2 style={{color:C.AO,fontSize:19,fontWeight:700,margin:0}}>Dashboard — GOAT S.A. / Rebit</h2>
+        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,letterSpacing:'1px',margin:0}}>Dashboard — GOAT S.A. / Rebit</h2>
         <div style={{display:'flex',gap:2,background:C.CEL,borderRadius:6,padding:4}}>
           {[['operacional','📊 Operacional'],['ejecutivo','📈 Ejecutivo']].map(function(t){return(
             <button key={t[0]} onClick={function(){setDashTab(t[0]);}}
-              style={{padding:'7px 18px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:dashTab===t[0]?700:400,background:dashTab===t[0]?C.AO:'transparent',color:dashTab===t[0]?'white':C.AO,fontSize:12}}>
+              style={{padding:'7px 18px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:dashTab===t[0]?700:400,background:dashTab===t[0]?'rgba(59,109,170,0.15)':'transparent',color:dashTab===t[0]?T.CYAN:T.TEXT3,fontSize:12}}>
               {t[1]}
             </button>
           );})}
@@ -1965,29 +1973,29 @@ function DashboardView(props) {
       {/* ════════════ TAB OPERACIONAL ════════════ */}
       {dashTab === 'operacional' && <div>
         {notificaciones.length > 0 && (
-          <div style={{background:'#FEF9E7',border:'2px solid #F39C12',borderRadius:6,padding:'12px 16px',marginBottom:18}}>
+          <div style={{background:'rgba(255,184,48,0.07)',border:'1px solid rgba(255,184,48,0.4)',borderRadius:6,padding:'12px 16px',marginBottom:18}}>
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
               <span style={{fontSize:16}}>🔔</span>
-              <span style={{fontWeight:700,color:'#E67E22',fontSize:14}}>Atención requerida — {notificaciones.length} cuenta(s) activa(s) sin análisis AML reciente</span>
+              <span style={{fontWeight:700,color:T.AMBER,fontSize:14}}>Atención requerida — {notificaciones.length} cuenta(s) activa(s) sin análisis AML reciente</span>
             </div>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
               <thead><tr>{['Empresa','CUIT','Estado','Segmento','Situación','Acción'].map(function(h,i){return <th key={i} style={{background:'#E67E22',color:'white',padding:'5px 10px',textAlign:'left',fontWeight:700}}>{h}</th>;})}</tr></thead>
               <tbody>{notificaciones.map(function(n,i){return(
                 <tr key={i} style={{background:i%2===0?'#FFFDF5':'white'}}>
-                  <td style={{padding:'6px 10px',fontWeight:600,color:C.AO}}>{n.l.razonSocial||'—'}</td>
-                  <td style={{padding:'6px 10px',color:'#888'}}>{n.l.cuit||'—'}</td>
+                  <td style={{padding:'6px 10px',fontWeight:500,color:T.TEXT2}}>{n.l.razonSocial||'—'}</td>
+                  <td style={{padding:'6px 10px',color:T.TEXT2}}>{n.l.cuit||'—'}</td>
                   <td style={{padding:'6px 10px'}}><span style={{background:n.est.bg,color:n.est.color,border:'1px solid '+n.est.color,borderRadius:8,padding:'2px 7px',fontSize:10,fontWeight:700}}>{n.est.label}</span></td>
                   <td style={{padding:'6px 10px'}}><Pill v={n.l.segmento}/></td>
-                  <td style={{padding:'6px 10px',color:'#E67E22',fontWeight:600,fontSize:12}}>{n.msg}</td>
+                  <td style={{padding:'6px 10px',color:T.AMBER,fontWeight:600,fontSize:12}}>{n.msg}</td>
                   <td style={{padding:'6px 10px'}}>
                     <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                      <input type="text" defaultValue={n.l.ultimoAnalisisExterno||''} placeholder="DD/MM/AAAA" id={'ext_'+n.l.id} style={{width:100,border:'1px solid #ddd',borderRadius:4,padding:'3px 7px',fontSize:11}}/>
+                      <input type="text" defaultValue={n.l.ultimoAnalisisExterno||''} placeholder="DD/MM/AAAA" id={'ext_'+n.l.id} style={{width:100,border:'1px solid '+T.BORDER,borderRadius:4,padding:'3px 7px',fontSize:11}}/>
                       <button onClick={function(){
                         var val = document.getElementById('ext_'+n.l.id).value.trim();
                         if (!val) return;
                         var updated = Object.assign({},n.l,{ultimoAnalisisExterno:val});
                         props.setLegajos(function(prev){var arr=prev.map(function(x){return x.id===n.l.id?updated:x;});return arr;});
-                      }} style={{background:'#27AE60',color:'white',border:'none',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>✓</button>
+                      }} style={{background:T.GREEN,color:'white',border:'none',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>✓</button>
                     </div>
                   </td>
                 </tr>
@@ -1996,7 +2004,7 @@ function DashboardView(props) {
           </div>
         )}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}}>
-          {[{label:'Legajos KYB',val:total,col:C.AM},{label:'Periodos AML',val:periodos.length,col:C.AC},{label:'Senales ALTA',val:altas,col:C.ROJO},{label:'Total Senales',val:allSigs.length,col:C.NARANJA}].map(function(kpi,i){return(
+          {[{label:'Legajos KYB',val:total,col:C.AC},{label:'Periodos AML',val:periodos.length,col:T.CYAN},{label:'Senales ALTA',val:altas,col:T.RED},{label:'Total Senales',val:allSigs.length,col:T.AMBER}].map(function(kpi,i){return(
             <div key={i} style={{background:kpi.col,borderRadius:6,padding:'14px 18px',color:'white'}}>
               <div style={{fontSize:11,opacity:0.8}}>{kpi.label}</div>
               <div style={{fontSize:28,fontWeight:700}}>{kpi.val}</div>
@@ -2015,7 +2023,7 @@ function DashboardView(props) {
           <Card title="Legajos por segmento">
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={segData} margin={{top:5,right:10,left:-20,bottom:5}}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="seg" tick={{fontSize:10}}/><YAxis allowDecimals={false}/><Tooltip/>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="seg" tick={{fontSize:9,fill:'#4A6A8A',fontFamily:"'JetBrains Mono',monospace"}}/><YAxis allowDecimals={false}/><Tooltip/>
                 <Bar dataKey="count" name="Legajos">{segData.map(function(e,i){return <Cell key={i} fill={e.fill}/>;})}</Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -2044,17 +2052,17 @@ function DashboardView(props) {
               var est=getEstado(x.l.estadoCuenta||'ACTIVA');
               return(<tr key={i} style={{background:i%2===0?'#FDF9F9':'white'}}>
                 <td style={{padding:'5px 10px',fontWeight:600}}>{x.l.razonSocial||'—'}</td>
-                <td style={{padding:'5px 10px',color:'#888'}}>{x.l.cuit||'—'}</td>
+                <td style={{padding:'5px 10px',color:T.TEXT2}}>{x.l.cuit||'—'}</td>
                 <td style={{padding:'5px 10px'}}><span style={{background:est.bg,color:est.color,border:'1px solid '+est.color,borderRadius:10,padding:'2px 8px',fontSize:10,fontWeight:700}}>{est.label}</span></td>
                 <td style={{padding:'5px 10px'}}>{x.periodos}</td>
-                <td style={{padding:'5px 10px'}}><span style={{background:'#E74C3C',color:'white',borderRadius:10,padding:'2px 10px',fontSize:11,fontWeight:700}}>{x.altas} ALTA</span></td>
+                <td style={{padding:'5px 10px'}}><span style={{background:'rgba(255,68,85,0.15)',color:T.RED,borderRadius:2,padding:'2px 10px',fontSize:11,fontWeight:700}}>{x.altas} ALTA</span></td>
               </tr>);
             })}</tbody>
           </table>
         </Card>}
         {legajos.length > 0 && <Card title="Legajos recientes">
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-            <thead><tr>{['Razon Social','CUIT','Estado','Segmento','Dictamen'].map(function(h,i){return <th key={i} style={{background:C.AO,color:'white',padding:'6px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
+            <thead><tr>{['Razon Social','CUIT','Estado','Segmento','Dictamen'].map(function(h,i){return <th key={i} style={{background:T.BG3,color:T.TEXT3,padding:'6px 10px',textAlign:'left',fontSize:9,letterSpacing:'1px',fontFamily:T.MONO,fontWeight:400}}>{h}</th>;})}</tr></thead>
             <tbody>{legajos.slice(-5).reverse().map(function(l,i){
               var est=getEstado(l.estadoCuenta||'EN_ONBOARDING');
               return(<tr key={i} style={{background:i%2===0?'#F8FBFE':'white'}}>
@@ -2100,9 +2108,9 @@ function DashboardView(props) {
             {label:'RFIs vencen en 7 días',val:rfisVencen7.length,icon:'⚠',col:rfisVencen7.length>0?C.AMARILLO:'#7F8C8D'},
             {label:'Períodos analizados',val:periodos.filter(function(p){return p.txns&&p.txns.length>0;}).length,icon:'📈',col:C.AM},
           ].map(function(k,i){return(
-            <div key={i} style={{background:'white',border:'1px solid #E8EEF4',borderRadius:8,padding:'12px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div key={i} style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:8,padding:'12px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <div>
-                <div style={{fontSize:10,color:'#888',fontWeight:600}}>{k.label}</div>
+                <div style={{fontSize:10,color:T.TEXT2,fontWeight:600}}>{k.label}</div>
                 <div style={{fontSize:22,fontWeight:700,color:k.col,marginTop:2}}>{k.val}</div>
               </div>
               <span style={{fontSize:20}}>{k.icon}</span>
@@ -2115,11 +2123,11 @@ function DashboardView(props) {
 
           {/* Semáforo de cartera */}
           <Card title="🚦 Semáforo de cartera — Clientes activos y en monitoreo">
-            {rankingRiesgo.length === 0 ? <div style={{textAlign:'center',color:'#aaa',padding:'20px 0',fontSize:13}}>Sin clientes activos con períodos analizados.</div> : (
+            {rankingRiesgo.length === 0 ? <div style={{textAlign:'center',color:T.TEXT3,padding:'20px 0',fontSize:13}}>Sin clientes activos con períodos analizados.</div> : (
               <div style={{maxHeight:340,overflowY:'auto'}}>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                  <thead><tr style={{position:'sticky',top:0,background:'white'}}>
-                    {['','Cliente','Seg','Score','ALTA','Períodos'].map(function(h,i){return <th key={i} style={{padding:'5px 8px',textAlign:'left',color:'#888',fontWeight:600,fontSize:11,borderBottom:'2px solid #eee'}}>{h}</th>;})}
+                  <thead><tr style={{position:'sticky',top:0,background:T.BG2}}>
+                    {['','Cliente','Seg','Score','ALTA','Períodos'].map(function(h,i){return <th key={i} style={{padding:'5px 8px',textAlign:'left',color:T.TEXT2,fontWeight:600,fontSize:11,borderBottom:'2px solid #eee'}}>{h}</th>;})}
                   </tr></thead>
                   <tbody>{rankingRiesgo.map(function(x,i){
                     return(<tr key={i} style={{borderBottom:'1px solid #f5f5f5'}}>
@@ -2127,17 +2135,17 @@ function DashboardView(props) {
                         <span style={{display:'inline-block',width:12,height:12,borderRadius:'50%',background:x.semaforoCol}}></span>
                       </td>
                       <td style={{padding:'6px 8px'}}>
-                        <div style={{fontWeight:600,color:C.AO,fontSize:12}}>{x.l.razonSocial||'—'}</div>
-                        <div style={{fontSize:10,color:'#aaa'}}>{x.est.label}</div>
+                        <div style={{fontWeight:500,color:T.TEXT2,fontSize:12}}>{x.l.razonSocial||'—'}</div>
+                        <div style={{fontSize:10,color:T.TEXT3}}>{x.est.label}</div>
                       </td>
                       <td style={{padding:'6px 8px'}}><Pill v={x.l.segmento}/></td>
                       <td style={{padding:'6px 8px',fontWeight:700,color:x.maxScore>=4?C.ROJO:x.maxScore>=3?C.NARANJA:C.VERDE}}>
                         {x.maxScore>0?x.maxScore.toFixed(1)+'/5':'—'}
                       </td>
                       <td style={{padding:'6px 8px'}}>
-                        {x.totalSigsAlta>0 ? <span style={{background:C.ROJO,color:'white',borderRadius:8,padding:'1px 8px',fontSize:10,fontWeight:700}}>{x.totalSigsAlta}</span> : <span style={{color:C.VERDE,fontWeight:700}}>✓</span>}
+                        {x.totalSigsAlta>0 ? <span style={{background:C.ROJO,color:'white',borderRadius:8,padding:'1px 8px',fontSize:10,fontWeight:700}}>{x.totalSigsAlta}</span> : <span style={{color:T.GREEN,fontWeight:700}}>✓</span>}
                       </td>
-                      <td style={{padding:'6px 8px',color:'#888'}}>{x.periodos}</td>
+                      <td style={{padding:'6px 8px',color:T.TEXT2}}>{x.periodos}</td>
                     </tr>);
                   })}</tbody>
                 </table>
@@ -2147,19 +2155,19 @@ function DashboardView(props) {
 
           {/* Evolución mensual */}
           <Card title="📈 Evolución mensual — Volumen IN/OUT agregado (cartera completa)">
-            {evolucionData.length === 0 ? <div style={{textAlign:'center',color:'#aaa',padding:'40px 0',fontSize:13}}>Sin períodos con métricas cargadas.</div> : (
+            {evolucionData.length === 0 ? <div style={{textAlign:'center',color:T.TEXT3,padding:'40px 0',fontSize:13}}>Sin períodos con métricas cargadas.</div> : (
               <div>
-                <div style={{display:'flex',gap:16,marginBottom:8,fontSize:11,color:'#666'}}>
+                <div style={{display:'flex',gap:16,marginBottom:8,fontSize:11,color:T.TEXT2}}>
                   <span><span style={{display:'inline-block',width:12,height:3,background:C.VERDE,borderRadius:2,marginRight:4,verticalAlign:'middle'}}></span>Volumen IN</span>
                   <span><span style={{display:'inline-block',width:12,height:3,background:C.ROJO,borderRadius:2,marginRight:4,verticalAlign:'middle'}}></span>Volumen OUT</span>
-                  <span style={{marginLeft:'auto',color:'#aaa'}}>{evolucionData.length} mes{evolucionData.length!==1?'es':''} · {legajos.filter(function(l){return l.estadoCuenta!=='CERRADA';}).length} clientes activos</span>
+                  <span style={{marginLeft:'auto',color:T.TEXT3}}>{evolucionData.length} mes{evolucionData.length!==1?'es':''} · {legajos.filter(function(l){return l.estadoCuenta!=='CERRADA';}).length} clientes activos</span>
                 </div>
                 <ResponsiveContainer width="100%" height={260}>
                   <LineChart data={evolucionData} margin={{top:5,right:10,left:0,bottom:30}}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
-                    <XAxis dataKey="nombre" tick={{fontSize:10}} angle={-25} textAnchor="end" interval={0}/>
-                    <YAxis tickFormatter={function(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v;}} tick={{fontSize:10}} width={45}/>
-                    <Tooltip formatter={function(v,name){return [fmtM(v), name==='tIn'?'Vol IN':'Vol OUT'];}} labelStyle={{fontWeight:700,color:C.AO}}/>
+                    <XAxis dataKey="nombre" tick={{fontSize:9,fill:'#4A6A8A',fontFamily:"'JetBrains Mono',monospace"}} angle={-25} textAnchor="end" interval={0}/>
+                    <YAxis tickFormatter={function(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v;}} tick={{fontSize:9,fill:'#4A6A8A',fontFamily:"'JetBrains Mono',monospace"}} width={45}/>
+                    <Tooltip formatter={function(v,name){return [fmtM(v), name==='tIn'?'Vol IN':'Vol OUT'];}} labelStyle={{fontWeight:600,color:T.TEXT}}/>
                     <Line type="monotone" dataKey="tIn" stroke={C.VERDE} strokeWidth={2.5} dot={{r:4,fill:C.VERDE}} activeDot={{r:6}} name="tIn"/>
                     <Line type="monotone" dataKey="tOut" stroke={C.ROJO} strokeWidth={2.5} dot={{r:4,fill:C.ROJO}} activeDot={{r:6}} name="tOut"/>
                   </LineChart>
@@ -2175,15 +2183,15 @@ function DashboardView(props) {
 
             {/* RFIs que vencen en 7 días */}
             <div>
-              <div style={{fontWeight:700,color:C.AO,fontSize:12,marginBottom:8}}>⚠ Vencen en los próximos 7 días ({rfisVencen7.length})</div>
-              {rfisVencen7.length===0 ? <div style={{color:'#aaa',fontSize:12,textAlign:'center',padding:'12px 0'}}>✓ Sin RFIs próximos a vencer</div> : (
+              <div style={{fontWeight:600,color:T.TEXT,fontSize:11,marginBottom:8}}>⚠ Vencen en los próximos 7 días ({rfisVencen7.length})</div>
+              {rfisVencen7.length===0 ? <div style={{color:T.TEXT3,fontSize:12,textAlign:'center',padding:'12px 0'}}>✓ Sin RFIs próximos a vencer</div> : (
                 rfisVencen7.map(function(r,i){
                   var f = parseFechaAR(r.createdAt);
                   var diasAbierto = f ? Math.floor((hoy-f)/86400000) : 0;
-                  return(<div key={i} style={{background:'#FEF9E7',border:'1px solid #F39C12',borderRadius:4,padding:'8px 10px',marginBottom:6,fontSize:12}}>
-                    <div style={{fontWeight:700,color:C.AO}}>{r.refNum}</div>
-                    <div style={{color:'#555'}}>{r.legajoNombre}</div>
-                    <div style={{color:'#E67E22',fontSize:11,marginTop:2}}>Abierto hace {diasAbierto} días · vence en {7-diasAbierto} días</div>
+                  return(<div key={i} style={{background:'rgba(255,184,48,0.08)',border:'1px solid rgba(255,184,48,0.25)',borderRadius:3,padding:'8px 10px',marginBottom:6,fontSize:12}}>
+                    <div style={{fontWeight:600,color:T.TEXT}}>{r.refNum}</div>
+                    <div style={{color:T.TEXT2}}>{r.legajoNombre}</div>
+                    <div style={{color:T.AMBER,fontSize:11,marginTop:2}}>Abierto hace {diasAbierto} días · vence en {7-diasAbierto} días</div>
                   </div>);
                 })
               )}
@@ -2191,7 +2199,7 @@ function DashboardView(props) {
 
             {/* Tasa de respuesta por cliente */}
             <div>
-              <div style={{fontWeight:700,color:C.AO,fontSize:12,marginBottom:8}}>📊 Tasa de respuesta por cliente</div>
+              <div style={{fontWeight:600,color:T.TEXT,fontSize:11,marginBottom:8}}>📊 Tasa de respuesta por cliente</div>
               {(function(){
                 var porCliente = {};
                 todosRfis.forEach(function(r){
@@ -2203,18 +2211,18 @@ function DashboardView(props) {
                   var d=porCliente[k]; var pct=Math.round(d.resp/d.total*100);
                   return {nombre:k,total:d.total,resp:d.resp,pct:pct};
                 }).sort(function(a,b){return a.pct-b.pct;});
-                if (clientes.length===0) return <div style={{color:'#aaa',fontSize:12,textAlign:'center',padding:'12px 0'}}>Sin RFIs registrados.</div>;
+                if (clientes.length===0) return <div style={{color:T.TEXT3,fontSize:12,textAlign:'center',padding:'12px 0'}}>Sin RFIs registrados.</div>;
                 return clientes.map(function(c,i){
                   var col = c.pct>=80?C.VERDE:c.pct>=40?C.AMARILLO:C.ROJO;
                   return(<div key={i} style={{marginBottom:8}}>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:2,fontSize:12}}>
-                      <span style={{color:C.AO,fontWeight:600}}>{c.nombre}</span>
+                      <span style={{color:T.TEXT2,fontWeight:500}}>{c.nombre}</span>
                       <span style={{fontWeight:700,color:col}}>{c.pct}%</span>
                     </div>
-                    <div style={{background:'#f0f0f0',borderRadius:4,height:6}}>
+                    <div style={{background:T.BG3,borderRadius:4,height:6}}>
                       <div style={{background:col,borderRadius:4,height:6,width:c.pct+'%',transition:'width 0.3s'}}></div>
                     </div>
-                    <div style={{fontSize:10,color:'#aaa',marginTop:1}}>{c.resp}/{c.total} RFIs respondidos</div>
+                    <div style={{fontSize:10,color:T.TEXT3,marginTop:1}}>{c.resp}/{c.total} RFIs respondidos</div>
                   </div>);
                 });
               })()}
@@ -2223,16 +2231,16 @@ function DashboardView(props) {
 
           {/* RFIs vencidos */}
           {rfisVencidos.length > 0 && (
-            <div style={{marginTop:12,background:'#FDEDEC',border:'1px solid #E74C3C',borderRadius:4,padding:'10px 12px'}}>
-              <div style={{fontWeight:700,color:C.ROJO,fontSize:12,marginBottom:6}}>🔴 RFIs vencidos sin respuesta ({rfisVencidos.length})</div>
+            <div style={{marginTop:12,background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.25)',borderRadius:3,padding:'10px 12px'}}>
+              <div style={{fontWeight:700,color:T.RED,fontSize:12,marginBottom:6}}>🔴 RFIs vencidos sin respuesta ({rfisVencidos.length})</div>
               <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                 {rfisVencidos.map(function(r,i){
                   var f = parseFechaAR(r.createdAt);
                   var dias = f ? Math.floor((hoy-f)/86400000) : 0;
-                  return(<div key={i} style={{background:'white',border:'1px solid #F1948A',borderRadius:4,padding:'6px 10px',fontSize:11}}>
-                    <div style={{fontWeight:700,color:C.ROJO}}>{r.refNum}</div>
-                    <div style={{color:'#555'}}>{r.legajoNombre}</div>
-                    <div style={{color:'#E74C3C',fontWeight:600}}>{dias} días sin respuesta</div>
+                  return(<div key={i} style={{background:T.BG2,border:'1px solid rgba(255,68,85,0.25)',borderRadius:4,padding:'6px 10px',fontSize:11}}>
+                    <div style={{fontWeight:700,color:T.RED}}>{r.refNum}</div>
+                    <div style={{color:T.TEXT2}}>{r.legajoNombre}</div>
+                    <div style={{color:T.RED,fontWeight:600}}>{dias} días sin respuesta</div>
                   </div>);
                 })}
               </div>
@@ -2431,10 +2439,10 @@ function LegajosView(props) {
     setUploading(false); e.target.value = '';
   }
 
-  var iS = {width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'7px 9px',fontSize:13};
-  var btnB = {background:C.AM,color:'white',border:'none',borderRadius:4,padding:'8px 18px',cursor:'pointer',fontWeight:700,fontSize:13};
-  var btnG = {background:C.VERDE,color:'white',border:'none',borderRadius:4,padding:'8px 18px',cursor:'pointer',fontWeight:700,fontSize:13};
-  var btnR = {background:C.ROJO,color:'white',border:'none',borderRadius:4,padding:'7px 14px',cursor:'pointer',fontWeight:600,fontSize:12};
+  var iS = {width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 9px',fontSize:13};
+  var btnB = {background:C.AC,color:'white',border:'none',borderRadius:3,padding:'8px 18px',cursor:'pointer',fontWeight:700,fontSize:13};
+  var btnG = {background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'8px 18px',cursor:'pointer',fontWeight:700,fontSize:13};
+  var btnR = {background:'rgba(255,68,85,0.15)',color:T.RED,border:'1px solid rgba(255,68,85,0.3)',borderRadius:3,padding:'7px 14px',cursor:'pointer',fontWeight:600,fontSize:12};
 
   if (editing && form) {
     var scVals = KYB_FACTORS.map(function(f){return Number((form.kybScores||{})[f])||0;}).filter(function(v){return v>0;});
@@ -2443,12 +2451,12 @@ function LegajosView(props) {
       <div style={{padding:22,maxWidth:900}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
           <div>
-            <h2 style={{color:C.AO,fontSize:17,fontWeight:700,margin:0}}>{legajos.find(function(l){return l.id===form.id;}) ? 'Editar Legajo' : 'Nuevo Legajo KYB'}</h2>
-            {!legajos.find(function(l){return l.id===form.id;}) && <div style={{fontSize:12,color:'#888',marginTop:3}}>Paso 1: subí los documentos → Paso 2: revisá los datos → Paso 3: guardá</div>}
+            <h2 style={{color:T.TEXT,fontSize:14,fontWeight:600,letterSpacing:'1px',margin:0}}>{legajos.find(function(l){return l.id===form.id;}) ? 'Editar Legajo' : 'Nuevo Legajo KYB'}</h2>
+            {!legajos.find(function(l){return l.id===form.id;}) && <div style={{fontSize:12,color:T.TEXT2,marginTop:3}}>Paso 1: subí los documentos → Paso 2: revisá los datos → Paso 3: guardá</div>}
           </div>
           <div style={{display:'flex',gap:8}}>
             <button onClick={handleSave} style={btnG}>💾 Guardar</button>
-            <button onClick={function(){setEditing(false);setForm(null);}} style={{background:'#888',color:'white',border:'none',borderRadius:4,padding:'8px 14px',cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
+            <button onClick={function(){setEditing(false);setForm(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'8px 14px',cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
           </div>
         </div>
         <div style={{display:'flex',gap:2,marginBottom:14,background:C.CEL,borderRadius:6,padding:4}}>
@@ -2461,7 +2469,7 @@ function LegajosView(props) {
             ['historial', '🕐 Historial'],
             ['screening', '🛡 Screening' + (form.screening ? (form.screening.estadoGeneral==='LIMPIO'?' ✅':form.screening.estadoGeneral==='COINCIDENCIA'?' 🔴':' 🟡') : '')]
           ].map(function(t){return(
-            <button key={t[0]} onClick={function(){setTab(t[0]);}} style={{flex:1,padding:'7px 4px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:tab===t[0]?700:400,background:tab===t[0]?(t[0]==='resumen_ia'?'#2C5F4A':t[0]==='screening'?'#1A4A6B':C.AO):'transparent',color:tab===t[0]?'white':C.AO,fontSize:11,whiteSpace:'nowrap'}}>{t[1]}</button>
+            <button key={t[0]} onClick={function(){setTab(t[0]);}} style={{flex:1,padding:'7px 4px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:tab===t[0]?700:400,background:tab===t[0]?'rgba(59,109,170,0.2)':'transparent',color:tab===t[0]?T.CYAN:T.TEXT3,borderBottom:tab===t[0]?'2px solid '+C.AC:'2px solid transparent',fontSize:11,whiteSpace:'nowrap'}}>{t[1]}</button>
           );})}
         </div>
         {tab === 'resumen_ia' ? <div>
@@ -2469,33 +2477,33 @@ function LegajosView(props) {
 
           {/* MODO MANUAL — siempre disponible */}
           {!iaFields && !uploading ? <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-            <div onClick={function(){if(!uploading)fileRef.current.click();}} style={{border:'2px dashed '+C.AC,borderRadius:8,padding:'20px 16px',textAlign:'center',cursor:'pointer',background:'#F8FBFE'}}>
+            <div onClick={function(){if(!uploading)fileRef.current.click();}} style={{border:'2px dashed '+C.AC,borderRadius:8,padding:'20px 16px',textAlign:'center',cursor:'pointer',background:T.BG3}}>
               <div style={{fontSize:26,marginBottom:6}}>🤖</div>
-              <div style={{fontSize:13,color:C.AO,fontWeight:700,marginBottom:4}}>Extracción automática IA</div>
-              <div style={{fontSize:11,color:'#888',lineHeight:1.5}}>Subí hasta 25 PDFs e imágenes. Claude o GPT-4o extraen los datos automáticamente.</div>
+              <div style={{fontSize:13,color:T.TEXT,fontWeight:600,marginBottom:4}}>Extracción automática IA</div>
+              <div style={{fontSize:11,color:T.TEXT2,lineHeight:1.5}}>Subí hasta 25 PDFs e imágenes. Claude o GPT-4o extraen los datos automáticamente.</div>
               <div style={{marginTop:10,background:C.AC,color:'white',borderRadius:4,padding:'6px 0',fontSize:12,fontWeight:700}}>📂 Seleccionar documentos</div>
-              <div style={{fontSize:10,color:'#aaa',marginTop:6}}>Requiere créditos en Anthropic o OpenAI</div>
+              <div style={{fontSize:10,color:T.TEXT3,marginTop:6}}>Requiere créditos en Anthropic o OpenAI</div>
             </div>
-            <div onClick={function(){setTab('datos');}} style={{border:'2px solid '+C.VERDE,borderRadius:8,padding:'20px 16px',textAlign:'center',cursor:'pointer',background:'#F0FAF4'}}>
+            <div onClick={function(){setTab('datos');}} style={{border:'1px solid rgba(0,230,118,0.4)',borderRadius:8,padding:'20px 16px',textAlign:'center',cursor:'pointer',background:'#F0FAF4'}}>
               <div style={{fontSize:26,marginBottom:6}}>✍️</div>
-              <div style={{fontSize:13,color:C.AO,fontWeight:700,marginBottom:4}}>Carga manual</div>
-              <div style={{fontSize:11,color:'#888',lineHeight:1.5}}>Completá los campos a mano. Podés hacerlo ahora y usar IA después cuando tengas créditos.</div>
+              <div style={{fontSize:13,color:T.TEXT,fontWeight:600,marginBottom:4}}>Carga manual</div>
+              <div style={{fontSize:11,color:T.TEXT2,lineHeight:1.5}}>Completá los campos a mano. Podés hacerlo ahora y usar IA después cuando tengas créditos.</div>
               <div style={{marginTop:10,background:C.VERDE,color:'white',borderRadius:4,padding:'6px 0',fontSize:12,fontWeight:700}}>📋 Ir a Datos →</div>
-              <div style={{fontSize:10,color:'#aaa',marginTop:6}}>Sin API key requerida</div>
+              <div style={{fontSize:10,color:T.TEXT3,marginTop:6}}>Sin API key requerida</div>
             </div>
           </div> : null}
 
           {/* ZONA DE UPLOAD cuando ya hay resultado o está cargando */}
           {(iaFields || uploading) ? <div onClick={function(){if(!uploading)fileRef.current.click();}} style={{border:'2px dashed '+C.AC,borderRadius:8,padding:'20px',textAlign:'center',cursor:uploading?'wait':'pointer',background:uploading?'#F8FBFE':'#F0FAF4',marginBottom:12}}>
             <div style={{fontSize:24,marginBottom:4}}>{uploading?'⏳':'✅'}</div>
-            <div style={{fontSize:13,color:C.AC,fontWeight:700}}>{uploading?uploadMsg:'Documentos analizados · Clic para re-analizar con nuevos docs'}</div>
+            <div style={{fontSize:13,color:T.CYAN,fontWeight:700}}>{uploading?uploadMsg:'Documentos analizados · Clic para re-analizar con nuevos docs'}</div>
           </div> : null}
 
-          {uploading && <div style={{background:'#E8EEF4',borderRadius:4,height:8,marginBottom:12}}><div style={{height:'100%',width:uploadPct+'%',background:C.AC,borderRadius:4,transition:'width 0.4s'}}/></div>}
+          {uploading && <div style={{background:T.BG3,borderRadius:4,height:8,marginBottom:12}}><div style={{height:'100%',width:uploadPct+'%',background:C.AC,borderRadius:4,transition:'width 0.4s'}}/></div>}
 
           {/* RESUMEN DE LO EXTRAÍDO */}
           {iaFields && !uploading ? <div>
-            <div style={{background:'#1B3A2D',borderRadius:6,padding:'14px 18px',marginBottom:14,color:'white',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={{background:'rgba(0,230,118,0.08)',borderRadius:6,padding:'14px 18px',marginBottom:14,color:'white',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <div>
                 <div style={{fontWeight:700,fontSize:14,marginBottom:3}}>🤖 Extracción IA completada</div>
                 <div style={{fontSize:12,opacity:0.8}}>{safeArr(form.docsIA).length} documento(s) procesado(s)</div>
@@ -2513,26 +2521,26 @@ function LegajosView(props) {
                 {icon:'📊',label:'Factores scoring',val:iaFields.kybFilled,max:7,col:C.AM},
                 {icon:'🚩',label:'Red flags',val:iaFields.rfCount,max:null,col:iaFields.rfCount>0?C.ROJO:'#888'}
               ].map(function(stat,i){return(
-                <div key={i} style={{background:'white',border:'1px solid #E8EEF4',borderRadius:6,padding:'12px 14px',textAlign:'center',borderTop:'3px solid '+stat.col}}>
+                <div key={i} style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,padding:'12px 14px',textAlign:'center',borderTop:'3px solid '+stat.col}}>
                   <div style={{fontSize:20}}>{stat.icon}</div>
-                  <div style={{fontSize:22,fontWeight:700,color:stat.col,margin:'4px 0'}}>{stat.val}{stat.max?<span style={{fontSize:12,color:'#aaa',fontWeight:400}}>/{stat.max}</span>:''}</div>
-                  <div style={{fontSize:11,color:'#888'}}>{stat.label}</div>
+                  <div style={{fontSize:22,fontWeight:700,color:stat.col,margin:'4px 0'}}>{stat.val}{stat.max?<span style={{fontSize:12,color:T.TEXT3,fontWeight:400}}>/{stat.max}</span>:''}</div>
+                  <div style={{fontSize:11,color:T.TEXT2}}>{stat.label}</div>
                 </div>
               );})}
             </div>
 
             {/* Campos completados */}
-            {iaFields.filled.length > 0 && <div style={{background:'#EBF9F0',border:'1px solid #A9DFBF',borderRadius:6,padding:'12px 14px',marginBottom:10}}>
-              <div style={{fontWeight:700,color:'#1A6B3A',fontSize:12,marginBottom:8}}>✅ Campos completados automáticamente:</div>
+            {iaFields.filled.length > 0 && <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:6,padding:'12px 14px',marginBottom:10}}>
+              <div style={{fontWeight:700,color:T.GREEN,fontSize:12,marginBottom:8}}>✅ Campos completados automáticamente:</div>
               <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
                 {iaFields.filled.map(function(f,i){
                   var labels = {razonSocial:'Razón Social',cuit:'CUIT',actividad:'Actividad',facturacionMensual:'Facturación',limiteDiario:'Límite Diario',limiteMensual:'Límite Mensual',beneficiarioFinal:'Beneficiario Final',domicilio:'Domicilio',segmento:'Segmento',dictamen:'Dictamen'};
-                  return <span key={i} style={{background:'#27AE60',color:'white',borderRadius:4,padding:'3px 10px',fontSize:11,fontWeight:600}}>{labels[f]||f}</span>;
+                  return <span key={i} style={{background:T.GREEN,color:'white',borderRadius:4,padding:'3px 10px',fontSize:11,fontWeight:600}}>{labels[f]||f}</span>;
                 })}
               </div>
               {/* Preview de los valores clave extraídos */}
-              <div style={{background:'white',borderRadius:4,padding:'10px 12px',border:'1px solid #A9DFBF'}}>
-                <div style={{fontWeight:700,color:'#1A6B3A',fontSize:11,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}}>Valores extraídos — revisá antes de guardar</div>
+              <div style={{background:T.BG2,borderRadius:4,padding:'10px 12px',border:'1px solid rgba(0,230,118,0.2)'}}>
+                <div style={{fontWeight:700,color:T.GREEN,fontSize:11,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}}>Valores extraídos — revisá antes de guardar</div>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                   <tbody>
                     {[
@@ -2547,7 +2555,7 @@ function LegajosView(props) {
                       ['Dictamen sugerido', form && (form.dictamen||'—')]
                     ].map(function(r,i){return(
                       <tr key={i} style={{borderBottom:'1px solid #EBF9F0'}}>
-                        <td style={{padding:'4px 8px 4px 0',color:'#555',fontWeight:600,width:'40%'}}>{r[0]}</td>
+                        <td style={{padding:'4px 8px 4px 0',color:T.TEXT2,fontWeight:600,width:'40%'}}>{r[0]}</td>
                         <td style={{padding:'4px 0',color:r[1]==='—'?'#ccc':C.AO,fontWeight:r[1]==='—'?400:700}}>{r[1]}</td>
                       </tr>
                     );})}
@@ -2557,39 +2565,39 @@ function LegajosView(props) {
             </div>}
 
             {/* Checklist summary */}
-            {(iaFields.okChecklist > 0 || iaFields.bloqChecklist > 0) && <div style={{background:'#EBF5FB',border:'1px solid #AED6F1',borderRadius:6,padding:'12px 14px',marginBottom:10}}>
-              <div style={{fontWeight:700,color:C.AM,fontSize:12,marginBottom:6}}>✅ Checklist evaluado por IA:</div>
+            {(iaFields.okChecklist > 0 || iaFields.bloqChecklist > 0) && <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:6,padding:'12px 14px',marginBottom:10}}>
+              <div style={{fontWeight:700,color:T.CYAN,fontSize:12,marginBottom:6}}>✅ Checklist evaluado por IA:</div>
               <div style={{display:'flex',gap:16,fontSize:13}}>
-                <span style={{color:C.VERDE,fontWeight:700}}>{iaFields.okChecklist} documentos OK</span>
-                {iaFields.bloqChecklist > 0 && <span style={{color:C.ROJO,fontWeight:700}}>{iaFields.bloqChecklist} bloqueantes</span>}
-                <span style={{color:'#888'}}>{15 - iaFields.okChecklist - iaFields.bloqChecklist} pendientes</span>
+                <span style={{color:T.GREEN,fontWeight:700}}>{iaFields.okChecklist} documentos OK</span>
+                {iaFields.bloqChecklist > 0 && <span style={{color:T.RED,fontWeight:700}}>{iaFields.bloqChecklist} bloqueantes</span>}
+                <span style={{color:T.TEXT2}}>{15 - iaFields.okChecklist - iaFields.bloqChecklist} pendientes</span>
               </div>
             </div>}
 
             {/* Red flags */}
-            {safeArr(form.redFlags).length > 0 && <div style={{background:'#FDEDEC',border:'1px solid #F1948A',borderRadius:6,padding:'12px 14px',marginBottom:10}}>
-              <div style={{fontWeight:700,color:C.ROJO,fontSize:12,marginBottom:8}}>🚩 Red flags detectados por IA:</div>
-              {form.redFlags.map(function(rf,i){return <div key={i} style={{fontSize:12,color:'#5D0000',padding:'3px 0',borderBottom:'1px solid #FADBD8'}}>• {rf}</div>;})}
+            {safeArr(form.redFlags).length > 0 && <div style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.2)',borderRadius:6,padding:'12px 14px',marginBottom:10}}>
+              <div style={{fontWeight:700,color:T.RED,fontSize:12,marginBottom:8}}>🚩 Red flags detectados por IA:</div>
+              {form.redFlags.map(function(rf,i){return <div key={i} style={{fontSize:12,color:T.RED,padding:'3px 0',borderBottom:'1px solid #FADBD8'}}>• {rf}</div>;})}
             </div>}
 
             {/* Docs procesados */}
-            <div style={{background:'#F8FBFE',border:'1px solid #D6E4F0',borderRadius:6,padding:'10px 14px',marginBottom:14}}>
-              <div style={{fontWeight:700,color:C.AO,fontSize:12,marginBottom:6}}>📄 Documentos procesados ({safeArr(form.docsIA).length}):</div>
+            <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:6,padding:'10px 14px',marginBottom:14}}>
+              <div style={{fontWeight:600,color:T.TEXT,fontSize:11,marginBottom:6}}>📄 Documentos procesados ({safeArr(form.docsIA).length}):</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:2}}>
-                {safeArr(form.docsIA).map(function(d,i){return <div key={i} style={{fontSize:11,color:'#555',padding:'2px 0'}}>✅ {d}</div>;})}
+                {safeArr(form.docsIA).map(function(d,i){return <div key={i} style={{fontSize:11,color:T.TEXT2,padding:'2px 0'}}>✅ {d}</div>;})}
               </div>
             </div>
 
             <div style={{display:'flex',gap:8}}>
-              <button onClick={function(){setTab('datos');}} style={{flex:1,background:C.AC,color:'white',border:'none',borderRadius:4,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13}}>📋 Revisar Datos →</button>
-              <button onClick={function(){setTab('checklist');}} style={{flex:1,background:C.VERDE,color:'white',border:'none',borderRadius:4,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13}}>✅ Revisar Checklist →</button>
-              <button onClick={function(){setTab('scoring');}} style={{flex:1,background:C.AM,color:'white',border:'none',borderRadius:4,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13}}>📊 Revisar Scoring →</button>
+              <button onClick={function(){setTab('datos');}} style={{flex:1,background:C.AC,color:'white',border:'none',borderRadius:3,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13}}>📋 Revisar Datos →</button>
+              <button onClick={function(){setTab('checklist');}} style={{flex:1,background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13}}>✅ Revisar Checklist →</button>
+              <button onClick={function(){setTab('scoring');}} style={{flex:1,background:C.AC,color:'white',border:'none',borderRadius:3,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13}}>📊 Revisar Scoring →</button>
             </div>
           </div> : null}
         </div> : null}
 
         {tab === 'datos' ? <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-          {iaFields && iaFields.filled.length > 0 && <div style={{gridColumn:'1/-1',background:'#EBF5FB',border:'1px solid #AED6F1',borderRadius:4,padding:'8px 12px',fontSize:12,color:C.AM}}>
+          {iaFields && iaFields.filled.length > 0 && <div style={{gridColumn:'1/-1',background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:4,padding:'8px 12px',fontSize:11,color:T.CYAN}}>
             🤖 Los campos marcados con <strong style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 6px',fontSize:10}}>IA</strong> fueron completados automáticamente. Revisá y corregí si es necesario antes de guardar.
           </div>}
           {[
@@ -2606,7 +2614,7 @@ function LegajosView(props) {
             return(
               <div key={i} style={fdef.full?{gridColumn:'1/-1'}:{}}>
                 <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-                  <label style={{fontSize:11,color:'#555'}}>{fdef.label}</label>
+                  <label style={{fontSize:11,color:T.TEXT2}}>{fdef.label}</label>
                   {isIA && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 5px',fontSize:9,fontWeight:700}}>IA</span>}
                 </div>
                 <input
@@ -2614,31 +2622,31 @@ function LegajosView(props) {
                   value={form[fdef.key]||''}
                   onChange={function(e){fld(fdef.key,e.target.value);}}
                   placeholder={fdef.placeholder}
-                  style={Object.assign({},iS,isIA?{borderColor:C.AC,background:'#F0F7FF'}:{})}
+                  style={Object.assign({},iS,isIA?{borderColor:C.AC,background:T.BG3}:{})}
                 />
               </div>
             );
           })}
           <div>
             <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-              <label style={{fontSize:11,color:'#555'}}>Segmento de riesgo</label>
+              <label style={{fontSize:11,color:T.TEXT2}}>Segmento de riesgo</label>
               {iaFields && iaFields.filled.indexOf('segmento')>=0 && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 5px',fontSize:9,fontWeight:700}}>IA</span>}
             </div>
-            <select value={form.segmento} onChange={function(e){fld('segmento',e.target.value);}} style={Object.assign({},iS,iaFields&&iaFields.filled.indexOf('segmento')>=0?{borderColor:C.AC,background:'#F0F7FF'}:{})}>
+            <select value={form.segmento} onChange={function(e){fld('segmento',e.target.value);}} style={Object.assign({},iS,iaFields&&iaFields.filled.indexOf('segmento')>=0?{borderColor:C.AC,background:T.BG3}:{})}>
               <option>BAJO</option><option>MEDIO</option><option>MEDIO-ALTO</option><option>ALTO</option>
             </select>
           </div>
           <div>
             <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-              <label style={{fontSize:11,color:'#555'}}>Dictamen KYB</label>
+              <label style={{fontSize:11,color:T.TEXT2}}>Dictamen KYB</label>
               {iaFields && iaFields.filled.indexOf('dictamen')>=0 && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 5px',fontSize:9,fontWeight:700}}>IA</span>}
             </div>
-            <select value={form.dictamen} onChange={function(e){fld('dictamen',e.target.value);}} style={Object.assign({},iS,iaFields&&iaFields.filled.indexOf('dictamen')>=0?{borderColor:C.AC,background:'#F0F7FF'}:{})}>
+            <select value={form.dictamen} onChange={function(e){fld('dictamen',e.target.value);}} style={Object.assign({},iS,iaFields&&iaFields.filled.indexOf('dictamen')>=0?{borderColor:C.AC,background:T.BG3}:{})}>
               <option>APROBADO</option><option>CONDICIONAL</option><option>RECHAZADO</option>
             </select>
           </div>
           <div>
-            <label style={{display:'block',fontSize:11,fontWeight:700,color:'#555',marginBottom:4}}>Estado de cuenta</label>
+            <label style={{display:'block',fontSize:11,fontWeight:700,color:T.TEXT2,marginBottom:4}}>Estado de cuenta</label>
             <select
               value={form.estadoCuenta||'EN_ONBOARDING'}
               onChange={function(e){
@@ -2656,14 +2664,14 @@ function LegajosView(props) {
               style={{width:'100%',border:'2px solid '+(getEstado(form.estadoCuenta||'EN_ONBOARDING').color),borderRadius:4,padding:'7px 9px',fontSize:13,fontWeight:700,color:getEstado(form.estadoCuenta||'EN_ONBOARDING').color,background:getEstado(form.estadoCuenta||'EN_ONBOARDING').bg}}>
               {ESTADOS_CUENTA.map(function(e){return <option key={e.id} value={e.id}>{e.label} — {e.desc}</option>;})}
             </select>
-            {form.estadoCuentaUpdatedAt && <div style={{fontSize:10,color:'#aaa',marginTop:3}}>Último cambio: {form.estadoCuentaUpdatedAt}</div>}
+            {form.estadoCuentaUpdatedAt && <div style={{fontSize:10,color:T.TEXT3,marginTop:3}}>Último cambio: {form.estadoCuentaUpdatedAt}</div>}
           </div>
 
           {/* Último análisis externo — para cuentas analizadas antes de esta app */}
           <div style={{gridColumn:'1 / -1'}}>
-            <label style={{display:'block',fontSize:11,fontWeight:700,color:'#555',marginBottom:4}}>
+            <label style={{display:'block',fontSize:11,fontWeight:700,color:T.TEXT2,marginBottom:4}}>
               📋 Fecha de último análisis AML externo al sistema
-              <span style={{fontWeight:400,color:'#aaa',marginLeft:6}}>(completar si la cuenta fue analizada antes de usar esta app)</span>
+              <span style={{fontWeight:400,color:T.TEXT3,marginLeft:6}}>(completar si la cuenta fue analizada antes de usar esta app)</span>
             </label>
             <div style={{display:'flex',gap:8,alignItems:'center'}}>
               <input
@@ -2671,33 +2679,33 @@ function LegajosView(props) {
                 value={form.ultimoAnalisisExterno||''}
                 onChange={function(e){fld('ultimoAnalisisExterno',e.target.value);}}
                 placeholder="DD/MM/AAAA — ej: 31/12/2025"
-                style={{flex:1,border:'1px solid #ddd',borderRadius:4,padding:'7px 9px',fontSize:13}}
+                style={{flex:1,border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 9px',fontSize:13}}
               />
               {form.ultimoAnalisisExterno && (
-                <button onClick={function(){fld('ultimoAnalisisExterno','');}} style={{background:'none',border:'1px solid #ddd',borderRadius:4,padding:'7px 10px',cursor:'pointer',fontSize:11,color:'#888'}}>✕ Limpiar</button>
+                <button onClick={function(){fld('ultimoAnalisisExterno','');}} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 10px',cursor:'pointer',fontSize:11,color:T.TEXT2}}>✕ Limpiar</button>
               )}
             </div>
-            <div style={{fontSize:10,color:'#888',marginTop:3}}>
+            <div style={{fontSize:10,color:T.TEXT2,marginTop:3}}>
               Si completás esta fecha, el sistema la usa como referencia para calcular cuándo vence el próximo análisis requerido y no generará alertas hasta que se cumpla ese plazo.
             </div>
           </div>
         </div> : null}
 
         {tab === 'checklist' ? <div>
-          {iaFields && iaFields.okChecklist > 0 && <div style={{background:'#EBF5FB',border:'1px solid #AED6F1',borderRadius:4,padding:'8px 12px',marginBottom:10,fontSize:12,color:C.AM}}>
-            🤖 IA evaluó la presencia de documentos. <strong>{iaFields.okChecklist} marcados como OK</strong>{iaFields.bloqChecklist>0?<span>, <strong style={{color:C.ROJO}}>{iaFields.bloqChecklist} como Bloqueante</strong></span>:null}. Revisá y ajustá según tu criterio.
+          {iaFields && iaFields.okChecklist > 0 && <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:4,padding:'8px 12px',marginBottom:10,fontSize:11,color:T.CYAN}}>
+            🤖 IA evaluó la presencia de documentos. <strong>{iaFields.okChecklist} marcados como OK</strong>{iaFields.bloqChecklist>0?<span>, <strong style={{color:T.RED}}>{iaFields.bloqChecklist} como Bloqueante</strong></span>:null}. Revisá y ajustá según tu criterio.
           </div>}
           {CHECKLIST_ITEMS.map(function(item,i){
             var val = (form.checklist||{})[item]||'Pendiente';
             var stC = val==='OK'?C.VERDE:val==='Bloqueante'?C.ROJO:'#888';
             var isIA = iaFields && iaFields.okChecklist > 0;
             return(
-              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:i%2===0?'#F8FBFE':'white',borderBottom:'1px solid #eee',fontSize:13,borderLeft:val==='OK'?'3px solid '+C.VERDE:val==='Bloqueante'?'3px solid '+C.ROJO:'3px solid transparent'}}>
+              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:i%2===0?'#F8FBFE':'white',borderBottom:'1px solid '+T.BORDER,fontSize:13,borderLeft:val==='OK'?'3px solid '+C.VERDE:val==='Bloqueante'?'3px solid '+C.ROJO:'3px solid transparent'}}>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
-                  <span style={{color:C.AO}}>{item}</span>
+                  <span style={{color:T.TEXT}}>{item}</span>
                   {isIA && val !== 'Pendiente' && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 4px',fontSize:9,fontWeight:700}}>IA</span>}
                 </div>
-                <select value={val} onChange={function(e){setClItem(item,e.target.value);}} style={{border:'1px solid #ddd',borderRadius:4,padding:'4px 8px',fontSize:12,color:stC,fontWeight:700,background:val!=='Pendiente'?'#F0F7FF':'white'}}>
+                <select value={val} onChange={function(e){setClItem(item,e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'4px 8px',fontSize:12,color:stC,fontWeight:700,background:val!=='Pendiente'?'#F0F7FF':'white'}}>
                   <option>Pendiente</option><option>OK</option><option>Bloqueante</option><option>N/A</option>
                 </select>
               </div>
@@ -2707,13 +2715,13 @@ function LegajosView(props) {
 
         {tab === 'scoring' ? <div>
           <div style={{background:C.CEL,borderRadius:6,padding:'10px 14px',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <span style={{fontWeight:700,color:C.AO}}>Score KYB promedio</span>
+            <span style={{fontWeight:600,color:T.TEXT}}>Score KYB promedio</span>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               {iaFields && iaFields.kybFilled > 0 && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'2px 7px',fontSize:10,fontWeight:700}}>🤖 IA</span>}
               <span style={{fontWeight:700,fontSize:18,color:Number(scProm)>=4?C.ROJO:Number(scProm)>=3?C.NARANJA:C.VERDE}}>{scProm}/5</span>
             </div>
           </div>
-          {iaFields && iaFields.kybFilled > 0 && <div style={{background:'#EBF5FB',border:'1px solid #AED6F1',borderRadius:4,padding:'8px 12px',marginBottom:10,fontSize:12,color:C.AM}}>
+          {iaFields && iaFields.kybFilled > 0 && <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:4,padding:'8px 12px',marginBottom:10,fontSize:11,color:T.CYAN}}>
             🤖 IA completó los factores basándose en el análisis documental. Revisá y ajustá con tu criterio profesional.
           </div>}
           {KYB_FACTORS.map(function(f,i){
@@ -2721,9 +2729,9 @@ function LegajosView(props) {
             var scC = val>=4?C.ROJO:val>=3?C.NARANJA:C.VERDE;
             var isIA = iaFields && iaFields.kybFilled > 0;
             return(
-              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:i%2===0?'#F8FBFE':'white',borderBottom:'1px solid #eee',borderLeft:'3px solid '+scC}}>
+              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:i%2===0?'#F8FBFE':'white',borderBottom:'1px solid '+T.BORDER,borderLeft:'3px solid '+scC}}>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
-                  <span style={{fontSize:13,color:C.AO}}>{f}</span>
+                  <span style={{fontSize:13,color:T.TEXT}}>{f}</span>
                   {isIA && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 4px',fontSize:9,fontWeight:700}}>IA</span>}
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -2736,20 +2744,20 @@ function LegajosView(props) {
         </div> : null}
 
         {tab === 'flags' ? <div>
-          {iaFields && iaFields.rfCount > 0 && <div style={{background:'#FDEDEC',border:'1px solid #F1948A',borderRadius:4,padding:'8px 12px',marginBottom:10,fontSize:12,color:'#922B21'}}>
+          {iaFields && iaFields.rfCount > 0 && <div style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.2)',borderRadius:4,padding:'8px 12px',marginBottom:10,fontSize:12,color:T.RED}}>
             🤖 IA detectó {iaFields.rfCount} red flag(s) en los documentos. Revisá, editá o agregá los tuyos.
           </div>}
-          <p style={{fontSize:12,color:'#666',marginBottom:8}}>Red flags (uno por linea):</p>
+          <p style={{fontSize:12,color:T.TEXT2,marginBottom:8}}>Red flags (uno por linea):</p>
           <textarea value={safeArr(form.redFlags).join('\n')} onChange={function(e){fld('redFlags',e.target.value.split('\n').filter(function(s){return s.trim();}));}} rows={6} style={{width:'100%',border:'1px solid '+(iaFields&&iaFields.rfCount>0?C.ROJO:'#ddd'),borderRadius:4,padding:'8px 10px',fontSize:13,resize:'vertical',background:iaFields&&iaFields.rfCount>0?'#FFF8F8':'white'}} placeholder="Ingresa red flags..."/>
-          <p style={{fontSize:12,color:'#666',margin:'12px 0 6px'}}>Observaciones del analista:</p>
-          <textarea value={safeArr(form.observaciones).join('\n')} onChange={function(e){fld('observaciones',e.target.value.split('\n').filter(function(s){return s.trim();}));}} rows={4} style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:13,resize:'vertical'}} placeholder="Observaciones adicionales..."/>
+          <p style={{fontSize:12,color:T.TEXT2,margin:'12px 0 6px'}}>Observaciones del analista:</p>
+          <textarea value={safeArr(form.observaciones).join('\n')} onChange={function(e){fld('observaciones',e.target.value.split('\n').filter(function(s){return s.trim();}));}} rows={4} style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,resize:'vertical'}} placeholder="Observaciones adicionales..."/>
         </div> : null}
 
         {tab === 'historial' ? <div>
-          <p style={{fontSize:12,color:'#666',marginBottom:12}}>Historial de cambios de estado de cuenta. Se registra automáticamente cada vez que se modifica el estado.</p>
+          <p style={{fontSize:12,color:T.TEXT2,marginBottom:12}}>Historial de cambios de estado de cuenta. Se registra automáticamente cada vez que se modifica el estado.</p>
           {(function(){
             var hist = safeArr(form.estadoHistorial).slice().reverse();
-            if (hist.length === 0) return <div style={{background:'#F8FBFE',border:'1px solid #eee',borderRadius:4,padding:16,textAlign:'center',color:'#aaa',fontSize:13}}>Sin historial registrado. Los cambios de estado quedarán registrados aquí.</div>;
+            if (hist.length === 0) return <div style={{background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,padding:16,textAlign:'center',color:T.TEXT3,fontSize:13}}>Sin historial registrado. Los cambios de estado quedarán registrados aquí.</div>;
             return (
               <div>
                 {hist.map(function(h,i){
@@ -2759,14 +2767,14 @@ function LegajosView(props) {
                     <div key={i} style={{display:'flex',gap:14,padding:'10px 0',borderBottom:i<hist.length-1?'1px solid #eee':'none'}}>
                       <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,flexShrink:0}}>
                         <div style={{width:12,height:12,borderRadius:'50%',background:est.color,border:'2px solid '+est.color,marginTop:3}}></div>
-                        {i<hist.length-1 && <div style={{width:2,flex:1,background:'#eee',marginTop:2}}></div>}
+                        {i<hist.length-1 && <div style={{width:1,flex:1,background:T.BORDER,marginTop:2}}></div>}
                       </div>
                       <div style={{flex:1}}>
                         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
                           <span style={{background:est.bg,color:est.color,border:'1px solid '+est.color,borderRadius:8,padding:'2px 9px',fontSize:11,fontWeight:700}}>{est.label}</span>
                           {isLast && <span style={{background:C.AC,color:'white',borderRadius:8,padding:'1px 7px',fontSize:10,fontWeight:700}}>Actual</span>}
                         </div>
-                        <div style={{fontSize:11,color:'#888'}}>{h.fecha} {h.hora && 'a las '+h.hora} · {h.analista||'Analista'}</div>
+                        <div style={{fontSize:11,color:T.TEXT2}}>{h.fecha} {h.hora && 'a las '+h.hora} · {h.analista||'Analista'}</div>
                       </div>
                     </div>
                   );
@@ -2774,10 +2782,10 @@ function LegajosView(props) {
               </div>
             );
           }())}
-          <div style={{marginTop:16,padding:'10px 12px',background:'#F8FBFE',border:'1px solid #E8EEF4',borderRadius:4,fontSize:12,color:'#666'}}>
+          <div style={{marginTop:16,padding:'10px 12px',background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,fontSize:12,color:T.TEXT2}}>
             <strong>Registrar entrada manual en el historial:</strong>
             <div style={{display:'flex',gap:8,marginTop:8}}>
-              <input id="histNota" placeholder="Nota sobre el cambio de estado..." style={{flex:1,border:'1px solid #ddd',borderRadius:4,padding:'6px 8px',fontSize:12}}/>
+              <input id="histNota" placeholder="Nota sobre el cambio de estado..." style={{flex:1,border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 8px',fontSize:12}}/>
               <button onClick={function(){
                 var nota = document.getElementById('histNota').value.trim();
                 if (!nota) return;
@@ -2785,7 +2793,7 @@ function LegajosView(props) {
                 var entrada = { estado:form.estadoCuenta||'EN_ONBOARDING', fecha:todayStr(), hora:ahora.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}), analista:'Analista — '+nota };
                 fld('estadoHistorial', safeArr(form.estadoHistorial).concat([entrada]));
                 document.getElementById('histNota').value='';
-              }} style={{background:C.AM,color:'white',border:'none',borderRadius:4,padding:'6px 14px',cursor:'pointer',fontSize:12,fontWeight:700}}>+ Agregar</button>
+              }} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'6px 14px',cursor:'pointer',fontSize:12,fontWeight:700}}>+ Agregar</button>
             </div>
           </div>
         </div> : null}
@@ -2870,9 +2878,9 @@ function LegajosView(props) {
               <div>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
                   <div>
-                    <div style={{fontWeight:700,color:C.AO,fontSize:14,marginBottom:4}}>🛡 Screening de Sanciones Internacionales</div>
-                    <div style={{fontSize:12,color:'#555'}}>Verificación contra OFAC SDN, ONU, REPET UIF y PEPs Argentina.</div>
-                    <div style={{fontSize:11,color:'#888',marginTop:4}}>Personas a verificar: {nombresArr.length > 0 ? nombresArr.join(' · ') : 'Completar Razón Social / Beneficiario Final primero'}</div>
+                    <div style={{fontWeight:600,color:T.TEXT,fontSize:14,marginBottom:4}}>🛡 Screening de Sanciones Internacionales</div>
+                    <div style={{fontSize:12,color:T.TEXT2}}>Verificación contra OFAC SDN, ONU, REPET UIF y PEPs Argentina.</div>
+                    <div style={{fontSize:11,color:T.TEXT2,marginTop:4}}>Personas a verificar: {nombresArr.length > 0 ? nombresArr.join(' · ') : 'Completar Razón Social / Beneficiario Final primero'}</div>
                   </div>
                   <button
                     onClick={ejecutarScreening}
@@ -2884,9 +2892,9 @@ function LegajosView(props) {
                 </div>
 
                 {screeningLoading && (
-                  <div style={{background:'#EBF5FB',border:'1px solid #AED6F1',borderRadius:6,padding:'16px',textAlign:'center',marginBottom:16}}>
-                    <div style={{fontSize:14,color:C.AM,fontWeight:700}}>🔍 Consultando listas de sanciones...</div>
-                    <div style={{fontSize:12,color:'#888',marginTop:4}}>OFAC SDN · ONU · REPET UIF · PEPs Argentina — esto puede tardar 20-30 segundos</div>
+                  <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:6,padding:'16px',textAlign:'center',marginBottom:16}}>
+                    <div style={{fontSize:14,color:T.CYAN,fontWeight:700}}>🔍 Consultando listas de sanciones...</div>
+                    <div style={{fontSize:12,color:T.TEXT2,marginTop:4}}>OFAC SDN · ONU · REPET UIF · PEPs Argentina — esto puede tardar 20-30 segundos</div>
                   </div>
                 )}
 
@@ -2898,9 +2906,9 @@ function LegajosView(props) {
                         <span style={{fontWeight:700,fontSize:14,color:getCol(scr.estadoGeneral)}}>
                           {scr.estadoGeneral==='LIMPIO'?'✅ SIN COINCIDENCIAS':scr.estadoGeneral==='COINCIDENCIA'?'🔴 COINCIDENCIA DETECTADA':'🟡 REQUIERE REVISIÓN MANUAL'}
                         </span>
-                        <div style={{fontSize:11,color:'#888',marginTop:2}}>Realizado por {scr.realizadoPor} el {scr.fecha} a las {scr.hora}</div>
+                        <div style={{fontSize:11,color:T.TEXT2,marginTop:2}}>Realizado por {scr.realizadoPor} el {scr.fecha} a las {scr.hora}</div>
                       </div>
-                      <div style={{fontSize:11,color:'#888',textAlign:'right'}}>
+                      <div style={{fontSize:11,color:T.TEXT2,textAlign:'right'}}>
                         {scr.nombres && scr.nombres.map(function(n,i){return <div key={i}>{n}</div>;})}
                       </div>
                     </div>
@@ -2917,15 +2925,15 @@ function LegajosView(props) {
                               <span style={{fontWeight:700,fontSize:12}}>{lista.flag} {lista.label}</span>
                               <span style={{background:col,color:'white',borderRadius:8,padding:'2px 10px',fontSize:10,fontWeight:700}}>{estado}</span>
                             </div>
-                            <div style={{fontSize:11,color:'#555',lineHeight:1.5}}>{res ? res.detalle : '—'}</div>
-                            <a href={lista.url} target="_blank" rel="noreferrer" style={{fontSize:10,color:C.AC,display:'block',marginTop:4}}>Ver lista oficial →</a>
+                            <div style={{fontSize:11,color:T.TEXT2,lineHeight:1.5}}>{res ? res.detalle : '—'}</div>
+                            <a href={lista.url} target="_blank" rel="noreferrer" style={{fontSize:10,color:T.CYAN,display:'block',marginTop:4}}>Ver lista oficial →</a>
                           </div>
                         );
                       })}
                     </div>
 
                     {scr.estadoGeneral !== 'LIMPIO' && (
-                      <div style={{background:'#FEF9E7',border:'1px solid #F39C12',borderRadius:4,padding:'10px 14px',fontSize:12,color:'#E67E22'}}>
+                      <div style={{background:'rgba(255,184,48,0.08)',border:'1px solid rgba(255,184,48,0.25)',borderRadius:3,padding:'10px 14px',fontSize:12,color:T.AMBER}}>
                         <strong>⚠ Acción requerida:</strong> {scr.estadoGeneral==='COINCIDENCIA'
                           ? 'Se detectó una posible coincidencia. Suspender operaciones del cliente y notificar al Oficial de Cumplimiento de inmediato. Evaluar reporte a UIF.'
                           : 'Existen nombres similares que requieren verificación manual. Revisar los detalles antes de continuar con el onboarding.'}
@@ -2935,9 +2943,9 @@ function LegajosView(props) {
                 )}
 
                 {!scr && !screeningLoading && (
-                  <div style={{background:'#F8FBFE',border:'2px dashed #ddd',borderRadius:6,padding:'30px 20px',textAlign:'center',color:'#aaa'}}>
+                  <div style={{background:T.BG3,border:'2px dashed #ddd',borderRadius:6,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
                     <div style={{fontSize:32,marginBottom:8}}>🛡</div>
-                    <div style={{fontSize:14,fontWeight:600,color:'#888'}}>Screening no realizado</div>
+                    <div style={{fontSize:14,fontWeight:600,color:T.TEXT2}}>Screening no realizado</div>
                     <div style={{fontSize:12,marginTop:4}}>Hacé clic en "Ejecutar Screening" para verificar contra las 4 listas de sanciones.</div>
                   </div>
                 )}
@@ -2957,16 +2965,16 @@ function LegajosView(props) {
     var scP2 = scV2.length>0?(scV2.reduce(function(a,b){return a+b;},0)/scV2.length).toFixed(2):'N/D';
     return (
       <div style={{padding:22}}>
-        <button onClick={function(){setSelId(null);}} style={{background:'none',border:'none',color:C.AC,cursor:'pointer',fontSize:13,marginBottom:12}}>← Volver a lista</button>
+        <button onClick={function(){setSelId(null);}} style={{background:'none',border:'none',color:T.CYAN,cursor:'pointer',fontSize:13,marginBottom:12}}>← Volver a lista</button>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
           <div>
-            <h2 style={{color:C.AO,fontSize:18,fontWeight:700,margin:0}}>{sel.razonSocial||'Sin nombre'}</h2>
+            <h2 style={{color:T.TEXT,fontSize:18,fontWeight:700,margin:0}}>{sel.razonSocial||'Sin nombre'}</h2>
             <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,flexWrap:'wrap'}}>
-              <span style={{color:'#888',fontSize:13}}>CUIT: {sel.cuit||'N/D'} · Alta: {sel.createdAt}</span>
+              <span style={{color:T.TEXT2,fontSize:13}}>CUIT: {sel.cuit||'N/D'} · Alta: {sel.createdAt}</span>
               {(function(){var est=getEstado(sel.estadoCuenta||'EN_ONBOARDING');return(
                 <span style={{background:est.bg,color:est.color,border:'1px solid '+est.color,borderRadius:10,padding:'3px 12px',fontSize:12,fontWeight:700}}>{est.label}</span>
               );}())}
-              {sel.estadoCuentaUpdatedAt && <span style={{fontSize:11,color:'#aaa'}}>desde {sel.estadoCuentaUpdatedAt}</span>}
+              {sel.estadoCuentaUpdatedAt && <span style={{fontSize:11,color:T.TEXT3}}>desde {sel.estadoCuentaUpdatedAt}</span>}
               {sel.screening && (function(){
                 var col = sel.screening.estadoGeneral==='LIMPIO'?C.VERDE:sel.screening.estadoGeneral==='COINCIDENCIA'?C.ROJO:C.AMARILLO;
                 var label = sel.screening.estadoGeneral==='LIMPIO'?'🛡 Screening ✅':sel.screening.estadoGeneral==='COINCIDENCIA'?'🛡 Coincidencia 🔴':'🛡 Revisar 🟡';
@@ -2992,8 +3000,8 @@ function LegajosView(props) {
               fetch('/api/sync?action=kv&k=ros_counter_'+new Date().getFullYear(), {headers:{'x-app-token':APP_TOKEN}})
                 .then(function(r){return r.json();}).then(function(d){ setRosNum((d.v||0)+1); }).catch(function(){ setRosNum(1); });
               setRosOpen(true);
-            }} style={{background:'#7D3C98',color:'white',border:'none',borderRadius:4,padding:'8px 14px',cursor:'pointer',fontWeight:700,fontSize:13}}>📋 ROS Borrador</button>}
-            <button onClick={function(){setCierreOpen(true);setCierreMot('');setCierreIA('');}} style={{background:'#E74C3C',color:'white',border:'none',borderRadius:4,padding:'8px 14px',cursor:'pointer',fontWeight:700,fontSize:13}}>🔒 Cierre</button>
+            }} style={{background:'rgba(139,103,192,0.2)',color:'#B39DDB',border:'1px solid rgba(139,103,192,0.3)',borderRadius:3,padding:'8px 14px',cursor:'pointer',fontWeight:700,fontSize:13}}>📋 ROS Borrador</button>}
+            <button onClick={function(){setCierreOpen(true);setCierreMot('');setCierreIA('');}} style={{background:T.RED,color:'white',border:'none',borderRadius:4,padding:'8px 14px',cursor:'pointer',fontWeight:700,fontSize:13}}>🔒 Cierre</button>
             <button onClick={function(){setForm(JSON.parse(JSON.stringify(sel)));setEditing(true);setTab('datos');}} style={btnG}>✏️ Editar</button>
             {puedeEliminar(currentUser.rol) && <button onClick={function(){if(window.confirm('Eliminar?')){saveList(legajos.filter(function(l){return l.id!==sel.id;}));setSelId(null);}}} style={btnR}>🗑</button>}
           </div>
@@ -3005,19 +3013,19 @@ function LegajosView(props) {
             // rfisLegajo se carga desde Supabase KV via useEffect en AnalisisView
             return (
               <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                <div style={{background:'white',borderRadius:8,padding:28,width:560,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
+                <div style={{background:T.BG2,borderRadius:8,padding:28,width:560,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
                     <div>
-                      <div style={{fontWeight:700,color:'#7D3C98',fontSize:16}}>📋 Generar ROS Borrador</div>
-                      <div style={{fontSize:12,color:'#888',marginTop:2}}>Reporte de Operación Sospechosa — {sel.razonSocial}</div>
+                      <div style={{fontWeight:700,color:'#B39DDB',fontSize:13}}>📋 Generar ROS Borrador</div>
+                      <div style={{fontSize:12,color:T.TEXT2,marginTop:2}}>Reporte de Operación Sospechosa — {sel.razonSocial}</div>
                     </div>
-                    <button onClick={function(){setRosOpen(false);}} style={{background:'none',border:'1px solid #ddd',borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:12}}>✕</button>
+                    <button onClick={function(){setRosOpen(false);}} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:12}}>✕</button>
                   </div>
 
                   <div style={{marginBottom:16}}>
-                    <div style={{fontWeight:700,fontSize:12,color:C.AO,marginBottom:8}}>Seleccioná los períodos a incluir en el ROS:</div>
+                    <div style={{fontWeight:700,fontSize:12,color:T.TEXT,marginBottom:8}}>Seleccioná los períodos a incluir en el ROS:</div>
                     {lp.length === 0 ? (
-                      <div style={{color:'#aaa',fontSize:12,textAlign:'center',padding:'12px 0'}}>Este legajo no tiene períodos analizados.</div>
+                      <div style={{color:T.TEXT3,fontSize:12,textAlign:'center',padding:'12px 0'}}>Este legajo no tiene períodos analizados.</div>
                     ) : lp.map(function(p){
                       var hasSigs = p.metricas && detectPatrones(p.metricas, sel).some(function(s){
                         return s.sev==='ALTA' && (!(p.sigsResolucion||{})[s.pat] || (p.sigsResolucion||{})[s.pat].estado!=='RESUELTA');
@@ -3032,22 +3040,22 @@ function LegajosView(props) {
                           <input type="checkbox" checked={checked} readOnly style={{cursor:'pointer'}}/>
                           <div style={{flex:1}}>
                             <div style={{fontWeight:600,fontSize:13}}>{p.nombre}</div>
-                            <div style={{fontSize:11,color:'#888'}}>{p.metricas?fmtM(p.metricas.tIn)+' IN · '+fmtM(p.metricas.tOut)+' OUT · '+(p.txns&&p.txns.length?p.txns.length.toLocaleString('es-AR'):0)+' txns':'Sin métricas calculadas'}</div>
+                            <div style={{fontSize:11,color:T.TEXT2}}>{p.metricas?fmtM(p.metricas.tIn)+' IN · '+fmtM(p.metricas.tOut)+' OUT · '+(p.txns&&p.txns.length?p.txns.length.toLocaleString('es-AR'):0)+' txns':'Sin métricas calculadas'}</div>
                           </div>
-                          {hasSigs && <span style={{background:'#E74C3C',color:'white',borderRadius:8,padding:'2px 8px',fontSize:10,fontWeight:700}}>ALTA</span>}
+                          {hasSigs && <span style={{background:T.RED,color:'white',borderRadius:8,padding:'2px 8px',fontSize:10,fontWeight:700}}>ALTA</span>}
                         </div>
                       );
                     })}
                   </div>
 
-                  <div style={{background:'#F5EEF8',border:'1px solid #D7BDE2',borderRadius:4,padding:'8px 12px',marginBottom:16,fontSize:11}}>
+                  <div style={{background:'rgba(139,103,192,0.08)',border:'1px solid rgba(139,103,192,0.25)',borderRadius:3,padding:'8px 12px',marginBottom:16,fontSize:11}}>
                     <strong>N° de ROS:</strong> ROS-{new Date().getFullYear()}-{String(rosNum||'001').padStart(3,'0')} · <strong>Oficial:</strong> {currentUser&&currentUser.nombre||'Oficial de Cumplimiento'}
                   </div>
 
-                  {rosSelPer.length === 0 && <div style={{color:C.NARANJA,fontSize:12,marginBottom:10}}>⚠ Seleccioná al menos un período para generar el ROS.</div>}
+                  {rosSelPer.length === 0 && <div style={{color:T.AMBER,fontSize:12,marginBottom:10}}>⚠ Seleccioná al menos un período para generar el ROS.</div>}
 
                   <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-                    <button onClick={function(){setRosOpen(false);}} style={{background:'#888',color:'white',border:'none',borderRadius:4,padding:'8px 16px',cursor:'pointer',fontSize:13}}>Cancelar</button>
+                    <button onClick={function(){setRosOpen(false);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:13}}>Cancelar</button>
                     <button
                       disabled={rosSelPer.length===0}
                       onClick={async function(){
@@ -3076,28 +3084,28 @@ function LegajosView(props) {
 
           {/* MODAL CIERRE DE CUENTA */}
           {cierreOpen ? <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',overflow:'auto'}}>
-            <div style={{background:'white',borderRadius:8,padding:28,width:600,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
+            <div style={{background:T.BG2,borderRadius:8,padding:28,width:600,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
                 <div>
-                  <div style={{fontWeight:700,color:'#E74C3C',fontSize:16}}>🔒 Cierre de Cuenta</div>
-                  <div style={{fontSize:12,color:'#888',marginTop:2}}>{sel.razonSocial} — {sel.cuit}</div>
+                  <div style={{fontWeight:700,color:T.RED,fontSize:16}}>🔒 Cierre de Cuenta</div>
+                  <div style={{fontSize:12,color:T.TEXT2,marginTop:2}}>{sel.razonSocial} — {sel.cuit}</div>
                 </div>
-                <button onClick={function(){setCierreOpen(false);}} style={{background:'none',border:'1px solid #ddd',borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#888'}}>✕</button>
+                <button onClick={function(){setCierreOpen(false);}} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:12,color:T.TEXT2}}>✕</button>
               </div>
 
               {/* Resumen del legajo */}
-              <div style={{background:'#F8FBFE',border:'1px solid #E8EEF4',borderRadius:6,padding:'12px 14px',marginBottom:16,fontSize:12}}>
-                <div style={{fontWeight:700,color:C.AO,marginBottom:8}}>Resumen del legajo</div>
+              <div style={{background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:6,padding:'12px 14px',marginBottom:16,fontSize:12}}>
+                <div style={{fontWeight:600,color:T.TEXT,marginBottom:8}}>Resumen del legajo</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
                   {[['Alta',sel.createdAt],['Estado',getEstado(sel.estadoCuenta||'EN_ONBOARDING').label],['Segmento',sel.segmento],['Dictamen',sel.dictamen],['Períodos AML',periodos.filter(function(p){return p.legajoId===sel.id;}).length+' analizados']].map(function(r,i){return(
-                    <div key={i} style={{fontSize:11}}><span style={{color:'#888'}}>{r[0]}: </span><strong>{r[1]}</strong></div>
+                    <div key={i} style={{fontSize:11}}><span style={{color:T.TEXT2}}>{r[0]}: </span><strong>{r[1]}</strong></div>
                   );})}
                 </div>
               </div>
 
               {/* Tipo de cierre */}
               <div style={{marginBottom:14}}>
-                <label style={{fontSize:12,fontWeight:700,color:C.AO,display:'block',marginBottom:6}}>Motivo del cierre</label>
+                <label style={{fontSize:12,fontWeight:600,color:T.TEXT,display:'block',marginBottom:6}}>Motivo del cierre</label>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                   {[
                     {id:'RIESGO_AML',label:'🚨 Riesgo AML',desc:'Patrones de lavado detectados'},
@@ -3107,7 +3115,7 @@ function LegajosView(props) {
                   ].map(function(t){return(
                     <div key={t.id} onClick={function(){setCierreTipo(t.id);}} style={{border:'2px solid '+(cierreTipo===t.id?'#E74C3C':'#eee'),borderRadius:6,padding:'10px 12px',cursor:'pointer',background:cierreTipo===t.id?'#FDF2F2':'white'}}>
                       <div style={{fontWeight:700,fontSize:12,color:cierreTipo===t.id?'#E74C3C':C.AO}}>{t.label}</div>
-                      <div style={{fontSize:10,color:'#888',marginTop:2}}>{t.desc}</div>
+                      <div style={{fontSize:10,color:T.TEXT2,marginTop:2}}>{t.desc}</div>
                     </div>
                   );})}
                 </div>
@@ -3115,20 +3123,20 @@ function LegajosView(props) {
 
               {/* Detalle del motivo */}
               <div style={{marginBottom:14}}>
-                <label style={{fontSize:12,fontWeight:700,color:C.AO,display:'block',marginBottom:6}}>Detalle / Fundamentación</label>
+                <label style={{fontSize:12,fontWeight:600,color:T.TEXT,display:'block',marginBottom:6}}>Detalle / Fundamentación</label>
                 <textarea
                   value={cierreMot}
                   onChange={function(e){setCierreMot(e.target.value);}}
                   rows={4}
                   placeholder="Describí los fundamentos de la decisión de cierre. Incluí referencias a períodos analizados, señales detectadas, incumplimientos o cualquier elemento relevante para el archivo de auditoría."
-                  style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:12,resize:'vertical',boxSizing:'border-box'}}
+                  style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:12,resize:'vertical',boxSizing:'border-box'}}
                 />
               </div>
 
               {/* Análisis IA */}
               <div style={{marginBottom:16}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-                  <label style={{fontSize:12,fontWeight:700,color:C.AO}}>Análisis automatizado IA</label>
+                  <label style={{fontSize:12,fontWeight:600,color:T.TEXT}}>Análisis automatizado IA</label>
                   <button
                     onClick={async function(){
                       setCierreLoading(true);
@@ -3155,8 +3163,8 @@ function LegajosView(props) {
                     {cierreLoading?'⏳ Analizando...':'🤖 Analizar con IA'}
                   </button>
                 </div>
-                {cierreIA ? <div style={{background:'#F8FBFE',border:'1px solid #D6E4F0',borderRadius:4,padding:'10px 12px',fontSize:11,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{cierreIA}</div>
-                  : <div style={{background:'#F8FBFE',border:'1px dashed #ddd',borderRadius:4,padding:'12px',fontSize:11,color:'#aaa',textAlign:'center'}}>Hacé clic en "Analizar con IA" para generar un análisis automático basado en el legajo y el último período AML.</div>}
+                {cierreIA ? <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:4,padding:'10px 12px',fontSize:11,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{cierreIA}</div>
+                  : <div style={{background:T.BG3,border:'1px dashed #ddd',borderRadius:4,padding:'12px',fontSize:11,color:T.TEXT3,textAlign:'center'}}>Hacé clic en "Analizar con IA" para generar un análisis automático basado en el legajo y el último período AML.</div>}
               </div>
 
               {/* Botones */}
@@ -3171,11 +3179,11 @@ function LegajosView(props) {
                     auditLog(currentUser,'generar_inf07','legajo',sel.id,{razonSocial:sel.razonSocial,cuit:sel.cuit,motivoCierre:cierreTipo});
                     setCierreOpen(false);
                   }}
-                  style={{flex:1,background:'#E74C3C',color:'white',border:'none',borderRadius:4,padding:'11px 0',cursor:'pointer',fontWeight:700,fontSize:14}}
+                  style={{flex:1,background:T.RED,color:'white',border:'none',borderRadius:4,padding:'11px 0',cursor:'pointer',fontWeight:700,fontSize:14}}
                 >
                   📄 Generar INF-07 Cierre
                 </button>
-                <button onClick={function(){setCierreOpen(false);}} style={{background:'#888',color:'white',border:'none',borderRadius:4,padding:'11px 18px',cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
+                <button onClick={function(){setCierreOpen(false);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'11px 18px',cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
               </div>
             </div>
           </div> : null}
@@ -3185,7 +3193,7 @@ function LegajosView(props) {
             <table style={{width:'100%',fontSize:13}}>
               <tbody>{[['Actividad',sel.actividad||'N/D'],['Beneficiario final',sel.beneficiarioFinal||'N/D'],['Facturacion mensual',fmtM(sel.facturacionMensual)],['Limite diario',fmtM(sel.limiteDiario)],['Limite mensual',fmtM(sel.limiteMensual)]].map(function(r,i){return(
                 <tr key={i} style={{background:i%2===0?'#F8FBFE':'white'}}>
-                  <td style={{padding:'5px 8px',color:'#666',fontWeight:600}}>{r[0]}</td>
+                  <td style={{padding:'5px 8px',color:T.TEXT2,fontWeight:600}}>{r[0]}</td>
                   <td style={{padding:'5px 8px'}}>{r[1]}</td>
                 </tr>
               );})}</tbody>
@@ -3193,25 +3201,25 @@ function LegajosView(props) {
           </Card>
           <Card title="Dictamen y scoring">
             <div style={{display:'flex',gap:10,marginBottom:10}}><Pill v={sel.dictamen}/><Pill v={sel.segmento}/></div>
-            <div style={{fontSize:13,color:'#555'}}>Score KYB: <strong style={{color:Number(scP2)>=4?C.ROJO:Number(scP2)>=3?C.NARANJA:C.VERDE}}>{scP2}/5</strong></div>
-            <div style={{fontSize:12,color:'#888',marginTop:4}}>Checklist: {okC2}/{CHECKLIST_ITEMS.length} docs OK</div>
+            <div style={{fontSize:13,color:T.TEXT2}}>Score KYB: <strong style={{color:Number(scP2)>=4?C.ROJO:Number(scP2)>=3?C.NARANJA:C.VERDE}}>{scP2}/5</strong></div>
+            <div style={{fontSize:12,color:T.TEXT2,marginTop:4}}>Checklist: {okC2}/{CHECKLIST_ITEMS.length} docs OK</div>
           </Card>
         </div>
-        {safeArr(sel.redFlags).length > 0 ? <Card title={'Red Flags (' + sel.redFlags.length + ')'}>{sel.redFlags.map(function(rf,i){return <div key={i} style={{padding:'5px 0',borderBottom:'1px solid #eee',fontSize:13,color:C.ROJO}}>🚩 {rf}</div>;})}</Card> : null}
+        {safeArr(sel.redFlags).length > 0 ? <Card title={'Red Flags (' + sel.redFlags.length + ')'}>{sel.redFlags.map(function(rf,i){return <div key={i} style={{padding:'5px 0',borderBottom:'1px solid '+T.BORDER,fontSize:13,color:T.RED}}>🚩 {rf}</div>;})}</Card> : null}
         <Card title="Periodos AML" actions={<button onClick={function(){onAnalizar(sel,null);}} style={{background:'none',border:'1px solid rgba(255,255,255,0.5)',color:'white',borderRadius:4,padding:'4px 12px',cursor:'pointer',fontSize:12}}>+ Nuevo periodo</button>}>
-          {lPeriodos.length === 0 ? <p style={{color:'#888',fontSize:13}}>Sin periodos. Subi un CSV para analizar.</p> :
+          {lPeriodos.length === 0 ? <p style={{color:T.TEXT2,fontSize:13}}>Sin periodos. Subi un CSV para analizar.</p> :
           lPeriodos.map(function(p,i){
             var m2 = calcMetricas(p.txns, sel);
             var sigs2 = m2 ? detectPatrones(m2, sel) : [];
             var hi2 = sigs2.filter(function(s){return s.sev==='ALTA';}).length;
             return (
-              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #eee'}}>
+              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid '+T.BORDER}}>
                 <div>
-                  <span style={{fontWeight:700,color:C.AO,fontSize:13}}>{p.nombre}</span>
-                  <span style={{color:'#888',fontSize:12,marginLeft:8}}>{p.txns?p.txns.length:0} txns</span>
+                  <span style={{fontWeight:600,color:T.TEXT,fontSize:11}}>{p.nombre}</span>
+                  <span style={{color:T.TEXT2,fontSize:12,marginLeft:8}}>{p.txns?p.txns.length:0} txns</span>
                   {hi2 > 0 ? <span style={{marginLeft:6,background:C.ROJO,color:'white',borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>{hi2} ALTA</span> : null}
                 </div>
-                <button onClick={function(){onAnalizar(sel,p);}} style={{background:C.AC,color:'white',border:'none',borderRadius:4,padding:'5px 12px',cursor:'pointer',fontSize:12,fontWeight:700}}>Analizar →</button>
+                <button onClick={function(){onAnalizar(sel,p);}} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'5px 12px',cursor:'pointer',fontSize:12,fontWeight:700}}>Analizar →</button>
               </div>
             );
           })}
@@ -3266,18 +3274,18 @@ function LegajosView(props) {
   return (
     <div style={{padding:22}} onClick={function(){if(menuOpen)setMenuOpen(null);}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-        <h2 style={{color:C.AO,fontSize:19,fontWeight:700}}>Legajos KYB ({legajos.length})</h2>
+        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,letterSpacing:'1px'}}>Legajos KYB ({legajos.length})</h2>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           {selectMode ? (
             <div style={{display:'flex',gap:8,alignItems:'center'}}>
-              <span style={{fontSize:12,color:'#888'}}>{selected.length} seleccionado(s)</span>
-              <button onClick={selectAll} style={{background:'none',border:'1px solid #ddd',borderRadius:4,padding:'6px 12px',cursor:'pointer',fontSize:12}}>Todos ({filteredLegs.length})</button>
+              <span style={{fontSize:12,color:T.TEXT2}}>{selected.length} seleccionado(s)</span>
+              <button onClick={selectAll} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 12px',cursor:'pointer',fontSize:12}}>Todos ({filteredLegs.length})</button>
               <button onClick={deleteSelected} disabled={!selected.length} style={{background:selected.length?C.ROJO:'#ccc',color:'white',border:'none',borderRadius:4,padding:'6px 14px',cursor:selected.length?'pointer':'not-allowed',fontWeight:700,fontSize:12}}>🗑 Eliminar ({selected.length})</button>
-              <button onClick={function(){setSelectMode(false);clearSel();}} style={{background:'#888',color:'white',border:'none',borderRadius:4,padding:'6px 12px',cursor:'pointer',fontSize:12}}>Cancelar</button>
+              <button onClick={function(){setSelectMode(false);clearSel();}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'6px 12px',cursor:'pointer',fontSize:12}}>Cancelar</button>
             </div>
           ) : (
             <div style={{display:'flex',gap:8}}>
-              <button onClick={function(){setSelectMode(true);}} style={{background:'none',border:'1px solid #ddd',borderRadius:4,padding:'6px 12px',cursor:'pointer',fontSize:12,color:'#555'}}>☑ Seleccionar</button>
+              <button onClick={function(){setSelectMode(true);}} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 12px',cursor:'pointer',fontSize:12,color:T.TEXT2}}>☑ Seleccionar</button>
               <button onClick={function(){setForm(mkNew());setEditing(true);setSelId(null);setIaFields(null);setTab('resumen_ia');}} style={btnG}>+ Nuevo legajo</button>
             </div>
           )}
@@ -3285,26 +3293,26 @@ function LegajosView(props) {
       </div>
 
       <div style={{display:'flex',gap:10,marginBottom:14,flexWrap:'wrap'}}>
-        <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="🔍 Buscar por razón social, CUIT o actividad..." style={{flex:'1 1 220px',border:'1px solid #ddd',borderRadius:4,padding:'8px 12px',fontSize:13}}/>
-        <select value={filtroSeg} onChange={function(e){setFiltroSeg(e.target.value);}} style={{border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:12}}>
+        <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="🔍 Buscar por razón social, CUIT o actividad..." style={{flex:'1 1 220px',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 12px',fontSize:13}}/>
+        <select value={filtroSeg} onChange={function(e){setFiltroSeg(e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:12}}>
           <option value="TODOS">Todos los segmentos</option>
           <option>BAJO</option><option>MEDIO</option><option>MEDIO-ALTO</option><option>ALTO</option>
         </select>
-        <select value={filtroDict} onChange={function(e){setFiltroDict(e.target.value);}} style={{border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:12}}>
+        <select value={filtroDict} onChange={function(e){setFiltroDict(e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:12}}>
           <option value="TODOS">Todos los dictámenes</option>
           <option>APROBADO</option><option>CONDICIONAL</option><option>RECHAZADO</option>
         </select>
-        <select value={filtroEst} onChange={function(e){setFiltroEst(e.target.value);}} style={{border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:12}}>
+        <select value={filtroEst} onChange={function(e){setFiltroEst(e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:12}}>
           <option value="TODOS">Todos los estados</option>
           {ESTADOS_CUENTA.map(function(e){return <option key={e.id} value={e.id}>{e.label}</option>;})}
         </select>
         {(search||filtroSeg!=='TODOS'||filtroDict!=='TODOS'||filtroEst!=='TODOS') &&
-          <button onClick={function(){setSearch('');setFiltroSeg('TODOS');setFiltroDict('TODOS');setFiltroEst('TODOS');}} style={{background:'none',border:'1px solid #ddd',borderRadius:4,padding:'6px 10px',cursor:'pointer',fontSize:12,color:'#888'}}>✕ Limpiar</button>
+          <button onClick={function(){setSearch('');setFiltroSeg('TODOS');setFiltroDict('TODOS');setFiltroEst('TODOS');}} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 10px',cursor:'pointer',fontSize:12,color:T.TEXT2}}>✕ Limpiar</button>
         }
       </div>
 
-      {legajos.length===0 && <Card title=""><p style={{color:'#888',textAlign:'center',padding:'20px 0'}}>No hay legajos. Creá el primero con "+ Nuevo legajo".</p></Card>}
-      {filteredLegs.length===0 && legajos.length>0 && <Card title=""><p style={{color:'#888',textAlign:'center',padding:'16px 0'}}>Sin resultados para los filtros aplicados.</p></Card>}
+      {legajos.length===0 && <Card title=""><p style={{color:T.TEXT2,textAlign:'center',padding:'20px 0'}}>No hay legajos. Creá el primero con "+ Nuevo legajo".</p></Card>}
+      {filteredLegs.length===0 && legajos.length>0 && <Card title=""><p style={{color:T.TEXT2,textAlign:'center',padding:'16px 0'}}>Sin resultados para los filtros aplicados.</p></Card>}
 
       {filteredLegs.map(function(l,i){
         var lp = periodos.filter(function(p){return p.legajoId===l.id;});
@@ -3320,7 +3328,7 @@ function LegajosView(props) {
         var isMenuOpen = menuOpen===l.id;
 
         return (
-          <div key={l.id} style={{background:'white',border:'2px solid '+(isSelected?C.AC:'#E8EEF4'),borderRadius:6,padding:'12px 16px',marginBottom:8,boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
+          <div key={l.id} style={{background:T.BG2,border:'2px solid '+(isSelected?C.AC:'#E8EEF4'),borderRadius:6,padding:'12px 16px',marginBottom:8,boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
 
               {/* LEFT: checkbox + info */}
@@ -3330,10 +3338,10 @@ function LegajosView(props) {
                 )}
                 <div style={{flex:1,minWidth:0,cursor:selectMode?'pointer':'default'}} onClick={function(){if(selectMode)toggleSelect(l.id);}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                    <span style={{fontWeight:700,color:C.AO,fontSize:14}}>{l.razonSocial||'Sin nombre'}</span>
+                    <span style={{fontWeight:600,color:T.TEXT,fontSize:14}}>{l.razonSocial||'Sin nombre'}</span>
                     {hiL>0 && <span style={{background:C.ROJO,color:'white',borderRadius:10,padding:'1px 8px',fontSize:10,fontWeight:700}}>{hiL} ALTA</span>}
                   </div>
-                  <div style={{color:'#888',fontSize:12,marginTop:2}}>CUIT: {l.cuit||'N/D'} · {l.actividad||'Sin actividad'} · {lp.length} periodo(s)</div>
+                  <div style={{color:T.TEXT2,fontSize:12,marginTop:2}}>CUIT: {l.cuit||'N/D'} · {l.actividad||'Sin actividad'} · {lp.length} periodo(s)</div>
                 </div>
               </div>
 
@@ -3351,8 +3359,8 @@ function LegajosView(props) {
                         style={{background:est.bg,color:est.color,border:'1px solid '+est.color,borderRadius:10,padding:'2px 9px',fontSize:10,fontWeight:700,whiteSpace:'nowrap',cursor:'pointer',userSelect:'none'}}
                       >{est.label} ▾</span>
                       {isEstMenu && (
-                        <div style={{position:'absolute',left:0,top:'120%',background:'white',border:'1px solid #ddd',borderRadius:6,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',zIndex:300,minWidth:220,padding:4}}>
-                          <div style={{padding:'6px 10px',fontSize:10,fontWeight:700,color:'#888',borderBottom:'1px solid #eee',marginBottom:4}}>Cambiar estado de cuenta</div>
+                        <div style={{position:'absolute',left:0,top:'120%',background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',zIndex:300,minWidth:220,padding:4}}>
+                          <div style={{padding:'6px 10px',fontSize:10,fontWeight:700,color:T.TEXT2,borderBottom:'1px solid '+T.BORDER,marginBottom:4}}>Cambiar estado de cuenta</div>
                           {ESTADOS_CUENTA.map(function(eOpt){
                             var isCurrent = (l.estadoCuenta||'EN_ONBOARDING')===eOpt.id;
                             return (
@@ -3363,8 +3371,8 @@ function LegajosView(props) {
                               >
                                 <span style={{width:8,height:8,borderRadius:'50%',background:eOpt.color,display:'inline-block',flexShrink:0}}></span>
                                 <span style={{color:eOpt.color,fontWeight:isCurrent?700:400}}>{eOpt.label}</span>
-                                {isCurrent && <span style={{marginLeft:'auto',fontSize:10,color:'#aaa'}}>actual</span>}
-                                <span style={{marginLeft:isCurrent?0:'auto',fontSize:10,color:'#aaa'}}>{eOpt.desc}</span>
+                                {isCurrent && <span style={{marginLeft:'auto',fontSize:10,color:T.TEXT3}}>actual</span>}
+                                <span style={{marginLeft:isCurrent?0:'auto',fontSize:10,color:T.TEXT3}}>{eOpt.desc}</span>
                               </div>
                             );
                           })}
@@ -3377,15 +3385,15 @@ function LegajosView(props) {
                 <Pill v={l.dictamen}/>
                 {!selectMode && (
                   <div style={{display:'flex',gap:4}}>
-                    <button onClick={function(){setSelId(l.id);}} style={{background:C.AM,color:'white',border:'none',borderRadius:4,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:700}}>Abrir</button>
+                    <button onClick={function(){setSelId(l.id);}} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:700}}>Abrir</button>
                     {/* MENÚ ⋯ */}
                     <div style={{position:'relative'}}>
                       <button
                         onClick={function(e){e.stopPropagation();setMenuOpen(isMenuOpen?null:l.id);}}
-                        style={{background:'#F0F4F8',border:'1px solid #ddd',borderRadius:4,padding:'5px 9px',cursor:'pointer',fontSize:14,lineHeight:1}}
+                        style={{background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,padding:'5px 9px',cursor:'pointer',fontSize:14,lineHeight:1}}
                       >⋯</button>
                       {isMenuOpen && (
-                        <div style={{position:'absolute',right:0,top:'110%',background:'white',border:'1px solid #ddd',borderRadius:6,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',zIndex:200,minWidth:170,padding:4}}>
+                        <div style={{position:'absolute',right:0,top:'110%',background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',zIndex:200,minWidth:170,padding:4}}>
                           {[
                             {icon:'✏️',label:'Editar',action:function(){setMenuOpen(null);setForm(JSON.parse(JSON.stringify(l)));setEditing(true);setTab('datos');}},
                             {icon:'📋',label:'Duplicar',action:function(){setMenuOpen(null);duplicateLegajo(l);}},
@@ -3408,7 +3416,7 @@ function LegajosView(props) {
       })}
 
       {legajos.length > 0 && (
-        <div style={{fontSize:11,color:'#aaa',textAlign:'center',marginTop:8}}>
+        <div style={{fontSize:11,color:T.TEXT3,textAlign:'center',marginTop:8}}>
           {filteredLegs.length} de {legajos.length} legajos · {periodos.length} periodos
         </div>
       )}
@@ -3584,11 +3592,11 @@ function AnalisisView(props) {
   var rfiRespState = useState({contenido:'',tipo:'RESPUESTA',autor:''}); var rfiResp=rfiRespState[0]; var setRfiResp=rfiRespState[1];
 
   var RFI_ESTADOS = [
-    {id:'ENVIADO',    label:'Enviado',        color:'#F39C12', bg:'#FEF9E7'},
-    {id:'RESPONDIDO', label:'Respondido',     color:'#27AE60', bg:'#EBF9F0'},
-    {id:'PARCIAL',    label:'Resp. parcial',  color:'#E67E22', bg:'#FEF0E7'},
-    {id:'SIN_RESP',   label:'Sin respuesta',  color:'#E74C3C', bg:'#FDEDEC'},
-    {id:'CERRADO',    label:'Cerrado',        color:'#7F8C8D', bg:'#F2F3F4'},
+    {id:'ENVIADO',    label:'Enviado',        color:T.AMBER, bg:'#FEF9E7'},
+    {id:'RESPONDIDO', label:'Respondido',     color:T.GREEN, bg:'#EBF9F0'},
+    {id:'PARCIAL',    label:'Resp. parcial',  color:T.AMBER, bg:'#FEF0E7'},
+    {id:'SIN_RESP',   label:'Sin respuesta',  color:T.RED, bg:'#FDEDEC'},
+    {id:'CERRADO',    label:'Cerrado',        color:T.TEXT3, bg:'#F2F3F4'},
   ];
   function getRfiEstado(id) { return RFI_ESTADOS.find(function(e){return e.id===id;}) || RFI_ESTADOS[0]; }
 
@@ -3759,11 +3767,11 @@ function AnalisisView(props) {
 
   return (
     <div style={{padding:22}}>
-      <h2 style={{color:C.AO,margin:'0 0 16px',fontSize:19,fontWeight:700}}>Analisis Transaccional — INF-02</h2>
+      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700}}>Analisis Transaccional — INF-02</h2>
       <div style={{display:'flex',gap:12,marginBottom:16,flexWrap:'wrap',alignItems:'flex-end'}}>
         <div style={{flex:'1 1 200px'}}>
-          <label style={{fontSize:11,color:'#555',display:'block',marginBottom:3}}>Legajo</label>
-          <select value={selLegajo?selLegajo.id:''} onChange={function(e){setSelLegajo(legajos.find(function(l){return l.id===e.target.value;})||null);setSelPeriodo(null);setCsv(null);setTendencias(false);}} style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:13}}>
+          <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:3}}>Legajo</label>
+          <select value={selLegajo?selLegajo.id:''} onChange={function(e){setSelLegajo(legajos.find(function(l){return l.id===e.target.value;})||null);setSelPeriodo(null);setCsv(null);setTendencias(false);}} style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13}}>
             <option value="">— Seleccionar legajo —</option>
             {legajos.map(function(l){return <option key={l.id} value={l.id}>{(l.razonSocial||'Sin nombre')} — {(l.cuit||'CUIT N/D')}</option>;})}
           </select>
@@ -3775,12 +3783,12 @@ function AnalisisView(props) {
           </div>
         )}
         {selLegajo && !tendencias ? <div style={{flex:'1 1 200px'}}>
-          <label style={{fontSize:11,color:'#555',display:'block',marginBottom:3}}>Periodo</label>
+          <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:3}}>Periodo</label>
           <div style={{display:'flex',gap:6,alignItems:'center'}}>
             <select value={selPeriodo?selPeriodo.id:''} onChange={function(e){
               var p = lP.find(function(x){return x.id===e.target.value;})||null;
               handleSelectPeriodo(p);
-            }} style={{flex:1,border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:13}}>
+            }} style={{flex:1,border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13}}>
               <option value="">— Seleccionar periodo —</option>
               {lP.map(function(p){
                 // Mostrar txns desde metricas si no están en memoria
@@ -3790,7 +3798,7 @@ function AnalisisView(props) {
                 return <option key={p.id} value={p.id}>{p.nombre} ({txnCount.toLocaleString('es-AR')} txns)</option>;
               })}
             </select>
-            {txnsLoading && <span style={{fontSize:11,color:C.AC,flexShrink:0}}>⏳ cargando...</span>}
+            {txnsLoading && <span style={{fontSize:11,color:T.CYAN,flexShrink:0}}>⏳ cargando...</span>}
             {selPeriodo && (
               <button
                 onClick={function(){
@@ -3806,7 +3814,7 @@ function AnalisisView(props) {
                   setSelPeriodo(null);
                 }}
                 title="Eliminar este período"
-                style={{background:'#FDEDEC',border:'1px solid #E74C3C',borderRadius:4,padding:'7px 10px',cursor:'pointer',fontSize:13,color:C.ROJO,fontWeight:700,flexShrink:0}}
+                style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.25)',borderRadius:3,padding:'7px 10px',cursor:'pointer',fontSize:13,color:T.RED,fontWeight:700,flexShrink:0}}
               >🗑</button>
             )}
           </div>
@@ -3837,7 +3845,7 @@ function AnalisisView(props) {
         }).filter(function(d){return d.tIn>0||d.totalTxns>0;});
 
         if (periodosDatos.length === 0) {
-          return <div style={{background:'#F8FBFE',border:'2px dashed #ddd',borderRadius:6,padding:'30px',textAlign:'center',color:'#aaa'}}>
+          return <div style={{background:T.BG3,border:'2px dashed #ddd',borderRadius:6,padding:'30px',textAlign:'center',color:T.TEXT3}}>
             <div style={{fontSize:32,marginBottom:8}}>📊</div>
             <div style={{fontSize:14,fontWeight:600}}>Sin datos de métricas para mostrar tendencias</div>
             <div style={{fontSize:12,marginTop:4}}>Subí los archivos XLS de cada período para generar las métricas.</div>
@@ -3878,8 +3886,8 @@ function AnalisisView(props) {
                     {label:'Score tendencia', val:varScore!==null?(varScore>0?'▲ +'+varScore:varScore<0?'▼ '+varScore:'= Estable'):'—', col:varScore>0?C.ROJO:varScore<0?C.VERDE:'#888'},
                     {label:'Último riesgo', val:last.clasificacion, col:last.col},
                   ].map(function(k,i){return(
-                    <div key={i} style={{background:'white',border:'1px solid #E8EEF4',borderRadius:6,padding:'12px 14px',borderLeft:'3px solid '+k.col}}>
-                      <div style={{fontSize:10,color:'#888',marginBottom:3}}>{k.label}</div>
+                    <div key={i} style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,padding:'12px 14px',borderLeft:'3px solid '+k.col}}>
+                      <div style={{fontSize:10,color:T.TEXT2,marginBottom:3}}>{k.label}</div>
                       <div style={{fontSize:20,fontWeight:700,color:k.col}}>{k.val}</div>
                     </div>
                   );})}
@@ -3937,7 +3945,7 @@ function AnalisisView(props) {
                     ].map(function(row,ri){
                       return (
                         <tr key={ri} style={{background:ri%2===0?'#F8FBFE':'white'}}>
-                          <td style={{padding:'6px 10px',fontWeight:600,color:'#555',borderRight:'2px solid #eee'}}>{row.label}</td>
+                          <td style={{padding:'6px 10px',fontWeight:600,color:T.TEXT2,borderRight:'2px solid #eee'}}>{row.label}</td>
                           {periodosDatos.map(function(d,di){
                             var val = row.fn(d);
                             var col = row.colFn ? row.colFn(d) : null;
@@ -3978,7 +3986,7 @@ function AnalisisView(props) {
                             <td style={{padding:'6px 10px',color:cp.perdidas>0?'#888':'inherit'}}>{cp.perdidas}</td>
                             <td style={{padding:'6px 10px',color:C.VERDE}}>{cp.recurrentes}</td>
                             <td style={{padding:'6px 10px',fontWeight:700,color:alerta?C.ROJO:cp.pctNuevas>40?C.NARANJA:C.VERDE}}>{cp.pctNuevas}%</td>
-                            <td style={{padding:'6px 10px',fontSize:11,color:'#555'}}>
+                            <td style={{padding:'6px 10px',fontSize:11,color:T.TEXT2}}>
                               {alerta ? '⚠ Alta rotación de contrapartes — posible atomización' : cp.pctNuevas>40 ? 'Rotación media — monitorear' : '✓ Cartera de contrapartes estable'}
                             </td>
                           </tr>
@@ -3988,7 +3996,7 @@ function AnalisisView(props) {
                   </table>
                 </div>
                 {periodosDatos.some(function(d){return d.txns.length===0;}) && (
-                  <div style={{fontSize:11,color:'#aaa',marginTop:8,fontStyle:'italic'}}>
+                  <div style={{fontSize:11,color:T.TEXT3,marginTop:8,fontStyle:'italic'}}>
                     * Los períodos sin txns en memoria muestran 0 contrapartes. Seleccioná cada período individualmente para cargarlas desde Supabase.
                   </div>
                 )}
@@ -4001,32 +4009,32 @@ function AnalisisView(props) {
       {selLegajo && !selPeriodo ? <Card title="Subir periodo CSV">
         <input ref={fileRef} type="file" accept=".csv,.txt,.xls,.xlsx,.ods" onChange={handleFileUpload} style={{display:'none'}}/>
         <div style={{marginBottom:10}}>
-          <label style={{fontSize:11,color:'#555',display:'block',marginBottom:3}}>Nombre del periodo</label>
-          <input value={periodoNombre} onChange={function(e){setPeriodoNombre(e.target.value);}} placeholder="Ej: Enero 2026" style={{width:'100%',maxWidth:300,border:'1px solid #ddd',borderRadius:4,padding:'7px 9px',fontSize:13}}/>
+          <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:3}}>Nombre del periodo</label>
+          <input value={periodoNombre} onChange={function(e){setPeriodoNombre(e.target.value);}} placeholder="Ej: Enero 2026" style={{width:'100%',maxWidth:300,border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 9px',fontSize:13}}/>
         </div>
         <div onClick={function(){if(!loadingFile)fileRef.current.click();}} style={{border:'2px dashed '+C.AC,borderRadius:8,padding:'22px 20px',textAlign:'center',cursor:loadingFile?'wait':'pointer',background:csv?'#EBF9F0':'#F8FBFE',marginBottom:10}}>
           <div style={{fontSize:24,marginBottom:4}}>{loadingFile?'⏳':csv?'✅':'📊'}</div>
-          <div style={{fontSize:13,color:C.AC,fontWeight:700}}>{loadingFile?'Procesando archivo...':csv?csv.name+' — '+csv.txns.length+' transacciones detectadas':'📂 Subir archivo de transacciones'}</div>
-          <div style={{fontSize:11,color:'#888',marginTop:3}}>Formatos: <strong>CSV, XLS, XLSX</strong> · Columnas: fecha, tipo (IN/OUT o débito/crédito), monto, contraparte</div>
+          <div style={{fontSize:13,color:T.CYAN,fontWeight:700}}>{loadingFile?'Procesando archivo...':csv?csv.name+' — '+csv.txns.length+' transacciones detectadas':'📂 Subir archivo de transacciones'}</div>
+          <div style={{fontSize:11,color:T.TEXT2,marginTop:3}}>Formatos: <strong>CSV, XLS, XLSX</strong> · Columnas: fecha, tipo (IN/OUT o débito/crédito), monto, contraparte</div>
         </div>
-        {csv ? <button onClick={handleSavePeriodo} style={{background:C.VERDE,color:'white',border:'none',borderRadius:4,padding:'8px 18px',cursor:'pointer',fontWeight:700,fontSize:13}}>Cargar y analizar ({csv.txns.length} txns)</button> : null}
+        {csv ? <button onClick={handleSavePeriodo} style={{background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'8px 18px',cursor:'pointer',fontWeight:700,fontSize:13}}>Cargar y analizar ({csv.txns.length} txns)</button> : null}
       </Card> : null}
 
-      {selPeriodo && txnsLoading ? <div style={{background:'#EBF5FB',border:'1px solid #AED6F1',borderRadius:6,padding:'16px',textAlign:'center',marginBottom:12}}>
-        <div style={{fontSize:14,color:C.AM,fontWeight:700}}>⏳ Cargando transacciones desde Supabase...</div>
-        <div style={{fontSize:12,color:'#888',marginTop:4}}>Este período fue analizado en otro dispositivo. Descargando datos...</div>
+      {selPeriodo && txnsLoading ? <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:6,padding:'16px',textAlign:'center',marginBottom:12}}>
+        <div style={{fontSize:14,color:T.CYAN,fontWeight:700}}>⏳ Cargando transacciones desde Supabase...</div>
+        <div style={{fontSize:12,color:T.TEXT2,marginTop:4}}>Este período fue analizado en otro dispositivo. Descargando datos...</div>
       </div> : null}
 
-      {selPeriodo && !m && !txnsLoading && selPeriodo.txns && selPeriodo.txns.length === 0 ? <div style={{background:'#FEF9E7',border:'1px solid #F39C12',borderRadius:6,padding:'16px',textAlign:'center',marginBottom:12}}>
-        <div style={{fontSize:14,color:'#E67E22',fontWeight:700}}>⚠ Transacciones no disponibles en este dispositivo</div>
-        <div style={{fontSize:12,color:'#888',marginTop:4}}>Re-subí el archivo XLS/CSV de este período para analizarlo en este dispositivo.</div>
+      {selPeriodo && !m && !txnsLoading && selPeriodo.txns && selPeriodo.txns.length === 0 ? <div style={{background:'rgba(255,184,48,0.08)',border:'1px solid rgba(255,184,48,0.25)',borderRadius:3,padding:'16px',textAlign:'center',marginBottom:12}}>
+        <div style={{fontSize:14,color:T.AMBER,fontWeight:700}}>⚠ Transacciones no disponibles en este dispositivo</div>
+        <div style={{fontSize:12,color:T.TEXT2,marginTop:4}}>Re-subí el archivo XLS/CSV de este período para analizarlo en este dispositivo.</div>
       </div> : null}
 
       {selPeriodo && m ? <div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
           <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
             {sc ? <span style={{padding:'5px 14px',borderRadius:6,background:sc.col,color:'white',fontWeight:700,fontSize:13}}>RIESGO {sc.clasificacion}</span> : null}
-            {sc ? <span style={{fontSize:13,color:'#555'}}>Score: {sc.promedio.toFixed(2)}/5 | {sigs.length} senales ({sigs.filter(function(s){return s.sev==='ALTA';}).length} ALTA)</span> : null}
+            {sc ? <span style={{fontSize:13,color:T.TEXT2}}>Score: {sc.promedio.toFixed(2)}/5 | {sigs.length} senales ({sigs.filter(function(s){return s.sev==='ALTA';}).length} ALTA)</span> : null}
             {/* Estado del período */}
             {(function(){
               var ESTADOS_PERIODO = [
@@ -4062,7 +4070,7 @@ function AnalisisView(props) {
           <button onClick={function(){
             onReport(genINF02(selLegajo,selPeriodo,m,sigs,sc,memos));
             auditLog(currentUser,'generar_inf02','periodo',selPeriodo.id,{razonSocial:selLegajo.razonSocial,periodo:selPeriodo.nombre,riesgo:sc&&sc.clasificacion});
-          }} style={{background:C.AM,color:'white',border:'none',borderRadius:4,padding:'8px 16px',cursor:'pointer',fontWeight:700,fontSize:13}}>📄 INF-02</button>
+          }} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontWeight:700,fontSize:13}}>📄 INF-02</button>
         </div>
         <div style={{display:'flex',gap:2,marginBottom:12,background:C.CEL,borderRadius:6,padding:4,flexWrap:'wrap'}}>
           {[['metricas','📊 Metricas'],['senales','🚨 Senales'],['scoring','📈 Scoring'],['graficos','📉 Graficos'],['dd','🔍 Nota DD'],['memos','📝 Memos'+(memos.length>0?' ('+memos.length+')':'')],['rfi','📧 RFI'+(rfis.length>0?' ('+rfis.filter(function(r){return r.estado!=='CERRADO';}).length+')':'')]].map(function(t){return(
@@ -4072,8 +4080,8 @@ function AnalisisView(props) {
         {tab === 'metricas' ? <Card title="Metricas del periodo">
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:12}}>
             {[{l:'Volumen IN',v:fmtM(m.tIn),c:C.VERDE},{l:'Volumen OUT',v:fmtM(m.tOut),c:C.ROJO},{l:'Balance Neto',v:fmtM(m.balanceNeto),c:m.balanceNeto>=0?C.VERDE:C.ROJO},{l:'Total Ops',v:m.totalTxns,c:C.AM},{l:'Cp. unicas IN',v:m.uniqueCpIn,c:C.AC},{l:'Cp. unicas OUT',v:m.uniqueCpOut,c:C.AC}].map(function(k,i){return(
-              <div key={i} style={{background:'#F8FBFE',border:'1px solid #E8EEF4',borderRadius:6,padding:'10px 14px',borderLeft:'3px solid '+k.c}}>
-                <div style={{fontSize:10,color:'#888'}}>{k.l}</div>
+              <div key={i} style={{background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:6,padding:'10px 14px',borderLeft:'3px solid '+k.c}}>
+                <div style={{fontSize:10,color:T.TEXT2}}>{k.l}</div>
                 <div style={{fontSize:17,fontWeight:700,color:k.c}}>{k.v}</div>
               </div>
             );})}
@@ -4081,14 +4089,14 @@ function AnalisisView(props) {
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
             <tbody>{[['Monto promedio',fmtM(m.avg)],['Monto maximo',fmtM(m.maxMonto)],['HHI concentracion IN',m.hhiIn.toFixed(3)+' | top-1: '+m.top1In.toFixed(1)+'%'],['HHI concentracion OUT',m.hhiOut.toFixed(3)+' | top-1: '+m.top1Out.toFixed(1)+'%'],['Fraccionamiento',m.splitGroupsCount+' grupos | '+m.splitDays+' dias'],['Montos redondos',m.pctRound.toFixed(1)+'%'],['Pass-through',m.tIn>0?(m.passThrough*100).toFixed(1)+'%':'N/D'],['Circularidad',m.circularCount+' contrapartes'],['Dias activos',m.activeDays+' | '+m.opsByDay.toFixed(1)+' ops/dia'],['Horario atipico',m.pctAtypicalHour!==null?m.pctAtypicalHour.toFixed(1)+'%':'N/D']].map(function(r,i){return(
               <tr key={i} style={{background:i%2===0?'#F8FBFE':'white'}}>
-                <td style={{padding:'5px 8px',color:'#555',fontWeight:600}}>{r[0]}</td>
+                <td style={{padding:'5px 8px',color:T.TEXT2,fontWeight:600}}>{r[0]}</td>
                 <td style={{padding:'5px 8px',fontWeight:700}}>{r[1]}</td>
               </tr>
             );})}</tbody>
           </table>
         </Card> : null}
         {tab === 'senales' ? <Card title={'Senales AML detectadas (' + sigs.length + ')' + (Object.keys(selPeriodo.sigsResolucion||{}).length > 0 ? ' — ' + Object.values(selPeriodo.sigsResolucion||{}).filter(function(r){return r.estado==='RESUELTA';}).length + ' resueltas' : '')}>
-          {sigs.length === 0 ? <p style={{color:C.VERDE,fontWeight:700,textAlign:'center',padding:'20px 0'}}>✅ Sin senales AML detectadas</p> :
+          {sigs.length === 0 ? <p style={{color:T.GREEN,fontWeight:700,textAlign:'center',padding:'20px 0'}}>✅ Sin senales AML detectadas</p> :
           sigs.map(function(s,i){
             var res = (selPeriodo.sigsResolucion||{})[s.pat] || {estado:'ACTIVA'};
             var resuelta = res.estado === 'RESUELTA';
@@ -4111,11 +4119,11 @@ function AnalisisView(props) {
               <div key={i} style={{padding:'10px 14px',borderLeft:'4px solid '+(resuelta?'#27AE60':propuesta?'#F39C12':sevColor(s.sev)),background:resuelta?'#F0FFF4':propuesta?'#FFFDF5':i%2===0?'#FFF9F5':'white',marginBottom:6,borderRadius:'0 4px 4px 0',opacity:resuelta?0.75:1}}>
                 <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3,justifyContent:'space-between'}}>
                   <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                    <span style={{fontWeight:700,color:C.AO,fontSize:12}}>{s.pat}</span>
+                    <span style={{fontWeight:600,color:T.TEXT,fontSize:11}}>{s.pat}</span>
                     <SevBadge sev={s.sev}/>
-                    <span style={{background:'#E8EEF4',borderRadius:10,padding:'1px 8px',fontSize:11,color:'#555'}}>{s.tip}</span>
-                    {resuelta && <span style={{background:'#27AE60',color:'white',borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>✅ RESUELTA</span>}
-                    {propuesta && <span style={{background:'#F39C12',color:'white',borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>🔄 PROP. CIERRE</span>}
+                    <span style={{background:T.BG3,borderRadius:10,padding:'1px 8px',fontSize:11,color:T.TEXT2}}>{s.tip}</span>
+                    {resuelta && <span style={{background:T.GREEN,color:'white',borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>✅ RESUELTA</span>}
+                    {propuesta && <span style={{background:T.AMBER,color:'white',borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>🔄 PROP. CIERRE</span>}
                   </div>
                   {/* Acciones según rol */}
                   <div style={{display:'flex',gap:6,flexShrink:0}}>
@@ -4126,7 +4134,7 @@ function AnalisisView(props) {
                           if (!exp || !exp.trim()) return;
                           actualizarResolucion({estado:'PROPUESTA_CIERRE',explicacion:exp.trim(),propuestoPor:currentUser.nombre,propuestoAt:todayStr()});
                         }}
-                        style={{background:'#EBF5FB',border:'1px solid #2471A3',color:'#2471A3',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:600}}
+                        style={{background:T.BG3,border:'1px solid '+T.BORDER3,color:T.CYAN,borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:600}}
                       >💬 Proponer cierre</button>
                     )}
                     {esSupervisor && propuesta && (
@@ -4136,29 +4144,29 @@ function AnalisisView(props) {
                             actualizarResolucion({estado:'RESUELTA',aprobadoPor:currentUser.nombre,aprobadoAt:todayStr()});
                             auditLog(currentUser,'aprobar_cierre_senal','periodo',selPeriodo.id,{patron:s.pat,empresa:selLegajo.razonSocial});
                           }}
-                          style={{background:'#EBF9F0',border:'1px solid #27AE60',color:'#27AE60',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:700}}
+                          style={{background:'rgba(0,230,118,0.07)',border:'1px solid rgba(0,230,118,0.3)',color:T.GREEN,borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:700}}
                         >✓ Aprobar</button>
                         <button
                           onClick={function(){ actualizarResolucion({estado:'ACTIVA',explicacion:'',propuestoPor:'',propuestoAt:''}); }}
-                          style={{background:'#FDEDEC',border:'1px solid #E74C3C',color:C.ROJO,borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:700}}
+                          style={{background:'rgba(255,68,85,0.1)',border:'1px solid rgba(255,68,85,0.3)',color:T.RED,borderRadius:3,padding:'3px 10px',cursor:'pointer',fontSize:10,fontWeight:600,fontFamily:T.MONO}}
                         >✕ Rechazar</button>
                       </>
                     )}
                     {esSupervisor && resuelta && (
                       <button
                         onClick={function(){ actualizarResolucion({estado:'ACTIVA',aprobadoPor:'',aprobadoAt:''}); }}
-                        style={{background:'#F2F3F4',border:'1px solid #aaa',color:'#888',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11}}
+                        style={{background:T.BG3,border:'1px solid '+T.BORDER2,color:T.TEXT2,borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11}}
                       >↩ Reabrir</button>
                     )}
                   </div>
                 </div>
                 <div style={{fontWeight:700,fontSize:13,color:resuelta?'#888':C.AO}}>{s.titulo}</div>
-                <div style={{fontSize:12,color:'#555',marginTop:2}}>{s.desc}</div>
+                <div style={{fontSize:12,color:T.TEXT2,marginTop:2}}>{s.desc}</div>
                 {(propuesta||resuelta) && res.explicacion && (
-                  <div style={{marginTop:6,background:'white',border:'1px solid #ddd',borderRadius:4,padding:'6px 10px',fontSize:11}}>
-                    <span style={{color:'#888',fontWeight:600}}>Explicación: </span>{res.explicacion}
-                    {res.propuestoPor && <span style={{color:'#aaa',marginLeft:8}}>— {res.propuestoPor} {res.propuestoAt}</span>}
-                    {resuelta && res.aprobadoPor && <span style={{color:C.VERDE,marginLeft:8,fontWeight:700}}>✓ Aprobado por {res.aprobadoPor} {res.aprobadoAt}</span>}
+                  <div style={{marginTop:6,background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 10px',fontSize:11}}>
+                    <span style={{color:T.TEXT2,fontWeight:600}}>Explicación: </span>{res.explicacion}
+                    {res.propuestoPor && <span style={{color:T.TEXT3,marginLeft:8}}>— {res.propuestoPor} {res.propuestoAt}</span>}
+                    {resuelta && res.aprobadoPor && <span style={{color:T.GREEN,marginLeft:8,fontWeight:700}}>✓ Aprobado por {res.aprobadoPor} {res.aprobadoAt}</span>}
                   </div>
                 )}
               </div>
@@ -4169,16 +4177,16 @@ function AnalisisView(props) {
           <div style={{background:sc.col,borderRadius:6,padding:'10px 14px',marginBottom:14,color:'white',display:'flex',justifyContent:'space-between'}}>
             <span style={{fontWeight:700,fontSize:15}}>RIESGO {sc.clasificacion} — {sc.promedio.toFixed(2)}/5</span>
           </div>
-          <p style={{fontSize:12,color:'#555',marginBottom:14}}><strong>Accion:</strong> {sc.accion}</p>
+          <p style={{fontSize:12,color:T.TEXT2,marginBottom:14}}><strong>Accion:</strong> {sc.accion}</p>
           {sc.scores.map(function(f,i){
             var c = f.score>=4?C.ROJO:f.score>=3?C.NARANJA:C.VERDE;
             return(
               <div key={i} style={{marginBottom:8}}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
-                  <span style={{fontSize:12,color:C.AO}}>{f.factor}</span>
-                  <span style={{fontSize:12,fontWeight:700,color:c}}>{f.score}/5 <span style={{color:'#888',fontWeight:400}}>({f.ref})</span></span>
+                  <span style={{fontSize:12,color:T.TEXT}}>{f.factor}</span>
+                  <span style={{fontSize:12,fontWeight:700,color:c}}>{f.score}/5 <span style={{color:T.TEXT2,fontWeight:400}}>({f.ref})</span></span>
                 </div>
-                <div style={{height:6,background:'#eee',borderRadius:3}}>
+                <div style={{height:4,background:T.BG4,borderRadius:2}}>
                   <div style={{height:'100%',width:(f.score/5*100)+'%',background:c,borderRadius:3}}/>
                 </div>
               </div>
@@ -4191,7 +4199,7 @@ function AnalisisView(props) {
               <BarChart data={scData} layout="vertical" margin={{top:5,right:30,left:100,bottom:5}}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
                 <XAxis type="number" domain={[0,5]}/>
-                <YAxis dataKey="f" type="category" tick={{fontSize:10}}/>
+                <YAxis dataKey="f" type="category" tick={{fontSize:9,fill:'#4A6A8A',fontFamily:"'JetBrains Mono',monospace"}}/>
                 <Tooltip/>
                 <Bar dataKey="s">{scData.map(function(e,i){return <Cell key={i} fill={e.fill}/>;})}</Bar>
               </BarChart>
@@ -4211,11 +4219,11 @@ function AnalisisView(props) {
             </div>
           </div>
 
-          <div style={{background:'#F4F0FA',border:'2px solid #5D4E8C',borderRadius:6,padding:'16px 18px',marginBottom:14}}>
+          <div style={{background:'rgba(93,78,140,0.1)',border:'1px solid rgba(93,78,140,0.4)',borderRadius:6,padding:'16px 18px',marginBottom:14}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
               <div>
-                <div style={{fontWeight:700,color:'#5D4E8C',fontSize:14,marginBottom:2}}>📋 PEDIDO DE INFORMACIÓN Y DEBIDA DILIGENCIA</div>
-                <div style={{fontSize:12,color:'#666'}}>Generado automáticamente a partir del análisis transaccional · {nota.fecha}</div>
+                <div style={{fontWeight:700,color:'#B39DDB',fontSize:12,marginBottom:2}}>📋 PEDIDO DE INFORMACIÓN Y DEBIDA DILIGENCIA</div>
+                <div style={{fontSize:12,color:T.TEXT2}}>Generado automáticamente a partir del análisis transaccional · {nota.fecha}</div>
               </div>
               <button onClick={function(){
                 var texto = 'PEDIDO DE INFORMACIÓN — DEBIDA DILIGENCIA\n';
@@ -4233,37 +4241,37 @@ function AnalisisView(props) {
                 texto += 'ACCIONES E INFORMACIÓN REQUERIDA:\n';
                 nota.acciones.forEach(function(a,i){ texto += (i+1) + '. ' + a + '\n\n'; });
                 navigator.clipboard.writeText(texto).then(function(){ alert('Nota copiada al portapapeles'); }).catch(function(){ alert('No se pudo copiar'); });
-              }} style={{background:'#5D4E8C',color:'white',border:'none',borderRadius:4,padding:'6px 14px',cursor:'pointer',fontSize:12,fontWeight:700,flexShrink:0}}>
+              }} style={{background:'rgba(93,78,140,0.2)',color:'#B39DDB',border:'1px solid rgba(93,78,140,0.4)',borderRadius:3,padding:'6px 14px',cursor:'pointer',fontSize:12,fontWeight:700,flexShrink:0}}>
                 📋 Copiar nota
               </button>
             </div>
 
-            <div style={{background:'white',borderRadius:4,padding:'12px 14px',marginBottom:12,border:'1px solid #DDD5EF'}}>
-              <div style={{fontWeight:700,color:'#5D4E8C',fontSize:12,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}}>Acción principal</div>
-              <div style={{fontSize:13,color:C.AO,fontWeight:600}}>{nota.accion}</div>
+            <div style={{background:T.BG2,borderRadius:4,padding:'12px 14px',marginBottom:12,border:'1px solid '+T.BORDER2}}>
+              <div style={{fontWeight:700,color:'#A48FD0',fontSize:11,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}}>Acción principal</div>
+              <div style={{fontSize:13,color:T.TEXT2,fontWeight:500}}>{nota.accion}</div>
             </div>
 
-            {nota.patronesDetectados.length > 0 ? <div style={{background:'white',borderRadius:4,padding:'12px 14px',marginBottom:12,border:'1px solid #DDD5EF'}}>
-              <div style={{fontWeight:700,color:'#5D4E8C',fontSize:12,marginBottom:8,textTransform:'uppercase',letterSpacing:'0.5px'}}>Patrones que motivan este pedido</div>
+            {nota.patronesDetectados.length > 0 ? <div style={{background:T.BG2,borderRadius:4,padding:'12px 14px',marginBottom:12,border:'1px solid '+T.BORDER2}}>
+              <div style={{fontWeight:700,color:'#A48FD0',fontSize:11,marginBottom:8,textTransform:'uppercase',letterSpacing:'0.5px'}}>Patrones que motivan este pedido</div>
               <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
                 {nota.patronesDetectados.map(function(p,i){return(
-                  <span key={i} style={{background:'#EDE8F7',color:'#5D4E8C',borderRadius:4,padding:'3px 10px',fontSize:11,fontWeight:600}}>{p}</span>
+                  <span key={i} style={{background:'rgba(93,78,140,0.15)',color:'#B39DDB',borderRadius:2,padding:'3px 8px',fontSize:11,fontWeight:600}}>{p}</span>
                 );})}
               </div>
             </div> : null}
 
-            <div style={{fontWeight:700,color:'#5D4E8C',fontSize:12,marginBottom:10,textTransform:'uppercase',letterSpacing:'0.5px'}}>
+            <div style={{fontWeight:700,color:'#A48FD0',fontSize:11,marginBottom:10,textTransform:'uppercase',letterSpacing:'0.5px'}}>
               Información y documentación requerida al cliente ({nota.acciones.length} puntos)
             </div>
             {nota.acciones.map(function(accion,i){return(
-              <div key={i} style={{display:'flex',gap:12,marginBottom:10,padding:'10px 14px',background:'white',borderRadius:4,border:'1px solid #DDD5EF',borderLeft:'3px solid '+(i<nota.altaSenales?C.ROJO:'#5D4E8C')}}>
-                <div style={{flexShrink:0,width:24,height:24,background:'#5D4E8C',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:11,fontWeight:700}}>{i+1}</div>
-                <div style={{fontSize:13,color:C.AO,lineHeight:1.5}}>{accion}</div>
+              <div key={i} style={{display:'flex',gap:12,marginBottom:10,padding:'10px 14px',background:T.BG2,borderRadius:4,border:'1px solid '+T.BORDER2,borderLeft:'2px solid '+(i<nota.altaSenales?T.RED:'#7B6FAA')}}>
+                <div style={{flexShrink:0,width:24,height:24,background:'rgba(93,78,140,0.4)',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:11,fontWeight:700}}>{i+1}</div>
+                <div style={{fontSize:13,color:T.TEXT,lineHeight:1.5}}>{accion}</div>
               </div>
             );})}
 
-            <div style={{background:'#FEF9E7',border:'1px solid #F39C12',borderRadius:4,padding:'10px 14px',marginTop:8,fontSize:12}}>
-              <strong style={{color:'#E67E22'}}>⏱ Plazo de respuesta:</strong> <span style={{color:C.AO}}>{nota.deadline} desde la notificación formal. En caso de no respuesta o respuesta insatisfactoria, escalar al Responsable de Compliance para evaluar restricción operativa y/o ROS ante UIF.</span>
+            <div style={{background:'rgba(255,184,48,0.08)',border:'1px solid rgba(255,184,48,0.25)',borderRadius:3,padding:'10px 14px',marginTop:8,fontSize:12}}>
+              <strong style={{color:T.AMBER}}>⏱ Plazo de respuesta:</strong> <span style={{color:T.TEXT}}>{nota.deadline} desde la notificación formal. En caso de no respuesta o respuesta insatisfactoria, escalar al Responsable de Compliance para evaluar restricción operativa y/o ROS ante UIF.</span>
             </div>
           </div>
         </div> : null}
@@ -4305,11 +4313,11 @@ function AnalisisView(props) {
             accionesSugeridas.push({ tipo:'DOC', urgencia:'MEDIA', texto:'Solicitar últimos 3 estados de cuenta bancarios de la entidad y/o certificación contable de la facturación del período analizado ('+( selPeriodo&&selPeriodo.nombre||'período actual')+').' });
 
             return hasSigs ? (
-              <div style={{background:'#EBF5FB',border:'2px solid #2471A3',borderRadius:6,padding:'14px 16px',marginBottom:14}}>
+              <div style={{background:T.BG3,border:'2px solid #2471A3',borderRadius:6,padding:'14px 16px',marginBottom:14}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
                   <div>
                     <div style={{fontWeight:700,color:'#1A4A6B',fontSize:14}}>📋 Generador de Memo de Compliance</div>
-                    <div style={{fontSize:11,color:'#888',marginTop:2}}>
+                    <div style={{fontSize:11,color:T.TEXT2,marginTop:2}}>
                       {altaSigs.length} señal(es) ALTA · {mediaSigs.length} señal(es) MEDIA · {accionesSugeridas.length} acciones sugeridas
                     </div>
                   </div>
@@ -4409,23 +4417,23 @@ function AnalisisView(props) {
                           <span style={{background:col,color:'white',borderRadius:4,padding:'1px 7px',fontSize:9,fontWeight:700}}>{a.tipo}</span>
                           <span style={{background:col,color:'white',borderRadius:4,padding:'1px 7px',fontSize:9,fontWeight:700}}>{a.urgencia}</span>
                         </div>
-                        <div style={{fontSize:11,color:'#333',lineHeight:1.4}}>{a.texto.slice(0,90)}...</div>
+                        <div style={{fontSize:11,color:T.TEXT,lineHeight:1.4}}>{a.texto.slice(0,90)}...</div>
                       </div>
                     );
                   })}
                 </div>
-                {accionesSugeridas.length > 4 && <div style={{fontSize:11,color:'#888',marginTop:6,textAlign:'right'}}>+{accionesSugeridas.length-4} acciones más incluidas en el memo completo</div>}
+                {accionesSugeridas.length > 4 && <div style={{fontSize:11,color:T.TEXT2,marginTop:6,textAlign:'right'}}>+{accionesSugeridas.length-4} acciones más incluidas en el memo completo</div>}
               </div>
             ) : null;
           }())}
 
           {/* ── NUEVA ANOTACIÓN LIBRE ─────────────────────────────────────────── */}
           <div style={{background:'#F0FAF4',border:'2px solid #27AE60',borderRadius:6,padding:'16px 18px',marginBottom:14}}>
-            <div style={{fontWeight:700,color:'#1A6B3A',fontSize:14,marginBottom:12}}>📝 Nueva anotación — {selLegajo&&selLegajo.razonSocial} · {selPeriodo&&selPeriodo.nombre}</div>
+            <div style={{fontWeight:700,color:T.GREEN,fontSize:14,marginBottom:12}}>📝 Nueva anotación — {selLegajo&&selLegajo.razonSocial} · {selPeriodo&&selPeriodo.nombre}</div>
             <div style={{display:'flex',gap:10,marginBottom:10}}>
               <div style={{flex:'0 0 160px'}}>
-                <label style={{fontSize:11,color:'#555',display:'block',marginBottom:3}}>Analista</label>
-                <input value={analistaVal} onChange={function(e){setAnalista(e.target.value);}} style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'7px 9px',fontSize:13}} placeholder="Tu nombre"/>
+                <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:3}}>Analista</label>
+                <input value={analistaVal} onChange={function(e){setAnalista(e.target.value);}} style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 9px',fontSize:13}} placeholder="Tu nombre"/>
               </div>
             </div>
             <textarea
@@ -4433,7 +4441,7 @@ function AnalisisView(props) {
               onChange={function(e){setNewMemo(e.target.value);}}
               rows={4}
               placeholder="Escribí tu anotación sobre este período... (observaciones, acuerdos con el cliente, seguimiento de RFI, respuestas recibidas, novedades del caso, etc.)"
-              style={{width:'100%',border:'1px solid #A9DFBF',borderRadius:4,padding:'10px 12px',fontSize:13,resize:'vertical',background:'white',outline:'none'}}
+              style={{width:'100%',border:'1px solid rgba(0,230,118,0.2)',borderRadius:4,padding:'10px 12px',fontSize:13,resize:'vertical',background:T.BG2,outline:'none'}}
             />
             <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
               <button
@@ -4448,13 +4456,13 @@ function AnalisisView(props) {
 
           {/* ── LISTA DE MEMOS ─────────────────────────────────────────────────── */}
           {memos.length === 0 ? <Card title="">
-            <p style={{color:'#888',textAlign:'center',padding:'20px 0',fontSize:13}}>No hay memos para este período. Usá el generador de arriba para crear el memo de cumplimiento, o escribí una anotación libre.</p>
+            <p style={{color:T.TEXT2,textAlign:'center',padding:'20px 0',fontSize:13}}>No hay memos para este período. Usá el generador de arriba para crear el memo de cumplimiento, o escribí una anotación libre.</p>
           </Card> : <div>
-            <div style={{fontSize:12,color:'#888',marginBottom:10,fontWeight:600}}>{memos.length} anotación(es) registrada(s) — más reciente primero</div>
+            <div style={{fontSize:12,color:T.TEXT2,marginBottom:10,fontWeight:600}}>{memos.length} anotación(es) registrada(s) — más reciente primero</div>
             {memos.slice().reverse().map(function(memo,i){
               var esCompliance = memo.tipo==='compliance';
               return(
-                <div key={memo.id} style={{background:'white',border:'1px solid #E8EEF4',borderRadius:6,padding:'14px 16px',marginBottom:10,boxShadow:'0 1px 3px rgba(0,0,0,0.05)',borderLeft:'3px solid '+(esCompliance?'#2471A3':C.VERDE)}}>
+                <div key={memo.id} style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,padding:'14px 16px',marginBottom:10,boxShadow:'0 1px 3px rgba(0,0,0,0.05)',borderLeft:'3px solid '+(esCompliance?'#2471A3':C.VERDE)}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
                     <div style={{display:'flex',gap:8,alignItems:'center'}}>
                       <div style={{background:esCompliance?'#2471A3':C.VERDE,color:'white',borderRadius:'50%',width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}}>
@@ -4462,15 +4470,15 @@ function AnalisisView(props) {
                       </div>
                       <div>
                         <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                          <span style={{fontWeight:700,color:C.AO,fontSize:13}}>{memo.autor||'Analista'}</span>
+                          <span style={{fontWeight:600,color:T.TEXT,fontSize:11}}>{memo.autor||'Analista'}</span>
                           {esCompliance && <span style={{background:'#2471A3',color:'white',borderRadius:4,padding:'1px 7px',fontSize:9,fontWeight:700}}>MEMO COMPLIANCE</span>}
                         </div>
-                        <div style={{fontSize:11,color:'#888'}}>{memo.fecha} · {memo.hora}</div>
+                        <div style={{fontSize:11,color:T.TEXT2}}>{memo.fecha} · {memo.hora}</div>
                       </div>
                     </div>
-                    <button onClick={function(){if(window.confirm('Eliminar esta anotación?'))deleteMemo(memo.id);}} style={{background:'none',border:'1px solid #eee',borderRadius:4,padding:'3px 8px',cursor:'pointer',fontSize:11,color:'#aaa'}}>✕</button>
+                    <button onClick={function(){if(window.confirm('Eliminar esta anotación?'))deleteMemo(memo.id);}} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'3px 8px',cursor:'pointer',fontSize:11,color:T.TEXT3}}>✕</button>
                   </div>
-                  <div style={{fontSize:12,color:'#333',lineHeight:1.7,whiteSpace:'pre-wrap',paddingLeft:36,fontFamily:esCompliance?'monospace':'inherit'}}>{memo.texto}</div>
+                  <div style={{fontSize:12,color:T.TEXT,lineHeight:1.7,whiteSpace:'pre-wrap',paddingLeft:36,fontFamily:esCompliance?'monospace':'inherit'}}>{memo.texto}</div>
                 </div>
               );
             })}
@@ -4486,7 +4494,7 @@ function AnalisisView(props) {
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
             <div>
               <div style={{fontWeight:700,color:'#1A4A6B',fontSize:14}}>📧 RFI — Requerimientos de Información</div>
-              <div style={{fontSize:11,color:'#888',marginTop:2}}>{selLegajo&&selLegajo.razonSocial} · {rfis.length} RFI(s) registrado(s) · {rfis.filter(function(r){return r.estado!=='CERRADO';}).length} activo(s)</div>
+              <div style={{fontSize:11,color:T.TEXT2,marginTop:2}}>{selLegajo&&selLegajo.razonSocial} · {rfis.length} RFI(s) registrado(s) · {rfis.filter(function(r){return r.estado!=='CERRADO';}).length} activo(s)</div>
             </div>
             <button
               onClick={function(){
@@ -4499,34 +4507,34 @@ function AnalisisView(props) {
 
           {/* Formulario nuevo RFI */}
           {rfiMode === 'nuevo' && (
-            <div style={{background:'#EBF5FB',border:'2px solid #2471A3',borderRadius:6,padding:'16px 18px',marginBottom:16}}>
+            <div style={{background:T.BG3,border:'2px solid #2471A3',borderRadius:6,padding:'16px 18px',marginBottom:16}}>
               <div style={{fontWeight:700,color:'#1A4A6B',fontSize:13,marginBottom:12}}>Nuevo RFI — {selLegajo&&selLegajo.razonSocial}</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
                 <div>
-                  <label style={{fontSize:11,fontWeight:700,color:'#555',display:'block',marginBottom:3}}>N° de referencia</label>
-                  <input value={rfiForm.refNum} onChange={function(e){setRfiForm(function(p){return Object.assign({},p,{refNum:e.target.value});});}} style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'7px 9px',fontSize:12,boxSizing:'border-box'}} placeholder="RFI-EMPRESA-2026-001"/>
+                  <label style={{fontSize:11,fontWeight:700,color:T.TEXT2,display:'block',marginBottom:3}}>N° de referencia</label>
+                  <input value={rfiForm.refNum} onChange={function(e){setRfiForm(function(p){return Object.assign({},p,{refNum:e.target.value});});}} style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 9px',fontSize:12,boxSizing:'border-box'}} placeholder="RFI-EMPRESA-2026-001"/>
                 </div>
                 <div>
-                  <label style={{fontSize:11,fontWeight:700,color:'#555',display:'block',marginBottom:3}}>Analista responsable</label>
-                  <input value={rfiForm.autor} onChange={function(e){setRfiForm(function(p){return Object.assign({},p,{autor:e.target.value});});}} style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'7px 9px',fontSize:12,boxSizing:'border-box'}} placeholder="Nombre del analista"/>
+                  <label style={{fontSize:11,fontWeight:700,color:T.TEXT2,display:'block',marginBottom:3}}>Analista responsable</label>
+                  <input value={rfiForm.autor} onChange={function(e){setRfiForm(function(p){return Object.assign({},p,{autor:e.target.value});});}} style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 9px',fontSize:12,boxSizing:'border-box'}} placeholder="Nombre del analista"/>
                 </div>
               </div>
               <div style={{marginBottom:10}}>
-                <label style={{fontSize:11,fontWeight:700,color:'#555',display:'block',marginBottom:3}}>Asunto del RFI</label>
-                <input value={rfiForm.asunto} onChange={function(e){setRfiForm(function(p){return Object.assign({},p,{asunto:e.target.value});});}} style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'7px 9px',fontSize:12,boxSizing:'border-box'}} placeholder="Requerimiento de información — Período Enero 2026"/>
+                <label style={{fontSize:11,fontWeight:700,color:T.TEXT2,display:'block',marginBottom:3}}>Asunto del RFI</label>
+                <input value={rfiForm.asunto} onChange={function(e){setRfiForm(function(p){return Object.assign({},p,{asunto:e.target.value});});}} style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 9px',fontSize:12,boxSizing:'border-box'}} placeholder="Requerimiento de información — Período Enero 2026"/>
               </div>
               <div style={{marginBottom:12}}>
-                <label style={{fontSize:11,fontWeight:700,color:'#555',display:'block',marginBottom:3}}>Texto del email / requerimiento enviado al cliente</label>
+                <label style={{fontSize:11,fontWeight:700,color:T.TEXT2,display:'block',marginBottom:3}}>Texto del email / requerimiento enviado al cliente</label>
                 <textarea
                   value={rfiForm.contenido}
                   onChange={function(e){setRfiForm(function(p){return Object.assign({},p,{contenido:e.target.value});});}}
                   rows={10}
                   placeholder="Pegá aquí el texto completo del email enviado al cliente..."
-                  style={{width:'100%',border:'1px solid #AED6F1',borderRadius:4,padding:'10px 12px',fontSize:12,resize:'vertical',background:'white',boxSizing:'border-box',fontFamily:'monospace',lineHeight:1.6}}
+                  style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:4,padding:'10px 12px',fontSize:12,resize:'vertical',background:T.BG2,boxSizing:'border-box',fontFamily:'monospace',lineHeight:1.6}}
                 />
               </div>
               <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-                <button onClick={function(){setRfiMode(null);}} style={{background:'#888',color:'white',border:'none',borderRadius:4,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
+                <button onClick={function(){setRfiMode(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
                 <button onClick={crearRfi} disabled={!rfiForm.contenido.trim()} style={{background:rfiForm.contenido.trim()?'#1A4A6B':'#ccc',color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rfiForm.contenido.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:12}}>💾 Registrar RFI</button>
               </div>
             </div>
@@ -4534,10 +4542,10 @@ function AnalisisView(props) {
 
           {/* Lista de RFIs */}
           {rfis.length === 0 ? (
-            <div style={{background:'#F8FBFE',border:'1px dashed #D6E4F0',borderRadius:6,padding:'30px',textAlign:'center'}}>
+            <div style={{background:T.BG3,border:'1px dashed #D6E4F0',borderRadius:6,padding:'30px',textAlign:'center'}}>
               <div style={{fontSize:28,marginBottom:8}}>📧</div>
-              <div style={{fontWeight:700,color:'#888',fontSize:13}}>Sin RFIs registrados para este cliente</div>
-              <div style={{fontSize:12,color:'#aaa',marginTop:4}}>Creá el primer RFI con el botón "+ Nuevo RFI" para comenzar el historial de intercambios.</div>
+              <div style={{fontWeight:700,color:T.TEXT2,fontSize:13}}>Sin RFIs registrados para este cliente</div>
+              <div style={{fontSize:12,color:T.TEXT3,marginTop:4}}>Creá el primer RFI con el botón "+ Nuevo RFI" para comenzar el historial de intercambios.</div>
             </div>
           ) : (
             <div>
@@ -4546,33 +4554,33 @@ function AnalisisView(props) {
                 var isOpen = rfiMode === rfi.id;
                 var altasCount = rfi.intercambios ? rfi.intercambios.filter(function(i){return i.tipo==='ENVIO';}).length : 0;
                 return (
-                  <div key={rfi.id} style={{background:'white',border:'2px solid '+(isOpen?'#2471A3':'#E8EEF4'),borderRadius:6,marginBottom:12,overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
+                  <div key={rfi.id} style={{background:T.BG2,border:'2px solid '+(isOpen?'#2471A3':'#E8EEF4'),borderRadius:6,marginBottom:12,overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
 
                     {/* Header del RFI */}
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',borderBottom:'1px solid #eee',background:'#F8FBFE',cursor:'pointer'}} onClick={function(){setRfiMode(isOpen?null:rfi.id); setRfiResp({contenido:'',tipo:'RESPUESTA',autor:''});}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',borderBottom:'1px solid '+T.BORDER,background:T.BG3,cursor:'pointer'}} onClick={function(){setRfiMode(isOpen?null:rfi.id); setRfiResp({contenido:'',tipo:'RESPUESTA',autor:''});}}>
                       <div style={{display:'flex',gap:10,alignItems:'center',flex:1,minWidth:0}}>
                         <span style={{background:est.bg,color:est.color,border:'1px solid '+est.color,borderRadius:8,padding:'2px 10px',fontSize:10,fontWeight:700,flexShrink:0}}>{est.label}</span>
                         <div style={{minWidth:0}}>
-                          <div style={{fontWeight:700,color:C.AO,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{rfi.refNum}</div>
-                          <div style={{fontSize:11,color:'#888',marginTop:1}}>{rfi.asunto}</div>
+                          <div style={{fontWeight:600,color:T.TEXT,fontSize:11,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{rfi.refNum}</div>
+                          <div style={{fontSize:11,color:T.TEXT2,marginTop:1}}>{rfi.asunto}</div>
                         </div>
                       </div>
                       <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
-                        {rfi.periodoNombre && <span style={{background:C.CEL,color:C.AM,borderRadius:6,padding:'2px 8px',fontSize:10,fontWeight:600}}>{rfi.periodoNombre}</span>}
-                        <span style={{fontSize:11,color:'#aaa'}}>{rfi.intercambios?rfi.intercambios.length:0} msg</span>
-                        <span style={{fontSize:11,color:'#aaa'}}>{rfi.createdAt}</span>
-                        <span style={{fontSize:14,color:'#aaa'}}>{isOpen?'▲':'▼'}</span>
+                        {rfi.periodoNombre && <span style={{background:C.CEL,color:T.CYAN,borderRadius:6,padding:'2px 8px',fontSize:10,fontWeight:600}}>{rfi.periodoNombre}</span>}
+                        <span style={{fontSize:11,color:T.TEXT3}}>{rfi.intercambios?rfi.intercambios.length:0} msg</span>
+                        <span style={{fontSize:11,color:T.TEXT3}}>{rfi.createdAt}</span>
+                        <span style={{fontSize:14,color:T.TEXT3}}>{isOpen?'▲':'▼'}</span>
                       </div>
                     </div>
 
                     {/* Acciones rápidas de estado */}
-                    <div style={{display:'flex',gap:6,padding:'6px 16px',borderBottom:'1px solid #eee',background:'#FAFCFF',flexWrap:'wrap'}}>
-                      <span style={{fontSize:10,color:'#aaa',alignSelf:'center',marginRight:4}}>Estado:</span>
+                    <div style={{display:'flex',gap:6,padding:'6px 16px',borderBottom:'1px solid '+T.BORDER,background:'#FAFCFF',flexWrap:'wrap'}}>
+                      <span style={{fontSize:10,color:T.TEXT3,alignSelf:'center',marginRight:4}}>Estado:</span>
                       {RFI_ESTADOS.map(function(e){
                         var isCur = rfi.estado===e.id;
-                        return <button key={e.id} onClick={function(){cambiarEstadoRfi(rfi.id,e.id);}} style={{background:isCur?e.bg:'white',color:isCur?e.color:'#888',border:'1px solid '+(isCur?e.color:'#ddd'),borderRadius:8,padding:'2px 10px',cursor:'pointer',fontSize:10,fontWeight:isCur?700:400}}>{e.label}</button>;
+                        return <button key={e.id} onClick={function(){cambiarEstadoRfi(rfi.id,e.id);}} style={{background:isCur?e.bg:'white',color:isCur?e.color:T.TEXT2,border:'1px solid '+(isCur?e.color:'#ddd'),borderRadius:8,padding:'2px 10px',cursor:'pointer',fontSize:10,fontWeight:isCur?700:400}}>{e.label}</button>;
                       })}
-                      <button onClick={function(){eliminarRfi(rfi.id);}} style={{marginLeft:'auto',background:'none',border:'1px solid #eee',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontSize:10,color:'#ccc'}}>🗑 Eliminar</button>
+                      <button onClick={function(){eliminarRfi(rfi.id);}} style={{marginLeft:'auto',background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'2px 8px',cursor:'pointer',fontSize:10,color:T.TEXT3}}>🗑 Eliminar</button>
                     </div>
 
                     {/* Hilo de intercambios */}
@@ -4593,18 +4601,18 @@ function AnalisisView(props) {
                               {/* Timeline dot */}
                               <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
                                 <div style={{width:10,height:10,borderRadius:'50%',background:msgColor,marginTop:4,flexShrink:0}}></div>
-                                {mi < (rfi.intercambios||[]).length-1 && <div style={{width:2,flex:1,background:'#eee',marginTop:2}}></div>}
+                                {mi < (rfi.intercambios||[]).length-1 && <div style={{width:1,flex:1,background:T.BORDER,marginTop:2}}></div>}
                               </div>
                               {/* Message */}
                               <div style={{flex:1,background:msgBg,border:'1px solid '+msgColor+'33',borderRadius:6,padding:'10px 14px',borderLeft:'3px solid '+msgColor}}>
                                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
                                   <div style={{display:'flex',gap:8,alignItems:'center'}}>
                                     <span style={{background:msgColor,color:'white',borderRadius:4,padding:'1px 8px',fontSize:9,fontWeight:700}}>{msgLabel}</span>
-                                    <span style={{fontWeight:700,color:C.AO,fontSize:12}}>{msg.autor}</span>
+                                    <span style={{fontWeight:600,color:T.TEXT,fontSize:11}}>{msg.autor}</span>
                                   </div>
-                                  <span style={{fontSize:11,color:'#aaa'}}>{msg.fecha} {msg.hora&&'· '+msg.hora}</span>
+                                  <span style={{fontSize:11,color:T.TEXT3}}>{msg.fecha} {msg.hora&&'· '+msg.hora}</span>
                                 </div>
-                                <div style={{fontSize:12,color:'#333',lineHeight:1.7,whiteSpace:'pre-wrap',fontFamily:isEnvio?'monospace':'inherit'}}>{msg.contenido}</div>
+                                <div style={{fontSize:12,color:T.TEXT,lineHeight:1.7,whiteSpace:'pre-wrap',fontFamily:isEnvio?'monospace':'inherit'}}>{msg.contenido}</div>
                               </div>
                             </div>
                           );
@@ -4612,13 +4620,13 @@ function AnalisisView(props) {
 
                         {/* Agregar intercambio */}
                         {rfi.estado !== 'CERRADO' && (
-                          <div style={{background:'#F8FBFE',border:'1px solid #D6E4F0',borderRadius:6,padding:'12px 14px',marginTop:8}}>
+                          <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:6,padding:'12px 14px',marginTop:8}}>
                             <div style={{fontWeight:700,color:'#1A4A6B',fontSize:12,marginBottom:10}}>Agregar al hilo</div>
                             <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap'}}>
                               <select
                                 value={rfiResp.tipo}
                                 onChange={function(e){setRfiResp(function(p){return Object.assign({},p,{tipo:e.target.value});});}}
-                                style={{border:'1px solid #ddd',borderRadius:4,padding:'6px 8px',fontSize:12}}
+                                style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 8px',fontSize:12}}
                               >
                                 <option value="RESPUESTA">📥 Respuesta del cliente</option>
                                 <option value="ENVIO">📤 Seguimiento enviado</option>
@@ -4629,7 +4637,7 @@ function AnalisisView(props) {
                                 value={rfiResp.autor}
                                 onChange={function(e){setRfiResp(function(p){return Object.assign({},p,{autor:e.target.value});});}}
                                 placeholder={rfiResp.tipo==='RESPUESTA'?(selLegajo&&selLegajo.razonSocial||'Cliente'):(analistaVal||'Analista')}
-                                style={{flex:1,minWidth:140,border:'1px solid #ddd',borderRadius:4,padding:'6px 8px',fontSize:12}}
+                                style={{flex:1,minWidth:140,border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 8px',fontSize:12}}
                               />
                             </div>
                             <textarea
@@ -4642,7 +4650,7 @@ function AnalisisView(props) {
                                 rfiResp.tipo==='CIERRE' ? 'Descripción del cierre: documentación recibida, decisión adoptada, acciones de seguimiento...' :
                                 'Nota interna del equipo de compliance...'
                               }
-                              style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:12,resize:'vertical',background:'white',boxSizing:'border-box',fontFamily:rfiResp.tipo==='RESPUESTA'?'monospace':'inherit',lineHeight:1.6}}
+                              style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:12,resize:'vertical',background:T.BG2,boxSizing:'border-box',fontFamily:rfiResp.tipo==='RESPUESTA'?'monospace':'inherit',lineHeight:1.6}}
                             />
                             <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
                               <button
@@ -4776,7 +4784,7 @@ function AlertasView(props) {
     <div style={{padding:22}}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
-        <h2 style={{color:C.AO,margin:0,fontSize:19,fontWeight:700}}>Centro de Alertas</h2>
+        <h2 style={{color:T.TEXT,margin:0,fontSize:19,fontWeight:700}}>Centro de Alertas</h2>
         <span style={{background:totalAlertas>0?C.ROJO:'#27AE60',color:'white',borderRadius:10,padding:'2px 10px',fontSize:11,fontWeight:700}}>
           {totalAlertas > 0 ? totalAlertas+' activas' : '✓ Sin alertas'}
         </span>
@@ -4804,9 +4812,9 @@ function AlertasView(props) {
       {tab==='senales' && (
         <div>
           {allSigs.length===0 ? (
-            <div style={{background:'#F8FBFE',border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:'#aaa'}}>
+            <div style={{background:T.BG3,border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
               <div style={{fontSize:32,marginBottom:8}}>✅</div>
-              <div style={{fontSize:14,fontWeight:600,color:'#888'}}>Sin señales activas</div>
+              <div style={{fontSize:14,fontWeight:600,color:T.TEXT2}}>Sin señales activas</div>
               <div style={{fontSize:12,marginTop:4}}>Todos los períodos analizados están sin alertas pendientes.</div>
             </div>
           ) : allSigs.map(function(s,i){
@@ -4814,23 +4822,23 @@ function AlertasView(props) {
             var bord = s.sev==='ALTA'?C.ROJO:s.sev==='MEDIA'?C.NARANJA:C.AMARILLO;
             var bg   = s.sev==='ALTA'?'#FFF8F8':s.sev==='MEDIA'?'#FFFBF5':'#FFFDE7';
             return (
-              <div key={i} style={{background:bg,border:'1px solid #E8EEF4',borderRadius:8,padding:'12px 16px',marginBottom:10,borderLeft:'4px solid '+bord}}>
+              <div key={i} style={{background:bg,border:'1px solid '+T.BORDER,borderRadius:8,padding:'12px 16px',marginBottom:10,borderLeft:'4px solid '+bord}}>
                 {/* Cabecera */}
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
                   <div>
                     <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:4}}>
-                      <span style={{fontWeight:700,color:C.AM,fontSize:12,fontFamily:'monospace'}}>{s.pat}</span>
+                      <span style={{fontWeight:700,color:T.CYAN,fontSize:12,fontFamily:'monospace'}}>{s.pat}</span>
                       <SevBadge sev={s.sev}/>
-                      <span style={{fontSize:12,color:'#888',fontWeight:500}}>{s.legajoNom}</span>
-                      <span style={{fontSize:11,color:'#aaa'}}>· {s.periodoNom}</span>
+                      <span style={{fontSize:12,color:T.TEXT2,fontWeight:500}}>{s.legajoNom}</span>
+                      <span style={{fontSize:11,color:T.TEXT3}}>· {s.periodoNom}</span>
                     </div>
-                    <div style={{fontWeight:700,fontSize:13,color:C.AO}}>{s.titulo}</div>
-                    <div style={{fontSize:12,color:'#555',marginTop:2,lineHeight:1.5}}>{s.desc}</div>
+                    <div style={{fontWeight:700,fontSize:13,color:T.TEXT}}>{s.titulo}</div>
+                    <div style={{fontSize:12,color:T.TEXT2,marginTop:2,lineHeight:1.5}}>{s.desc}</div>
                   </div>
                   {/* Botón ir al período */}
                   {onNavAnalisis && s.leg && s.per && (
                     <button onClick={function(){onNavAnalisis(s.leg, s.per);}}
-                      style={{flexShrink:0,background:'white',border:'1px solid '+C.AC,color:C.AC,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
+                      style={{flexShrink:0,background:T.BG2,border:'1px solid '+C.AC,color:T.CYAN,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
                       Ver período →
                     </button>
                   )}
@@ -4838,13 +4846,13 @@ function AlertasView(props) {
 
                 {/* Cierre directo */}
                 <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid rgba(0,0,0,0.06)'}}>
-                  <div style={{fontSize:11,color:'#888',marginBottom:5,fontWeight:600}}>JUSTIFICACIÓN PARA RESOLVER</div>
+                  <div style={{fontSize:11,color:T.TEXT2,marginBottom:5,fontWeight:600}}>JUSTIFICACIÓN PARA RESOLVER</div>
                   <div style={{display:'flex',gap:8}}>
                     <input
                       value={justMap[key]||''}
                       onChange={function(e){var m=Object.assign({},justMap); m[key]=e.target.value; setJustMap(m);}}
                       placeholder="Describí brevemente por qué se resuelve esta señal..."
-                      style={{flex:1,padding:'6px 10px',border:'1px solid #ddd',borderRadius:6,fontSize:12,color:'#333'}}
+                      style={{flex:1,padding:'6px 10px',border:'1px solid '+T.BORDER,borderRadius:6,fontSize:12,color:T.TEXT}}
                     />
                     <button
                       onClick={function(){resolverSenal(s, justMap[key]);}}
@@ -4863,36 +4871,36 @@ function AlertasView(props) {
       {tab==='rfis' && (
         <div>
           {rfisVencidos.length===0 && rfisProximos.length===0 ? (
-            <div style={{background:'#F8FBFE',border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:'#aaa'}}>
+            <div style={{background:T.BG3,border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
               <div style={{fontSize:32,marginBottom:8}}>📧</div>
-              <div style={{fontSize:14,fontWeight:600,color:'#888'}}>Sin RFIs vencidos o próximos a vencer</div>
+              <div style={{fontSize:14,fontWeight:600,color:T.TEXT2}}>Sin RFIs vencidos o próximos a vencer</div>
             </div>
           ) : (
             <div>
               {rfisVencidos.length > 0 && (
                 <div>
-                  <div style={{fontSize:11,fontWeight:700,color:C.ROJO,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:8}}>
+                  <div style={{fontSize:11,fontWeight:700,color:T.RED,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:8}}>
                     🔴 Vencidos sin respuesta ({rfisVencidos.length})
                   </div>
                   {rfisVencidos.map(function(r,i){
                     var f = parseFechaAR(r.createdAt);
                     var dias = f ? Math.floor((hoy-f)/86400000) : '?';
                     return (
-                      <div key={i} style={{background:'#FFF8F8',border:'1px solid #F5C6CB',borderLeft:'4px solid '+C.ROJO,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
+                      <div key={i} style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.25)',borderLeft:'2px solid '+T.RED+',borderRadius:3,padding:'10px 14px',marginBottom:8}}>
                         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
                           <div>
                             <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
-                              <span style={{fontFamily:'monospace',fontSize:12,fontWeight:700,color:C.AM}}>{r.refNum||'RFI'}</span>
-                              <span style={{background:'#FDEDEC',color:C.ROJO,borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>{dias} días sin respuesta</span>
+                              <span style={{fontFamily:'monospace',fontSize:12,fontWeight:700,color:T.CYAN}}>{r.refNum||'RFI'}</span>
+                              <span style={{background:'rgba(255,68,85,0.07)',color:T.RED,borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>{dias} días sin respuesta</span>
                             </div>
-                            <div style={{fontSize:13,fontWeight:600,color:C.AO}}>{r.legajoNombre}</div>
-                            <div style={{fontSize:12,color:'#666',marginTop:2}}>{r.asunto||'Sin asunto'}</div>
+                            <div style={{fontSize:13,fontWeight:500,color:T.TEXT2}}>{r.legajoNombre}</div>
+                            <div style={{fontSize:12,color:T.TEXT2,marginTop:2}}>{r.asunto||'Sin asunto'}</div>
                           </div>
                           {onNavAnalisis && r.leg && (
                             <button onClick={function(){
                               var perAsoc = periodos.find(function(p){return p.legajoId===r.legajoId;});
                               onNavAnalisis(r.leg, perAsoc||null);
-                            }} style={{flexShrink:0,background:'white',border:'1px solid '+C.AC,color:C.AC,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
+                            }} style={{flexShrink:0,background:T.BG2,border:'1px solid '+C.AC,color:T.CYAN,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
                               Ver legajo →
                             </button>
                           )}
@@ -4904,28 +4912,28 @@ function AlertasView(props) {
               )}
               {rfisProximos.length > 0 && (
                 <div style={{marginTop: rfisVencidos.length>0?14:0}}>
-                  <div style={{fontSize:11,fontWeight:700,color:C.NARANJA,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:8}}>
+                  <div style={{fontSize:11,fontWeight:700,color:T.AMBER,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:8}}>
                     🟡 Vencen en los próximos 2 días ({rfisProximos.length})
                   </div>
                   {rfisProximos.map(function(r,i){
                     var f = parseFechaAR(r.createdAt);
                     var dias = f ? Math.floor((hoy-f)/86400000) : '?';
                     return (
-                      <div key={i} style={{background:'#FFFBF5',border:'1px solid #F5CBA7',borderLeft:'4px solid '+C.NARANJA,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
+                      <div key={i} style={{background:'rgba(255,140,0,0.08)',border:'1px solid rgba(255,140,0,0.25)',borderLeft:'2px solid '+T.AMBER+',borderRadius:3,padding:'10px 14px',marginBottom:8}}>
                         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
                           <div>
                             <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
-                              <span style={{fontFamily:'monospace',fontSize:12,fontWeight:700,color:C.AM}}>{r.refNum||'RFI'}</span>
-                              <span style={{background:'#FEF3E8',color:C.NARANJA,borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>día {dias} de 7</span>
+                              <span style={{fontFamily:'monospace',fontSize:12,fontWeight:700,color:T.CYAN}}>{r.refNum||'RFI'}</span>
+                              <span style={{background:'#FEF3E8',color:T.AMBER,borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>día {dias} de 7</span>
                             </div>
-                            <div style={{fontSize:13,fontWeight:600,color:C.AO}}>{r.legajoNombre}</div>
-                            <div style={{fontSize:12,color:'#666',marginTop:2}}>{r.asunto||'Sin asunto'}</div>
+                            <div style={{fontSize:13,fontWeight:500,color:T.TEXT2}}>{r.legajoNombre}</div>
+                            <div style={{fontSize:12,color:T.TEXT2,marginTop:2}}>{r.asunto||'Sin asunto'}</div>
                           </div>
                           {onNavAnalisis && r.leg && (
                             <button onClick={function(){
                               var perAsoc = periodos.find(function(p){return p.legajoId===r.legajoId;});
                               onNavAnalisis(r.leg, perAsoc||null);
-                            }} style={{flexShrink:0,background:'white',border:'1px solid '+C.AC,color:C.AC,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
+                            }} style={{flexShrink:0,background:T.BG2,border:'1px solid '+C.AC,color:T.CYAN,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
                               Ver legajo →
                             </button>
                           )}
@@ -4944,22 +4952,22 @@ function AlertasView(props) {
       {tab==='analisis' && (
         <div>
           {sinAnalizar.length===0 ? (
-            <div style={{background:'#F8FBFE',border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:'#aaa'}}>
+            <div style={{background:T.BG3,border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
               <div style={{fontSize:32,marginBottom:8}}>⏱</div>
-              <div style={{fontSize:14,fontWeight:600,color:'#888'}}>Todos los clientes tienen análisis reciente</div>
+              <div style={{fontSize:14,fontWeight:600,color:T.TEXT2}}>Todos los clientes tienen análisis reciente</div>
             </div>
           ) : sinAnalizar.map(function(item,i){
             return (
-              <div key={i} style={{background:'#FFFBF5',border:'1px solid #F5CBA7',borderLeft:'4px solid '+C.NARANJA,borderRadius:8,padding:'12px 16px',marginBottom:8}}>
+              <div key={i} style={{background:'rgba(255,140,0,0.08)',border:'1px solid rgba(255,140,0,0.25)',borderLeft:'2px solid '+T.AMBER+',borderRadius:3,padding:'12px 16px',marginBottom:8}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
                   <div>
-                    <div style={{fontSize:13,fontWeight:700,color:C.AO,marginBottom:3}}>{item.legajoNom}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:T.TEXT,marginBottom:3}}>{item.legajoNom}</div>
                     {item.tipo==='sin_periodos' ? (
-                      <div style={{fontSize:12,color:'#666'}}>
+                      <div style={{fontSize:12,color:T.TEXT2}}>
                         Sin períodos cargados · {item.dias} días desde el alta · Límite para segmento {item.leg&&item.leg.segmento||'N/D'}: {item.limite} días
                       </div>
                     ) : (
-                      <div style={{fontSize:12,color:'#666'}}>
+                      <div style={{fontSize:12,color:T.TEXT2}}>
                         Tiene períodos pero sin métricas calculadas — cargar archivo XLS para analizar
                       </div>
                     )}
@@ -4996,7 +5004,7 @@ function NormativaView() {
   ];
   return (
     <div style={{padding:22}}>
-      <h2 style={{color:C.AO,margin:'0 0 16px',fontSize:19,fontWeight:700}}>Normativa Aplicable</h2>
+      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700}}>Normativa Aplicable</h2>
       <Card title="Marco regulatorio AML/CFT — Argentina">
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
           <thead><tr>{['Normativa','Descripcion','Articulo / Alcance'].map(function(h,i){return <th key={i} style={{background:C.AO,color:'white',padding:'7px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
@@ -5004,7 +5012,7 @@ function NormativaView() {
             <tr key={i} style={{background:i%2===0?'#F8FBFE':'white'}}>
               <td style={{padding:'6px 10px',fontWeight:700,color:C.AM,whiteSpace:'nowrap'}}>{n.cod}</td>
               <td style={{padding:'6px 10px'}}>{n.nombre}</td>
-              <td style={{padding:'6px 10px',color:'#666',fontSize:11}}>{n.art}</td>
+              <td style={{padding:'6px 10px',color:T.TEXT2,fontSize:11}}>{n.art}</td>
             </tr>
           );})}</tbody>
         </table>
@@ -5016,7 +5024,7 @@ function NormativaView() {
             <tr key={i} style={{background:i%2===0?'#F8FBFE':'white'}}>
               <td style={{padding:'6px 10px',fontWeight:700,color:C.AM}}>{i+1}</td>
               <td style={{padding:'6px 10px'}}><strong>{s.n}</strong></td>
-              <td style={{padding:'6px 10px',color:'#666'}}>{s.j}</td>
+              <td style={{padding:'6px 10px',color:T.TEXT2}}>{s.j}</td>
             </tr>
           );})}</tbody>
         </table>
@@ -5136,61 +5144,63 @@ function LoginScreen(props) {
   function handleKey(e) { if (e.key === 'Enter') handleLogin(); }
 
   return (
-    <div style={{minHeight:'100vh',background:'linear-gradient(135deg, #0F1C30 0%, #1B2A4A 50%, #2C4A7C 100%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',fontFamily:"'Segoe UI',Arial,sans-serif"}}>
+    <div style={{minHeight:'100vh',background:T.BG,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',fontFamily:T.MONO}}>
       <div style={{textAlign:'center',marginBottom:32}}>
-        <div style={{fontSize:48,marginBottom:12}}>⚖️</div>
-        <div style={{color:'white',fontWeight:700,fontSize:26,letterSpacing:1}}>Rebit AML & KYB Tool</div>
-        <div style={{color:'rgba(255,255,255,0.5)',fontSize:13,marginTop:6}}>GOAT S.A. — Compliance & Anti-Money Laundering</div>
-        <div style={{color:'rgba(255,255,255,0.3)',fontSize:11,marginTop:4}}>Design System v2.2.0 · UIF/BCRA Regulated</div>
+        <div style={{fontFamily:T.MONO,marginBottom:8}}>
+          <div style={{width:40,height:40,background:C.AC,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'#fff',borderRadius:3,letterSpacing:'-0.5px',margin:'0 auto 12px'}}>RB</div>
+        </div>
+        <div style={{color:T.TEXT,fontWeight:700,fontSize:18,letterSpacing:'3px',textTransform:'uppercase'}}>REBIT AML TOOL</div>
+        <div style={{color:T.TEXT3,fontSize:10,marginTop:6,letterSpacing:'2px'}}>GOAT S.A. // COMPLIANCE & AML</div>
+        <div style={{color:T.TEXT4,fontSize:9,marginTop:3,letterSpacing:'1px'}}>UIF/BCRA REGULATED · v2.4.0</div>
       </div>
 
-      <div style={{background:'white',borderRadius:10,padding:36,width:380,maxWidth:'90vw',boxShadow:'0 24px 80px rgba(0,0,0,0.4)'}}>
-        <div style={{fontWeight:700,color:'#1B2A4A',fontSize:17,marginBottom:4}}>Acceso al sistema</div>
-        <div style={{fontSize:12,color:'#888',marginBottom:24}}>Ingresá con tu email de compliance</div>
+      <div style={{background:T.BG2,border:'1px solid '+T.BORDER2,borderRadius:4,padding:32,width:380,maxWidth:'90vw'}}>
+        <div style={{fontWeight:600,color:T.TEXT,fontSize:13,marginBottom:4,letterSpacing:'1px',textTransform:'uppercase'}}>Acceso al sistema</div>
+        <div style={{fontSize:11,color:T.TEXT3,marginBottom:20,fontFamily:T.MONO}}>Ingresá con tu email de compliance</div>
 
         <div style={{marginBottom:14}}>
-          <label style={{fontSize:11,color:'#555',fontWeight:600,display:'block',marginBottom:5}}>Email</label>
+          <label style={{fontSize:9,color:T.TEXT3,fontWeight:400,display:'block',marginBottom:5,letterSpacing:'1px',textTransform:'uppercase'}}>Email</label>
           <input
             type="email" value={email}
             onChange={function(e){setEmail(e.target.value);setErr('');}} onKeyDown={handleKey}
             placeholder="analista@goat.ar"
             autoComplete="email"
-            style={{width:'100%',border:'1px solid #ddd',borderRadius:5,padding:'10px 12px',fontSize:14,outline:'none',boxSizing:'border-box'}}
+            style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:3,padding:'10px 12px',fontSize:13,fontFamily:T.MONO,background:T.BG4,color:T.TEXT,outline:'none',boxSizing:'border-box'}}
           />
         </div>
 
         <div style={{marginBottom:20}}>
-          <label style={{fontSize:11,color:'#555',fontWeight:600,display:'block',marginBottom:5}}>Contraseña</label>
-          <div style={{display:'flex',gap:8}}>
+          <label style={{fontSize:9,color:T.TEXT3,fontWeight:400,display:'block',marginBottom:5,letterSpacing:'1px',textTransform:'uppercase'}}>Contraseña</label>
+          <div style={{display:'flex',gap:6}}>
             <input
               type={showPass?'text':'password'} value={pass}
               onChange={function(e){setPass(e.target.value);setErr('');}} onKeyDown={handleKey}
               placeholder="••••••••"
               autoComplete="current-password"
-              style={{flex:1,border:'1px solid #ddd',borderRadius:5,padding:'10px 12px',fontSize:14,outline:'none'}}
+              style={{flex:1,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'10px 12px',fontSize:13,fontFamily:T.MONO,background:T.BG4,color:T.TEXT,outline:'none'}}
             />
-            <button onClick={function(){setShowPass(!showPass);}} style={{background:'#f5f5f5',border:'1px solid #ddd',borderRadius:5,padding:'10px 12px',cursor:'pointer',fontSize:14}}>{showPass?'🙈':'👁'}</button>
+            <button onClick={function(){setShowPass(!showPass);}} style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'10px 12px',cursor:'pointer',fontSize:14,color:T.TEXT3}}>{showPass?'🙈':'👁'}</button>
           </div>
         </div>
 
-        {err && <div style={{background:'#FDEDEC',border:'1px solid #F1948A',borderRadius:5,padding:'9px 12px',marginBottom:16,fontSize:12,color:'#922B21',fontWeight:600}}>⚠ {err}</div>}
+        {err && <div style={{background:'rgba(255,68,85,0.1)',border:'1px solid rgba(255,68,85,0.3)',borderRadius:3,padding:'9px 12px',marginBottom:16,fontSize:11,fontFamily:T.MONO,color:T.RED,fontWeight:500}}>⚠ {err}</div>}
 
         <button
           onClick={handleLogin}
           disabled={loggingIn}
-          style={{width:'100%',background:loggingIn?'#aaa':'#1B2A4A',color:'white',border:'none',borderRadius:5,padding:'12px 0',cursor:loggingIn?'not-allowed':'pointer',fontWeight:700,fontSize:15,letterSpacing:0.5}}
+          style={{width:'100%',background:loggingIn?T.BG3:C.AC,color:'white',border:'none',borderRadius:3,padding:'12px 0',cursor:loggingIn?'not-allowed':'pointer',fontWeight:600,fontSize:12,letterSpacing:'2px',fontFamily:T.MONO,textTransform:'uppercase'}}
         >
-          {loggingIn ? '🔐 Verificando...' : '🔐 Ingresar al sistema'}
+          {loggingIn ? '// verificando...' : '→ INGRESAR AL SISTEMA'}
         </button>
 
-        <div style={{textAlign:'center',marginTop:18,fontSize:11,color:'#bbb'}}>
-          Acceso restringido · Solo personal de Compliance<br/>
+        <div style={{textAlign:'center',marginTop:18,fontSize:10,color:T.TEXT4,fontFamily:T.MONO}}>
+          // acceso restringido — solo compliance<br/>
           GOAT S.A. — CUIT 30-71703953-6
         </div>
       </div>
 
-      <div style={{color:'rgba(255,255,255,0.2)',fontSize:10,marginTop:24,textAlign:'center'}}>
-        Rebit AML Tool v2.2.0 · Compliance & AML · {new Date().getFullYear()}
+      <div style={{color:T.TEXT4,fontSize:9,marginTop:20,textAlign:'center',fontFamily:T.MONO,letterSpacing:'1px'}}>
+        REBIT_AML v2.4.0 // {new Date().getFullYear()}
       </div>
     </div>
   );
@@ -5282,10 +5292,10 @@ function PatronesView() {
   return (
     <div style={{padding:22, maxWidth:960}}>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:6}}>
-        <h2 style={{color:C.AO,fontSize:19,fontWeight:700,margin:0}}>🔍 Patrones AML — Referencia</h2>
+        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,letterSpacing:'1px',margin:0}}>🔍 Patrones AML — Referencia</h2>
         <span style={{background:C.AO,color:'white',borderRadius:10,padding:'2px 10px',fontSize:11,fontWeight:700}}>12 patrones activos</span>
       </div>
-      <p style={{fontSize:12,color:'#666',marginBottom:20}}>
+      <p style={{fontSize:12,color:T.TEXT2,marginBottom:20}}>
         Catálogo completo de patrones de comportamiento transaccional inusual detectados por el sistema.
         Cada patrón está mapeado a su tipología UIF correspondiente. Hacé clic en cualquier fila para ver el detalle completo.
       </p>
@@ -5298,13 +5308,13 @@ function PatronesView() {
             <span style={{fontSize:11,fontWeight:700,color:s[1]}}>Severidad {s[0]}</span>
           </div>
         );})}
-        <div style={{marginLeft:'auto',fontSize:11,color:'#999',alignSelf:'center'}}>
+        <div style={{marginLeft:'auto',fontSize:11,color:T.TEXT3,alignSelf:'center'}}>
           Tipologías UIF: T-01 a T-09 según Resolución 156/2018
         </div>
       </div>
 
       {/* Tabla de patrones */}
-      <div style={{border:'1px solid #E8EEF4',borderRadius:8,overflow:'hidden'}}>
+      <div style={{border:'1px solid '+T.BORDER,borderRadius:8,overflow:'hidden'}}>
         {/* Header */}
         <div style={{display:'grid',gridTemplateColumns:'90px 1fr 80px 80px',background:C.AO,padding:'9px 16px',gap:12}}>
           {['Código','Nombre del patrón','Tip. UIF','Severidad'].map(function(h){return(
@@ -5323,34 +5333,34 @@ function PatronesView() {
                 onClick={function(){ setExpanded(isOpen ? null : p.code); }}
                 style={{display:'grid',gridTemplateColumns:'90px 1fr 80px 80px',padding:'11px 16px',gap:12,cursor:'pointer',background:isOpen ? '#EBF5FB' : (i%2===0?'white':'#F8FBFE'),transition:'background 0.1s',alignItems:'center'}}
               >
-                <div style={{fontFamily:'monospace',fontWeight:700,fontSize:12.5,color:C.AM}}>{p.code}</div>
-                <div style={{fontSize:13,fontWeight:isOpen?700:500,color:C.AO}}>{p.name}</div>
-                <div style={{fontSize:11,color:'#888',fontFamily:'monospace'}}>{p.tip}</div>
+                <div style={{fontFamily:'monospace',fontWeight:700,fontSize:12.5,color:T.CYAN}}>{p.code}</div>
+                <div style={{fontSize:13,fontWeight:isOpen?700:500,color:T.TEXT}}>{p.name}</div>
+                <div style={{fontSize:11,color:T.TEXT2,fontFamily:'monospace'}}>{p.tip}</div>
                 <div style={{display:'flex',alignItems:'center',gap:5}}>
                   <div style={{width:6,height:6,borderRadius:'50%',background:sevColor,flexShrink:0}}></div>
                   <span style={{fontSize:11,fontWeight:700,color:sevColor}}>{p.sev}</span>
-                  <span style={{marginLeft:'auto',fontSize:12,color:C.AC}}>{isOpen?'▲':'▼'}</span>
+                  <span style={{marginLeft:'auto',fontSize:12,color:T.CYAN}}>{isOpen?'▲':'▼'}</span>
                 </div>
               </div>
 
               {/* Detalle expandible */}
               {isOpen && (
-                <div style={{padding:'0 16px 16px 16px',background:'#F0F7FF',borderTop:'1px solid #D6E4F0'}}>
+                <div style={{padding:'0 16px 16px 16px',background:T.BG3,borderTop:'1px solid #D6E4F0'}}>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,paddingTop:14}}>
 
-                    <div style={{background:'white',border:'1px solid #D6E4F0',borderRadius:6,padding:'12px 14px'}}>
-                      <div style={{fontSize:10,fontWeight:700,color:C.AC,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>Descripción técnica</div>
-                      <div style={{fontSize:12.5,color:'#2C3E50',lineHeight:1.6}}>{p.desc}</div>
+                    <div style={{background:T.BG2,border:'1px solid '+T.BORDER2,borderRadius:6,padding:'12px 14px'}}>
+                      <div style={{fontSize:10,fontWeight:700,color:T.CYAN,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>Descripción técnica</div>
+                      <div style={{fontSize:12.5,color:T.TEXT,lineHeight:1.6}}>{p.desc}</div>
                     </div>
 
-                    <div style={{background:'white',border:'1px solid #D6E4F0',borderRadius:6,padding:'12px 14px'}}>
-                      <div style={{fontSize:10,fontWeight:700,color:C.AC,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>¿Qué puede indicar?</div>
-                      <div style={{fontSize:12.5,color:'#2C3E50',lineHeight:1.6}}>{p.que_sugiere}</div>
+                    <div style={{background:T.BG2,border:'1px solid '+T.BORDER2,borderRadius:6,padding:'12px 14px'}}>
+                      <div style={{fontSize:10,fontWeight:700,color:T.CYAN,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>¿Qué puede indicar?</div>
+                      <div style={{fontSize:12.5,color:T.TEXT,lineHeight:1.6}}>{p.que_sugiere}</div>
                     </div>
 
-                    <div style={{background:'#FFFBF0',border:'1px solid #F39C12',borderRadius:6,padding:'12px 14px',gridColumn:'1/-1'}}>
+                    <div style={{background:'rgba(255,184,48,0.08)',border:'1px solid rgba(255,184,48,0.25)',borderRadius:3,padding:'12px 14px',gridColumn:'1/-1'}}>
                       <div style={{fontSize:10,fontWeight:700,color:C.AMARI,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>Ejemplo práctico</div>
-                      <div style={{fontSize:12.5,color:'#2C3E50',lineHeight:1.6,fontStyle:'italic'}}>{p.ejemplo}</div>
+                      <div style={{fontSize:12.5,color:T.TEXT,lineHeight:1.6,fontStyle:'italic'}}>{p.ejemplo}</div>
                     </div>
 
                   </div>
@@ -5358,7 +5368,7 @@ function PatronesView() {
                     <span style={{background:sevBg,color:sevColor,border:'1px solid '+sevColor,borderRadius:4,padding:'3px 10px',fontSize:10,fontWeight:700}}>
                       Severidad típica: {p.sev}
                     </span>
-                    <span style={{background:C.CEL,color:C.AM,border:'1px solid '+C.CEL,borderRadius:4,padding:'3px 10px',fontSize:10,fontWeight:700}}>
+                    <span style={{background:C.CEL,color:T.CYAN,border:'1px solid '+C.CEL,borderRadius:4,padding:'3px 10px',fontSize:10,fontWeight:700}}>
                       Tipología UIF: {p.tip}
                     </span>
                   </div>
@@ -5370,7 +5380,7 @@ function PatronesView() {
       </div>
 
       {/* Footer nota */}
-      <div style={{marginTop:14,padding:'10px 14px',background:'#F4F6F9',borderRadius:6,fontSize:11,color:'#7F8C8D',lineHeight:1.6}}>
+      <div style={{marginTop:14,padding:'10px 14px',background:'#F4F6F9',borderRadius:6,fontSize:11,color:T.TEXT3,lineHeight:1.6}}>
         <strong>Nota regulatoria:</strong> Los patrones PAT-01 a PAT-12 son indicadores internos del sistema Rebit AML Tool mapeados
         a las tipologías de lavado de activos definidas por la UIF en la Resolución 156/2018 y sus modificatorias.
         La detección de un patrón no implica automáticamente la existencia de una operación ilícita —
@@ -5415,12 +5425,12 @@ function WikiStepList({steps}) {
             </div>
             <div style={{flex:1,background:ok?'#F0FAF4':'white',border:'1px solid '+(ok?'#A9DFBF':'#E8EEF4'),borderRadius:8,padding:'9px 13px',transition:'all 0.2s'}}>
               <div style={{fontSize:13,fontWeight:600,color:ok?C.VERDE:C.AO,marginBottom:2,textDecoration:ok?'line-through':'none'}}>{step[0]}</div>
-              <div style={{fontSize:12.5,color:'#555',lineHeight:1.6}}>{step[1]}</div>
+              <div style={{fontSize:12.5,color:T.TEXT2,lineHeight:1.6}}>{step[1]}</div>
             </div>
           </div>
         );
       })}
-      <div style={{fontSize:11,color:'#aaa',marginTop:2}}>💡 Clic en los números para marcar pasos completados</div>
+      <div style={{fontSize:11,color:T.TEXT3,marginTop:2}}>💡 Clic en los números para marcar pasos completados</div>
     </div>
   );
 }
@@ -5439,7 +5449,7 @@ function WikiTbl({headers, rows}) {
         <tbody>
           {rows.map((row,ri)=>(
             <tr key={ri} style={{background:ri%2===0?'#F8FBFE':'white'}}>
-              {row.map((cell,ci)=><td key={ci} style={{padding:'8px 12px',color:'#2C3E50',borderBottom:'1px solid #E8EEF4',verticalAlign:'top',lineHeight:1.6}}>{cell}</td>)}
+              {row.map((cell,ci)=><td key={ci} style={{padding:'8px 12px',color:T.TEXT,borderBottom:'1px solid '+T.BORDER,verticalAlign:'top',lineHeight:1.6}}>{cell}</td>)}
             </tr>
           ))}
         </tbody>
@@ -5451,15 +5461,15 @@ function WikiTbl({headers, rows}) {
 function WikiFlow({title, nodes, vertical}) {
   return (
     <div style={{marginBottom:20}}>
-      {title && <div style={{fontSize:11,fontWeight:700,color:C.AM,letterSpacing:'0.05em',textTransform:'uppercase',marginBottom:8}}>{title}</div>}
-      <div style={{display:'flex',flexDirection:vertical?'column':'row',alignItems:'center',gap:0,background:'#F8FBFE',border:'1px solid #E8EEF4',borderRadius:10,padding:'14px 12px',flexWrap:vertical?'nowrap':'wrap'}}>
+      {title && <div style={{fontSize:11,fontWeight:700,color:T.CYAN,letterSpacing:'0.05em',textTransform:'uppercase',marginBottom:8}}>{title}</div>}
+      <div style={{display:'flex',flexDirection:vertical?'column':'row',alignItems:'center',gap:0,background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:10,padding:'14px 12px',flexWrap:vertical?'nowrap':'wrap'}}>
         {nodes.map((node,i)=>(
           <div key={i} style={{display:'flex',flexDirection:vertical?'column':'row',alignItems:'center',flex:vertical?'none':'1',gap:0}}>
             <div style={{background:node.color||C.AM,color:'white',borderRadius:8,padding:vertical?'10px 20px':'9px 12px',textAlign:'center',minWidth:vertical?200:80,boxShadow:'0 2px 6px rgba(27,42,74,0.12)',margin:vertical?'0':'0 2px'}}>
               <div style={{fontSize:12,fontWeight:700,lineHeight:1.4}}>{node.label}</div>
               {node.sub && <div style={{fontSize:10,opacity:0.8,marginTop:2,lineHeight:1.4}}>{node.sub}</div>}
             </div>
-            {i < nodes.length-1 && <div style={{color:C.AC,fontSize:16,fontWeight:700,padding:vertical?'2px 0':'0 3px',flexShrink:0,lineHeight:1}}>{vertical?'↓':'→'}</div>}
+            {i < nodes.length-1 && <div style={{color:T.CYAN,fontSize:16,fontWeight:700,padding:vertical?'2px 0':'0 3px',flexShrink:0,lineHeight:1}}>{vertical?'↓':'→'}</div>}
           </div>
         ))}
       </div>
@@ -5489,9 +5499,9 @@ function WikiView() {
     {id:'glosario',icon:'📖',label:'Glosario'},
   ];
 
-  var H1 = {fontSize:22,fontWeight:700,color:C.AO,marginBottom:6,marginTop:0};
-  var H2 = {fontSize:15,fontWeight:700,color:C.AM,marginBottom:10,marginTop:24,paddingBottom:6,borderBottom:'2px solid '+C.CEL};
-  var PP = {fontSize:13,color:'#2C3E50',lineHeight:1.7,marginBottom:10};
+  var H1 = {fontSize:22,fontWeight:600,color:T.TEXT,marginBottom:6,marginTop:0};
+  var H2 = {fontSize:15,fontWeight:700,color:T.CYAN,marginBottom:10,marginTop:24,paddingBottom:6,borderBottom:'2px solid '+C.CEL};
+  var PP = {fontSize:13,color:T.TEXT,lineHeight:1.7,marginBottom:10};
 
   function renderContent() {
     switch(active) {
@@ -5513,7 +5523,7 @@ function WikiView() {
               <div key={id} onClick={()=>setActive(id)} style={{background:bg,border:'1px solid '+bg,borderRadius:10,padding:'14px',cursor:'pointer',transition:'all 0.15s'}}>
                 <div style={{fontSize:22,marginBottom:6}}>{ic}</div>
                 <div style={{fontSize:13,fontWeight:700,color:col,marginBottom:3}}>{tit}</div>
-                <div style={{fontSize:11.5,color:'#7F8C8D',lineHeight:1.5}}>{desc}</div>
+                <div style={{fontSize:11.5,color:T.TEXT3,lineHeight:1.5}}>{desc}</div>
               </div>
             ))}
           </div>
@@ -5525,11 +5535,11 @@ function WikiView() {
         <div>
           <h1 style={H1}>Roles y Permisos</h1>
           <WikiFlow title="Jerarquía de roles" nodes={[
-            {label:'Admin',sub:'Acceso total',color:'#E74C3C'},
+            {label:'Admin',sub:'Acceso total',color:T.RED},
             {label:'Oficial',sub:'Sin usuarios',color:'#7D3C98'},
             {label:'Supervisor',sub:'Sin eliminar',color:'#2C4A7C'},
-            {label:'Analista',sub:'Sin aprobar',color:'#27AE60'},
-            {label:'Solo lectura',sub:'Solo consulta',color:'#7F8C8D'},
+            {label:'Analista',sub:'Sin aprobar',color:T.GREEN},
+            {label:'Solo lectura',sub:'Solo consulta',color:T.TEXT3},
           ]}/>
           <WikiTbl headers={['Rol','Puede hacer','No puede']} rows={[
             [<WikiBadge key="a" type="red">Admin</WikiBadge>,'Todo: crear/desactivar usuarios, eliminar legajos, configuración','—'],
@@ -5552,10 +5562,10 @@ function WikiView() {
         <div>
           <h1 style={H1}>Dashboard</h1>
           <WikiFlow title="Flujo de lectura diaria" nodes={[
-            {label:'Alertas proactivas',sub:'Plazos regulatorios',color:'#E67E22'},
+            {label:'Alertas proactivas',sub:'Plazos regulatorios',color:T.AMBER},
             {label:'KPIs de cartera',sub:'Señales · RFIs',color:'#2C4A7C'},
             {label:'Semáforo',sub:'Por cliente',color:'#3B6DAA'},
-            {label:'Priorizar acción',sub:'Ir al caso crítico',color:'#27AE60'},
+            {label:'Priorizar acción',sub:'Ir al caso crítico',color:T.GREEN},
           ]}/>
           <h2 style={H2}>Pestaña Operacional</h2>
           <WikiTbl headers={['Elemento','Descripción']} rows={[
@@ -5579,11 +5589,11 @@ function WikiView() {
         <div>
           <h1 style={H1}>Módulo Legajos KYB</h1>
           <WikiFlow title="Ciclo de vida de un legajo" nodes={[
-            {label:'En Onboarding',sub:'Documentación',color:'#7F8C8D'},
-            {label:'Activa',sub:'Operando normal',color:'#27AE60'},
-            {label:'Monitoreo Ref.',sub:'Con alertas',color:'#E67E22'},
-            {label:'Suspendida',sub:'Bloqueada',color:'#F39C12'},
-            {label:'Cerrada',sub:'INF-07',color:'#E74C3C'},
+            {label:'En Onboarding',sub:'Documentación',color:T.TEXT3},
+            {label:'Activa',sub:'Operando normal',color:T.GREEN},
+            {label:'Monitoreo Ref.',sub:'Con alertas',color:T.AMBER},
+            {label:'Suspendida',sub:'Bloqueada',color:T.AMBER},
+            {label:'Cerrada',sub:'INF-07',color:T.RED},
           ]}/>
           <h2 style={H2}>Crear un nuevo legajo</h2>
           <WikiStepList steps={[
@@ -5616,8 +5626,8 @@ function WikiView() {
           <WikiFlow title="Flujo del screening" nodes={[
             {label:'Legajo con datos',sub:'Razón social · Ben. final',color:'#3B6DAA'},
             {label:'IA busca en tiempo real',sub:'Web search 4 fuentes',color:'#2C4A7C'},
-            {label:'OFAC · ONU · REPET · PEPs',sub:'Verificación simultánea',color:'#1B2A4A'},
-            {label:'Resultado documentado',sub:'Con fecha y analista',color:'#27AE60'},
+            {label:'OFAC · ONU · REPET · PEPs',sub:'Verificación simultánea',color:T.TEXT},
+            {label:'Resultado documentado',sub:'Con fecha y analista',color:T.GREEN},
           ]}/>
           <WikiTbl headers={['Lista','Organismo','Qué verifica']} rows={[
             ['OFAC SDN','EE.UU.','Specially Designated Nationals — sanciones del gobierno de EE.UU.'],
@@ -5638,11 +5648,11 @@ function WikiView() {
         <div>
           <h1 style={H1}>Análisis AML Transaccional</h1>
           <WikiFlow title="Pipeline de análisis de un período" nodes={[
-            {label:'Archivo XLS/CSV',sub:'Del sistema operativo',color:'#7F8C8D'},
+            {label:'Archivo XLS/CSV',sub:'Del sistema operativo',color:T.TEXT3},
             {label:'Parser universal',sub:'Detecta columnas auto.',color:'#3B6DAA'},
             {label:'16 métricas',sub:'HHI · Pass-through...',color:'#2C4A7C'},
-            {label:'12 patrones AML',sub:'PAT-01 a PAT-12',color:'#E67E22'},
-            {label:'Score 0–5',sub:'BAJO / MEDIO / ALTO',color:'#E74C3C'},
+            {label:'12 patrones AML',sub:'PAT-01 a PAT-12',color:T.AMBER},
+            {label:'Score 0–5',sub:'BAJO / MEDIO / ALTO',color:T.RED},
           ]}/>
           <h2 style={H2}>Cargar un período</h2>
           <WikiStepList steps={[
@@ -5689,9 +5699,9 @@ function WikiView() {
           <h1 style={H1}>🔔 Centro de Alertas</h1>
           <p style={PP}>Panel unificado de monitoreo activo. Muestra automáticamente todas las alertas pendientes de toda la cartera sin necesidad de entrar a cada legajo o período.</p>
           <WikiFlow title="Tres tipos de alertas en un solo panel" nodes={[
-            {label:'🚨 Señales AML',sub:'Patrones detectados activos',color:'#E74C3C'},
-            {label:'📧 RFIs vencidos',sub:'Sin respuesta +7 días',color:'#E67E22'},
-            {label:'⏱ Sin analizar',sub:'Fuera del plazo regulatorio',color:'#F39C12'},
+            {label:'🚨 Señales AML',sub:'Patrones detectados activos',color:T.RED},
+            {label:'📧 RFIs vencidos',sub:'Sin respuesta +7 días',color:T.AMBER},
+            {label:'⏱ Sin analizar',sub:'Fuera del plazo regulatorio',color:T.AMBER},
           ]}/>
           <h2 style={H2}>Pestaña Señales</h2>
           <p style={PP}>Muestra todas las señales AML activas (no resueltas) de todos los períodos de toda la cartera, ordenadas por severidad. Las señales se cargan desde las métricas guardadas en Supabase — no hace falta haber abierto Análisis AML previamente.</p>
@@ -5731,11 +5741,11 @@ function WikiView() {
         <div>
           <h1 style={H1}>Señales y Resolución</h1>
           <WikiFlow vertical title="Flujo de resolución de una señal ALTA" nodes={[
-            {label:'Señal ALTA detectada',sub:'Sistema la marca ACTIVA',color:'#E74C3C'},
+            {label:'Señal ALTA detectada',sub:'Sistema la marca ACTIVA',color:T.RED},
             {label:'Analista investiga',sub:'Contrapartes, documentación, contexto',color:'#3B6DAA'},
-            {label:'Analista propone cierre',sub:'Escribe justificación en pantalla',color:'#E67E22'},
+            {label:'Analista propone cierre',sub:'Escribe justificación en pantalla',color:T.AMBER},
             {label:'Supervisor decide',sub:'Aprueba o Rechaza',color:'#2C4A7C'},
-            {label:'Señal RESUELTA',sub:'Desaparece del Dashboard',color:'#27AE60'},
+            {label:'Señal RESUELTA',sub:'Desaparece del Dashboard',color:T.GREEN},
           ]}/>
           <WikiBox type="warn">Solo Supervisor, Oficial y Admin pueden aprobar el cierre de señales. El analista solo puede proponer.</WikiBox>
           <h2 style={H2}>Estados del período AML</h2>
@@ -5753,11 +5763,11 @@ function WikiView() {
         <div>
           <h1 style={H1}>Módulo RFI</h1>
           <WikiFlow title="Ciclo de vida de un RFI" nodes={[
-            {label:'ENVIADO',sub:'Plazo: 7 días',color:'#F39C12'},
-            {label:'RESPONDIDO',sub:'Completo',color:'#27AE60'},
-            {label:'RESP. PARCIAL',sub:'Incompleto',color:'#E67E22'},
-            {label:'SIN RESPUESTA',sub:'Escalar',color:'#E74C3C'},
-            {label:'CERRADO',sub:'Resuelto',color:'#7F8C8D'},
+            {label:'ENVIADO',sub:'Plazo: 7 días',color:T.AMBER},
+            {label:'RESPONDIDO',sub:'Completo',color:T.GREEN},
+            {label:'RESP. PARCIAL',sub:'Incompleto',color:T.AMBER},
+            {label:'SIN RESPUESTA',sub:'Escalar',color:T.RED},
+            {label:'CERRADO',sub:'Resuelto',color:T.TEXT3},
           ]}/>
           <h2 style={H2}>Crear un RFI</h2>
           <WikiStepList steps={[
@@ -5777,7 +5787,7 @@ function WikiView() {
           <WikiFlow title="Informes regulatorios disponibles" nodes={[
             {label:'INF-01',sub:'KYB — Onboarding',color:'#3B6DAA'},
             {label:'INF-02',sub:'AML — Monitoreo',color:'#2C4A7C'},
-            {label:'INF-07',sub:'Cierre de cuenta',color:'#E74C3C'},
+            {label:'INF-07',sub:'Cierre de cuenta',color:T.RED},
           ]}/>
           <WikiTbl headers={['Informe','Dónde generarlo','Quién puede','Contenido']} rows={[
             ['INF-01','Detalle del legajo → botón INF-01','Todos excepto Solo lectura','Datos cliente, checklist, scoring, red flags, dictamen.'],
@@ -5800,11 +5810,11 @@ function WikiView() {
           <h1 style={H1}>ROS Borrador UIF</h1>
           <WikiBox type="danger">El ROS tiene carácter estrictamente confidencial (Art. 22 Ley 25.246). No puede ser revelado al cliente ni a terceros no autorizados.</WikiBox>
           <WikiFlow title="Flujo de generación del ROS borrador" nodes={[
-            {label:'Caso con señales ALTA',sub:'RFI vencido / sin justif.',color:'#E74C3C'},
-            {label:'Seleccionar períodos',sub:'Pre-selecciona con señales',color:'#E67E22'},
+            {label:'Caso con señales ALTA',sub:'RFI vencido / sin justif.',color:T.RED},
+            {label:'Seleccionar períodos',sub:'Pre-selecciona con señales',color:T.AMBER},
             {label:'Generar borrador',sub:'8 secciones auto.',color:'#2C4A7C'},
             {label:'Editar narrativa',sub:'Descripción y conclusión',color:'#3B6DAA'},
-            {label:'Presentar en SIROS',sub:'Portal UIF',color:'#27AE60'},
+            {label:'Presentar en SIROS',sub:'Portal UIF',color:T.GREEN},
           ]}/>
           <WikiTbl headers={['Sección','Contenido','Editable']} rows={[
             ['1. Encabezado','N° correlativo ROS-YYYY-NNN · Fecha · CONFIDENCIAL','No'],
@@ -5856,10 +5866,10 @@ function WikiView() {
           ]}/>
           <h2 style={H2}>Caso con señales ALTA</h2>
           <WikiFlow vertical title="Árbol de decisión" nodes={[
-            {label:'Señales ALTA detectadas',sub:'Semáforo rojo en Dashboard',color:'#E74C3C'},
-            {label:'Emitir RFI al cliente',sub:'Plazo recomendado: 7 días hábiles',color:'#E67E22'},
+            {label:'Señales ALTA detectadas',sub:'Semáforo rojo en Dashboard',color:T.RED},
+            {label:'Emitir RFI al cliente',sub:'Plazo recomendado: 7 días hábiles',color:T.AMBER},
             {label:'Respuesta satisfactoria?',sub:'Sí proponer cierre / No escalar',color:'#2C4A7C'},
-            {label:'Cierre de señales o ROS',sub:'Supervisor aprueba · Oficial evalúa ROS',color:'#1B2A4A'},
+            {label:'Cierre de señales o ROS',sub:'Supervisor aprueba · Oficial evalúa ROS',color:T.TEXT},
           ]}/>
         </div>
       );
@@ -5903,8 +5913,8 @@ function WikiView() {
   return (
     <div style={{display:'flex',gap:0,minHeight:'calc(100vh - 60px)'}}>
       <div style={{width:200,flexShrink:0,background:'#F4F6F9',borderRight:'1px solid #E8EEF4',padding:'14px 0',overflowY:'auto'}}>
-        <div style={{padding:'0 10px 10px',borderBottom:'1px solid #E8EEF4',marginBottom:8}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar sección..." style={{width:'100%',padding:'6px 10px',border:'1px solid #D6E4F0',borderRadius:6,fontSize:12,color:'#2C3E50',background:'white'}}/>
+        <div style={{padding:'0 10px 10px',borderBottom:'1px solid '+T.BORDER,marginBottom:8}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar sección..." style={{width:'100%',padding:'6px 10px',border:'1px solid '+T.BORDER2,borderRadius:6,fontSize:12,color:T.TEXT,background:T.BG2}}/>
         </div>
         {visible.map(s=>{
           var on = active===s.id;
@@ -5972,40 +5982,40 @@ function UsuariosView(props) {
   return (
     <div style={{padding:22}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-        <h2 style={{color:C.AO,fontSize:19,fontWeight:700,margin:0}}>👥 Gestión de Usuarios</h2>
+        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,letterSpacing:'1px',margin:0}}>👥 Gestión de Usuarios</h2>
         <button onClick={function(){setForm({email:'',password:'',nombre:'',rol:'analista'});setErr('');}}
-          style={{background:C.VERDE,color:'white',border:'none',borderRadius:4,padding:'8px 16px',cursor:'pointer',fontWeight:700,fontSize:13}}>
+          style={{background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontWeight:700,fontSize:13}}>
           + Nuevo usuario
         </button>
       </div>
 
-      {ok && <div style={{background:'#EBF9F0',border:'1px solid #A9DFBF',borderRadius:4,padding:'10px 14px',marginBottom:12,color:C.VERDE,fontWeight:600,fontSize:13}}>✅ {ok}</div>}
-      {err && <div style={{background:'#FDEDEC',border:'1px solid #F1948A',borderRadius:4,padding:'10px 14px',marginBottom:12,color:'#922B21',fontWeight:600,fontSize:13}}>⚠ {err}</div>}
+      {ok && <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:4,padding:'10px 14px',marginBottom:12,color:T.GREEN,fontWeight:600,fontSize:13}}>✅ {ok}</div>}
+      {err && <div style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.2)',borderRadius:4,padding:'10px 14px',marginBottom:12,color:T.RED,fontWeight:600,fontSize:13}}>⚠ {err}</div>}
 
       {/* Formulario nuevo usuario */}
       {form && (
-        <div style={{background:'#EBF5FB',border:'2px solid #2471A3',borderRadius:6,padding:'18px',marginBottom:18}}>
-          <div style={{fontWeight:700,color:C.AO,fontSize:14,marginBottom:14}}>Nuevo usuario</div>
+        <div style={{background:T.BG3,border:'2px solid #2471A3',borderRadius:6,padding:'18px',marginBottom:18}}>
+          <div style={{fontWeight:600,color:T.TEXT,fontSize:14,marginBottom:14}}>Nuevo usuario</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
             <div>
-              <label style={{fontSize:11,fontWeight:700,color:'#555',display:'block',marginBottom:3}}>Nombre completo</label>
+              <label style={{fontSize:11,fontWeight:700,color:T.TEXT2,display:'block',marginBottom:3}}>Nombre completo</label>
               <input value={form.nombre} onChange={function(e){setForm(Object.assign({},form,{nombre:e.target.value}));}}
-                placeholder="Juan Pérez" style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:13,boxSizing:'border-box'}}/>
+                placeholder="Juan Pérez" style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,boxSizing:'border-box'}}/>
             </div>
             <div>
-              <label style={{fontSize:11,fontWeight:700,color:'#555',display:'block',marginBottom:3}}>Email</label>
+              <label style={{fontSize:11,fontWeight:700,color:T.TEXT2,display:'block',marginBottom:3}}>Email</label>
               <input type="email" value={form.email} onChange={function(e){setForm(Object.assign({},form,{email:e.target.value}));}}
-                placeholder="analista@goat.ar" style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:13,boxSizing:'border-box'}}/>
+                placeholder="analista@goat.ar" style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,boxSizing:'border-box'}}/>
             </div>
             <div>
-              <label style={{fontSize:11,fontWeight:700,color:'#555',display:'block',marginBottom:3}}>Contraseña inicial</label>
+              <label style={{fontSize:11,fontWeight:700,color:T.TEXT2,display:'block',marginBottom:3}}>Contraseña inicial</label>
               <input type="password" value={form.password} onChange={function(e){setForm(Object.assign({},form,{password:e.target.value}));}}
-                placeholder="Mínimo 6 caracteres" style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:13,boxSizing:'border-box'}}/>
+                placeholder="Mínimo 6 caracteres" style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,boxSizing:'border-box'}}/>
             </div>
             <div>
-              <label style={{fontSize:11,fontWeight:700,color:'#555',display:'block',marginBottom:3}}>Rol</label>
+              <label style={{fontSize:11,fontWeight:700,color:T.TEXT2,display:'block',marginBottom:3}}>Rol</label>
               <select value={form.rol} onChange={function(e){setForm(Object.assign({},form,{rol:e.target.value}));}}
-                style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:13,boxSizing:'border-box'}}>
+                style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,boxSizing:'border-box'}}>
                 <option value="analista">📋 Analista</option>
                 <option value="supervisor">👁 Supervisor</option>
                 <option value="oficial_cumplimiento">⚖️ Oficial de Cumplimiento</option>
@@ -6015,8 +6025,8 @@ function UsuariosView(props) {
             </div>
           </div>
           <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-            <button onClick={function(){setForm(null);setErr('');}} style={{background:'#888',color:'white',border:'none',borderRadius:4,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
-            <button onClick={handleCrear} style={{background:C.VERDE,color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:'pointer',fontWeight:700,fontSize:12}}>✓ Crear usuario</button>
+            <button onClick={function(){setForm(null);setErr('');}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
+            <button onClick={handleCrear} style={{background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'8px 20px',cursor:'pointer',fontWeight:700,fontSize:12}}>✓ Crear usuario</button>
           </div>
         </div>
       )}
@@ -6024,24 +6034,24 @@ function UsuariosView(props) {
       {/* Modal cambiar contraseña */}
       {passModal && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
-          <div style={{background:'white',borderRadius:8,padding:28,width:380,boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
-            <div style={{fontWeight:700,color:C.AO,fontSize:15,marginBottom:4}}>Cambiar contraseña</div>
-            <div style={{fontSize:12,color:'#888',marginBottom:16}}>{passModal.nombre} — {passModal.email}</div>
+          <div style={{background:T.BG2,borderRadius:8,padding:28,width:380,boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
+            <div style={{fontWeight:600,color:T.TEXT,fontSize:15,marginBottom:4}}>Cambiar contraseña</div>
+            <div style={{fontSize:12,color:T.TEXT2,marginBottom:16}}>{passModal.nombre} — {passModal.email}</div>
             <input type="password" value={newPass} onChange={function(e){setNewPass(e.target.value);setErr('');}}
               placeholder="Nueva contraseña (mínimo 6 caracteres)"
-              style={{width:'100%',border:'1px solid #ddd',borderRadius:4,padding:'10px 12px',fontSize:14,boxSizing:'border-box',marginBottom:12}}/>
-            {err && <div style={{fontSize:12,color:'#922B21',marginBottom:10}}>⚠ {err}</div>}
+              style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'10px 12px',fontSize:14,boxSizing:'border-box',marginBottom:12}}/>
+            {err && <div style={{fontSize:12,color:T.RED,marginBottom:10}}>⚠ {err}</div>}
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-              <button onClick={function(){setPassModal(null);setNewPass('');setErr('');}} style={{background:'#888',color:'white',border:'none',borderRadius:4,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
-              <button onClick={handlePassword} style={{background:C.AM,color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:'pointer',fontWeight:700,fontSize:12}}>💾 Guardar</button>
+              <button onClick={function(){setPassModal(null);setNewPass('');setErr('');}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
+              <button onClick={handlePassword} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'8px 20px',cursor:'pointer',fontWeight:700,fontSize:12}}>💾 Guardar</button>
             </div>
           </div>
         </div>
       )}
 
       {/* Tabla de usuarios */}
-      {loading ? <div style={{textAlign:'center',padding:30,color:'#888'}}>Cargando usuarios...</div> : (
-        <div style={{background:'white',border:'1px solid #E8EEF4',borderRadius:6,overflow:'hidden'}}>
+      {loading ? <div style={{textAlign:'center',padding:30,color:T.TEXT2}}>Cargando usuarios...</div> : (
+        <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,overflow:'hidden'}}>
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
             <thead>
               <tr style={{background:C.AO}}>
@@ -6054,16 +6064,16 @@ function UsuariosView(props) {
                 var esSelf = u.id === currentUser.id;
                 return (
                   <tr key={u.id} style={{background:i%2===0?'#F8FBFE':'white',opacity:u.activo?1:0.6}}>
-                    <td style={{padding:'10px 14px',fontWeight:600,color:C.AO}}>
+                    <td style={{padding:'10px 14px',fontWeight:500,color:T.TEXT2}}>
                       {u.nombre} {esSelf && <span style={{background:C.AC,color:'white',borderRadius:4,padding:'1px 6px',fontSize:9,marginLeft:4}}>Vos</span>}
                     </td>
-                    <td style={{padding:'10px 14px',color:'#555',fontSize:12}}>{u.email}</td>
+                    <td style={{padding:'10px 14px',color:T.TEXT2,fontSize:12}}>{u.email}</td>
                     <td style={{padding:'10px 14px'}}>
                       {esSelf ? (
                         <span style={{background:rolCol,color:'white',borderRadius:6,padding:'2px 10px',fontSize:11,fontWeight:700}}>{ROL_LABELS[u.rol]||u.rol}</span>
                       ) : (
                         <select value={u.rol} onChange={function(e){handleRol(u.id,e.target.value);}}
-                          style={{border:'1px solid '+rolCol,borderRadius:6,padding:'3px 8px',fontSize:11,fontWeight:700,color:rolCol,background:'white',cursor:'pointer'}}>
+                          style={{border:'1px solid '+rolCol,borderRadius:6,padding:'3px 8px',fontSize:11,fontWeight:700,color:rolCol,background:T.BG2,cursor:'pointer'}}>
                           {Object.keys(ROL_LABELS).map(function(r){return <option key={r} value={r}>{ROL_LABELS[r]}</option>;})}
                         </select>
                       )}
@@ -6076,7 +6086,7 @@ function UsuariosView(props) {
                     <td style={{padding:'10px 14px'}}>
                       <div style={{display:'flex',gap:6}}>
                         <button onClick={function(){setPassModal(u);setNewPass('');setErr('');}}
-                          style={{background:'#F0F4F8',border:'1px solid #ddd',borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:11,color:C.AO}}>
+                          style={{background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:11,color:T.TEXT}}>
                           🔑 Password
                         </button>
                         {!esSelf && (
@@ -6095,7 +6105,7 @@ function UsuariosView(props) {
         </div>
       )}
 
-      <div style={{marginTop:14,padding:'10px 14px',background:'#F8FBFE',border:'1px solid #E8EEF4',borderRadius:4,fontSize:11,color:'#888'}}>
+      <div style={{marginTop:14,padding:'10px 14px',background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,fontSize:11,color:T.TEXT2}}>
         <strong>Roles disponibles:</strong> Admin (acceso total) · Oficial de Cumplimiento (todo excepto usuarios) · Supervisor (crear/editar/aprobar) · Analista (crear/editar) · Solo lectura (solo ver)
       </div>
     </div>
@@ -6134,6 +6144,11 @@ export default function App() {
   }
 
   useEffect(function() {
+    // Inyectar JetBrains Mono para el tema cypherpunk
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap';
+    document.head.appendChild(link);
     setSyncStatus('loading');
 
     // 1. Config del servidor — API keys desde variables de entorno Vercel
@@ -6295,31 +6310,31 @@ export default function App() {
   if (!isAuth) return <LoginScreen onLogin={function(usuario){setCurrentUser(usuario);}} />;
 
   if (loading) return (
-    <div style={{minHeight:'100vh',background:C.AO,display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',color:'white'}}>
-      <div style={{fontSize:32,marginBottom:16}}>⚖️</div>
-      <div style={{fontSize:18,fontWeight:700,marginBottom:8}}>Rebit AML & KYB Tool</div>
-      <div style={{fontSize:13,opacity:0.7}}>Cargando...</div>
+    <div style={{minHeight:'100vh',background:T.BG,display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',fontFamily:T.MONO}}>
+      <div style={{width:36,height:36,background:C.AC,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff',borderRadius:3,marginBottom:20,letterSpacing:'-0.5px'}}>RB</div>
+      <div style={{fontSize:13,fontWeight:600,color:T.TEXT,letterSpacing:'3px',marginBottom:8,textTransform:'uppercase'}}>REBIT AML TOOL</div>
+      <div style={{fontSize:10,color:T.TEXT3,letterSpacing:'2px'}}>// cargando...</div>
     </div>
   );
 
   return (
-    <div style={{display:'flex',height:'100vh',overflow:'hidden',fontFamily:"'Segoe UI',Arial,sans-serif",background:'#F0F4F8'}}>
+    <div style={{display:'flex',height:'100vh',overflow:'hidden',fontFamily:T.MONO,background:T.BG}}>
       {reportHTML ? <ReportModal html={reportHTML} onClose={function(){setReportHTML(null);}} /> : null}
       <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:'none'}}/>
 
       {/* MODAL CONFIGURACIÓN IA */}
       {configOpen ? <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',overflow:'auto'}}>
-        <div style={{background:'white',borderRadius:8,padding:28,width:540,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+        <div style={{background:T.BG2,border:'1px solid '+T.BORDER2,borderRadius:4,padding:28,width:540,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div>
-              <div style={{fontWeight:700,color:C.AO,fontSize:16}}>⚙️ Configuración IA & Sync</div>
-              <div style={{fontSize:12,color:'#888',marginTop:2}}>Proveedor, API keys y sincronización</div>
+              <div style={{fontWeight:600,color:T.TEXT,fontSize:13,letterSpacing:'1px'}}>⚙ CONFIGURACIÓN IA & SYNC</div>
+              <div style={{fontSize:11,color:T.TEXT3,marginTop:2,fontFamily:T.MONO}}>Proveedor, API keys y sincronización</div>
             </div>
-            {activeKeyOk && <button onClick={function(){setConfigOpen(false);}} style={{background:'none',border:'1px solid #ddd',borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#888'}}>✕ Cerrar</button>}
+            {activeKeyOk && <button onClick={function(){setConfigOpen(false);}} style={{background:'none',border:'1px solid '+T.BORDER2,borderRadius:3,padding:'4px 10px',cursor:'pointer',fontSize:11,color:T.TEXT3,fontFamily:T.MONO}}>✕ cerrar</button>}
           </div>
 
           {/* BANNER: keys del servidor */}
-          {apiKey && apiKey.length > 10 && <div style={{background:'#EBF9F0',border:'1px solid #A9DFBF',borderRadius:6,padding:'10px 14px',marginBottom:16,fontSize:12,color:'#1A6B3A'}}>
+          {apiKey && apiKey.length > 10 && <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:3,padding:'10px 14px',marginBottom:16,fontSize:11,color:T.GREEN,fontFamily:T.MONO}}>
             ✅ <strong>Configuración cargada desde el servidor.</strong> En otros dispositivos las claves se cargan automáticamente al ingresar — no necesitás re-ingresar nada.
           </div>}
 
@@ -6329,11 +6344,11 @@ export default function App() {
               {id:'claude',label:'Claude (Anthropic)',icon:'🟠',desc:'claude-sonnet-4',color:'#E8560A'},
               {id:'openai',label:'GPT-4o (OpenAI)',icon:'🟢',desc:'gpt-4o-2024-11-20',color:'#10A37F'}
             ].map(function(p){return(
-              <div key={p.id} onClick={function(){saveProvider(p.id);}} style={{border:'2px solid '+(provider===p.id?p.color:'#eee'),borderRadius:6,padding:'12px 14px',cursor:'pointer',background:provider===p.id?p.color+'11':'white',transition:'all 0.15s'}}>
+              <div key={p.id} onClick={function(){saveProvider(p.id);}} style={{border:'1px solid '+(provider===p.id?C.AC:T.BORDER2),borderRadius:3,padding:'12px 14px',cursor:'pointer',background:provider===p.id?'rgba(59,109,170,0.12)':T.BG3,transition:'all 0.15s'}}>
                 <div style={{fontSize:18,marginBottom:4}}>{p.icon}</div>
-                <div style={{fontWeight:700,color:provider===p.id?p.color:C.AO,fontSize:13}}>{p.label}</div>
-                <div style={{fontSize:11,color:'#888'}}>{p.desc}</div>
-                {provider===p.id && <div style={{fontSize:10,color:p.color,fontWeight:700,marginTop:4}}>✓ ACTIVO</div>}
+                <div style={{fontWeight:600,color:provider===p.id?T.CYAN:T.TEXT2,fontSize:12,fontFamily:T.MONO}}>{p.label}</div>
+                <div style={{fontSize:10,color:T.TEXT3,fontFamily:T.MONO}}>{p.desc}</div>
+                {provider===p.id && <div style={{fontSize:9,color:T.GREEN,fontWeight:600,marginTop:4,fontFamily:T.MONO}}>// ACTIVO</div>}
               </div>
             );})}
           </div>
@@ -6341,35 +6356,35 @@ export default function App() {
           {/* ANTHROPIC */}
           <div style={{marginBottom:16,opacity:provider==='claude'?1:0.5}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-              <label style={{fontSize:12,color:'#555',fontWeight:600}}>🟠 Anthropic API Key {provider==='claude'&&<span style={{color:C.VERDE}}>(activo)</span>}</label>
-              <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{fontSize:11,color:C.AC}}>Obtener key →</a>
+              <label style={{fontSize:10,color:T.TEXT3,fontWeight:400,fontFamily:T.MONO,letterSpacing:'1px'}}>// ANTHROPIC API KEY {provider==='claude'&&<span style={{color:T.GREEN}}>(activo)</span>}</label>
+              <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{fontSize:11,color:T.CYAN}}>Obtener key →</a>
             </div>
             <div style={{display:'flex',gap:8,marginBottom:4}}>
               <input type={showKey?'text':'password'} value={apiKey} onChange={function(e){setApiKey(e.target.value);}}
-                placeholder="sk-ant-api03-..." style={{flex:1,border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:12,fontFamily:'monospace'}}/>
-              <button onClick={function(){setShowKey(!showKey);}} style={{background:'#f5f5f5',border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',cursor:'pointer'}}>{showKey?'🙈':'👁'}</button>
-              <button onClick={function(){saveApiKey(apiKey);}} style={{background:C.VERDE,color:'white',border:'none',borderRadius:4,padding:'8px 12px',cursor:'pointer',fontSize:12,fontWeight:700}}>Guardar</button>
+                placeholder="sk-ant-api03-..." style={{flex:1,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 10px',fontSize:11,fontFamily:T.MONO,background:T.BG4,color:T.TEXT,outline:'none'}}/>
+              <button onClick={function(){setShowKey(!showKey);}} style={{background:T.BG4,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 10px',cursor:'pointer',color:T.TEXT3}}>{showKey?'🙈':'👁'}</button>
+              <button onClick={function(){saveApiKey(apiKey);}} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'8px 12px',cursor:'pointer',fontSize:10,fontWeight:600,fontFamily:T.MONO}}>guardar</button>
             </div>
-            {apiKey && apiKey.startsWith('sk-ant-') && <div style={{fontSize:11,color:C.VERDE}}>✓ Formato válido</div>}
-            {apiKey && !apiKey.startsWith('sk-ant-') && <div style={{fontSize:11,color:C.ROJO}}>⚠ Debe empezar con "sk-ant-"</div>}
+            {apiKey && apiKey.startsWith('sk-ant-') && <div style={{fontSize:11,color:T.GREEN}}>✓ Formato válido</div>}
+            {apiKey && !apiKey.startsWith('sk-ant-') && <div style={{fontSize:11,color:T.RED}}>⚠ Debe empezar con "sk-ant-"</div>}
           </div>
 
           {/* OPENAI */}
           <div style={{marginBottom:20,opacity:provider==='openai'?1:0.5}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-              <label style={{fontSize:12,color:'#555',fontWeight:600}}>🟢 OpenAI API Key {provider==='openai'&&<span style={{color:C.VERDE}}>(activo)</span>}</label>
-              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" style={{fontSize:11,color:C.AC}}>Obtener key →</a>
+              <label style={{fontSize:10,color:T.TEXT3,fontWeight:400,fontFamily:T.MONO,letterSpacing:'1px'}}>// OPENAI API KEY {provider==='openai'&&<span style={{color:T.GREEN}}>(activo)</span>}</label>
+              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" style={{fontSize:11,color:T.CYAN}}>Obtener key →</a>
             </div>
             <div style={{display:'flex',gap:8,marginBottom:4}}>
               <input type={showOaiKey?'text':'password'} value={oaiKey} onChange={function(e){setOaiKey(e.target.value);}}
-                placeholder="sk-..." style={{flex:1,border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',fontSize:12,fontFamily:'monospace'}}/>
-              <button onClick={function(){setShowOaiKey(!showOaiKey);}} style={{background:'#f5f5f5',border:'1px solid #ddd',borderRadius:4,padding:'8px 10px',cursor:'pointer'}}>{showOaiKey?'🙈':'👁'}</button>
-              <button onClick={function(){saveOaiKey(oaiKey);}} style={{background:C.VERDE,color:'white',border:'none',borderRadius:4,padding:'8px 12px',cursor:'pointer',fontSize:12,fontWeight:700}}>Guardar</button>
+                placeholder="sk-..." style={{flex:1,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 10px',fontSize:11,fontFamily:T.MONO,background:T.BG4,color:T.TEXT,outline:'none'}}/>
+              <button onClick={function(){setShowOaiKey(!showOaiKey);}} style={{background:T.BG4,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 10px',cursor:'pointer',color:T.TEXT3}}>{showOaiKey?'🙈':'👁'}</button>
+              <button onClick={function(){saveOaiKey(oaiKey);}} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'8px 12px',cursor:'pointer',fontSize:10,fontWeight:600,fontFamily:T.MONO}}>guardar</button>
             </div>
-            {oaiKey && oaiKey.startsWith('sk-') && <div style={{fontSize:11,color:C.VERDE}}>✓ Formato válido</div>}
+            {oaiKey && oaiKey.startsWith('sk-') && <div style={{fontSize:11,color:T.GREEN}}>✓ Formato válido</div>}
           </div>
 
-          <div style={{background:'#F8FBFE',border:'1px solid #D6E4F0',borderRadius:4,padding:'10px 12px',fontSize:11,color:'#555',lineHeight:1.6}}>
+          <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:4,padding:'10px 12px',fontSize:11,color:T.TEXT2,lineHeight:1.6}}>
             🔒 Las keys se cargan desde las variables de entorno del servidor (Vercel). Nunca se almacenan en el browser.<br/>
             💡 Podés configurar ambas keys y cambiar de proveedor en cualquier momento.
           </div>
@@ -6380,17 +6395,17 @@ export default function App() {
           </button>}
 
           {/* SECCIÓN SYNC */}
-          <div style={{marginTop:20,paddingTop:16,borderTop:'1px solid #eee'}}>
-            <div style={{fontWeight:700,color:C.AO,fontSize:13,marginBottom:4}}>☁️ Sincronización entre dispositivos</div>
-            <div style={{background:'#EBF9F0',border:'1px solid #A9DFBF',borderRadius:4,padding:'10px 12px'}}>
-              <div style={{fontWeight:700,color:C.VERDE,fontSize:12,marginBottom:4}}>✅ Supabase — Base de datos activa</div>
-              <div style={{fontSize:11,color:'#555',lineHeight:1.5}}>
+          <div style={{marginTop:20,paddingTop:16,borderTop:'1px solid '+T.BORDER}}>
+            <div style={{fontWeight:600,color:T.TEXT,fontSize:11,marginBottom:4}}>☁️ Sincronización entre dispositivos</div>
+            <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:4,padding:'10px 12px'}}>
+              <div style={{fontWeight:700,color:T.GREEN,fontSize:12,marginBottom:4}}>✅ Supabase — Base de datos activa</div>
+              <div style={{fontSize:11,color:T.TEXT2,lineHeight:1.5}}>
                 Los datos se sincronizan automáticamente con Supabase (PostgreSQL). Sin límite de tamaño, multi-analista, con historial de cambios.
               </div>
-              {syncStatus==='ok' && <div style={{fontSize:11,color:C.VERDE,marginTop:6}}>✓ Última sincronización exitosa</div>}
-              {syncStatus==='error' && <div style={{fontSize:11,color:C.ROJO,marginTop:6}}>⚠ Error de sincronización — verificá las variables SUPABASE_URL y SUPABASE_SERVICE_KEY en Vercel</div>}
-              {syncStatus==='saving' && <div style={{fontSize:11,color:C.AMARILLO,marginTop:6}}>⏳ Guardando...</div>}
-              <button onClick={function(){syncToCloud(legajos,periodos);}} style={{marginTop:8,width:'100%',background:'#F0F7FF',border:'1px solid #AED6F1',color:C.AM,borderRadius:4,padding:'7px 0',cursor:'pointer',fontSize:12,fontWeight:600}}>
+              {syncStatus==='ok' && <div style={{fontSize:10,color:T.GREEN,marginTop:6,fontFamily:T.MONO}}>✓ Última sincronización exitosa</div>}
+              {syncStatus==='error' && <div style={{fontSize:10,color:T.RED,marginTop:6,fontFamily:T.MONO}}>⚠ Error de sincronización — verificá las variables SUPABASE_URL y SUPABASE_SERVICE_KEY en Vercel</div>}
+              {syncStatus==='saving' && <div style={{fontSize:10,color:T.AMBER,marginTop:6,fontFamily:T.MONO}}>⏳ Guardando...</div>}
+              <button onClick={function(){syncToCloud(legajos,periodos);}} style={{marginTop:8,width:'100%',background:T.BG3,border:'1px solid '+T.BORDER2,color:T.CYAN,borderRadius:3,padding:'7px 0',cursor:'pointer',fontSize:11,fontWeight:500,fontFamily:T.MONO}}>
                 🔄 Sincronizar ahora ({legajos.length} legajos, {periodos.length} periodos)
               </button>
             </div>
@@ -6398,28 +6413,28 @@ export default function App() {
 
           {/* SECCIÓN AUDIT LOG */}
           {currentUser && (
-            <div style={{marginTop:20,paddingTop:16,borderTop:'1px solid #eee'}}>
-              <div style={{fontWeight:700,color:C.AO,fontSize:13,marginBottom:8}}>📋 Actividad reciente</div>
+            <div style={{marginTop:20,paddingTop:16,borderTop:'1px solid '+T.BORDER}}>
+              <div style={{fontWeight:600,color:T.TEXT,fontSize:11,marginBottom:8}}>📋 Actividad reciente</div>
               {auditLoaded ? (
                 <div>
-                  <button onClick={cargarAudit} style={{width:'100%',background:'#F0F4F8',border:'1px solid #ddd',borderRadius:4,padding:'5px 0',cursor:'pointer',fontSize:11,color:'#888',marginBottom:8}}>↻ Actualizar</button>
+                  <button onClick={cargarAudit} style={{width:'100%',background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,padding:'5px 0',cursor:'pointer',fontSize:11,color:T.TEXT2,marginBottom:8}}>↻ Actualizar</button>
                   {auditItems.length === 0 ? (
-                    <div style={{fontSize:12,color:'#aaa',textAlign:'center',padding:'10px 0'}}>Sin actividad registrada aún.</div>
+                    <div style={{fontSize:12,color:T.TEXT3,textAlign:'center',padding:'10px 0'}}>Sin actividad registrada aún.</div>
                   ) : (
                     <div style={{maxHeight:280,overflowY:'auto'}}>
                       {auditItems.map(function(a){
                         var fecha = a.created_at ? new Date(a.created_at).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
                         var ACCION_LABEL = {crear_legajo:'➕ Legajo creado',modificar_legajo:'✏️ Legajo modificado',cambiar_estado:'🔄 Estado cambiado',generar_inf01:'📄 INF-01',generar_inf02:'📊 INF-02',generar_inf07:'🔒 INF-07',generar_ros:'📋 ROS generado',crear_rfi:'📧 RFI creado',responder_rfi:'📥 RFI respondido',cerrar_rfi:'⚫ RFI cerrado',crear_usuario:'👤 Usuario creado',cambio_rol:'🔑 Rol cambiado',desactivar_usuario:'⏸ Desactivado',activar_usuario:'▶ Activado',cambiar_estado_rfi:'🔄 Estado RFI',aprobar_cierre_senal:'✅ Señal resuelta',cambiar_estado_periodo:'🔄 Estado período'};
                         return (
-                          <div key={a.id} style={{padding:'6px 8px',borderBottom:'1px solid #f0f0f0',fontSize:11}}>
+                          <div key={a.id} style={{padding:'6px 8px',borderBottom:'1px solid '+T.BORDER,fontSize:11}}>
                             <div style={{display:'flex',justifyContent:'space-between'}}>
-                              <span style={{fontWeight:600,color:C.AO}}>{ACCION_LABEL[a.accion]||a.accion}</span>
-                              <span style={{color:'#aaa',flexShrink:0,marginLeft:6}}>{fecha}</span>
+                              <span style={{fontWeight:500,color:T.TEXT2}}>{ACCION_LABEL[a.accion]||a.accion}</span>
+                              <span style={{color:T.TEXT3,flexShrink:0,marginLeft:6}}>{fecha}</span>
                             </div>
-                            <div style={{color:'#555',marginTop:1}}>
-                              {a.usuario_nombre && <span style={{color:C.AM}}>{a.usuario_nombre}</span>}
-                              {a.detalle&&a.detalle.razonSocial && <span style={{color:'#888'}}> — {a.detalle.razonSocial}</span>}
-                              {a.detalle&&a.detalle.periodo && <span style={{color:'#888'}}> · {a.detalle.periodo}</span>}
+                            <div style={{color:T.TEXT2,marginTop:1}}>
+                              {a.usuario_nombre && <span style={{color:T.CYAN}}>{a.usuario_nombre}</span>}
+                              {a.detalle&&a.detalle.razonSocial && <span style={{color:T.TEXT2}}> — {a.detalle.razonSocial}</span>}
+                              {a.detalle&&a.detalle.periodo && <span style={{color:T.TEXT2}}> · {a.detalle.periodo}</span>}
                             </div>
                           </div>
                         );
@@ -6428,7 +6443,7 @@ export default function App() {
                   )}
                 </div>
               ) : (
-                <button onClick={cargarAudit} style={{width:'100%',background:'#F0F4F8',border:'1px solid #ddd',borderRadius:4,padding:'7px 0',cursor:'pointer',fontSize:12,color:C.AO,fontWeight:600}}>
+                <button onClick={cargarAudit} style={{width:'100%',background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 0',cursor:'pointer',fontSize:12,color:T.TEXT2,fontWeight:500}}>
                   🔍 Ver actividad reciente
                 </button>
               )}
@@ -6437,48 +6452,53 @@ export default function App() {
         </div>
       </div> : null}
 
-      <div style={{width:210,background:C.AO,display:'flex',flexDirection:'column',flexShrink:0}}>
-        <div style={{padding:'18px 14px 14px',borderBottom:'1px solid rgba(255,255,255,0.1)'}}>
-          <div style={{color:'white',fontWeight:700,fontSize:15}}>⚖️ Rebit AML</div>
-          <div style={{color:'rgba(255,255,255,0.5)',fontSize:10,marginTop:3}}>KYB & Transaccional</div>
+      <div style={{width:195,background:T.BG2,borderRight:'1px solid '+T.BORDER,display:'flex',flexDirection:'column',flexShrink:0}}>
+        <div style={{padding:'16px 14px 14px',borderBottom:'1px solid '+T.BORDER}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{width:26,height:26,background:C.AC,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#fff',borderRadius:3,flexShrink:0}}>RB</div>
+            <div>
+              <div style={{color:T.TEXT,fontWeight:600,fontSize:12,letterSpacing:'1px'}}>REBIT AML</div>
+              <div style={{color:T.TEXT3,fontSize:9,letterSpacing:'1px'}}>KYB & TRANSACCIONAL</div>
+            </div>
+          </div>
         </div>
         <nav style={{flex:1,padding:'10px 8px'}}>
           {NAV.map(function(n){return(
-            <button key={n[0]} onClick={function(){setView(n[0]);}} style={{display:'flex',gap:8,alignItems:'center',width:'100%',padding:'9px 10px',border:'none',borderRadius:4,background:view===n[0]?'rgba(255,255,255,0.15)':'transparent',color:view===n[0]?'white':'rgba(255,255,255,0.6)',cursor:'pointer',fontSize:13,fontWeight:view===n[0]?700:400,textAlign:'left',marginBottom:2}}>
-              <span style={{fontSize:15}}>{n[1]}</span>{n[2]}
+            <button key={n[0]} onClick={function(){setView(n[0]);}} style={{display:'flex',gap:8,alignItems:'center',width:'100%',padding:'9px 10px',border:'none',borderLeft:view===n[0]?'2px solid '+C.AC:'2px solid transparent',borderRadius:0,background:view===n[0]?'rgba(59,109,170,0.12)':'transparent',color:view===n[0]?T.TEXT:T.TEXT2,cursor:'pointer',fontSize:11,fontWeight:view===n[0]?600:400,textAlign:'left',marginBottom:1,fontFamily:T.MONO}}>
+              <span style={{fontSize:13}}>{n[1]}</span>{n[2]}
             </button>
           );})}
         </nav>
         <div style={{padding:'10px 8px',borderTop:'1px solid rgba(255,255,255,0.1)'}}>
-          <div style={{color:'rgba(255,255,255,0.4)',fontSize:9,marginBottom:6,paddingLeft:4}}>BACKUP</div>
-          <button onClick={handleExport} style={{display:'flex',gap:6,alignItems:'center',width:'100%',padding:'7px 10px',border:'none',borderRadius:4,background:'rgba(39,174,96,0.25)',color:'#7DCEA0',cursor:'pointer',fontSize:11,fontWeight:600,textAlign:'left',marginBottom:4}}>
+          <div style={{color:T.TEXT4,fontSize:9,marginBottom:6,paddingLeft:4,letterSpacing:'1px'}}>// BACKUP</div>
+          <button onClick={handleExport} style={{display:'flex',gap:6,alignItems:'center',width:'100%',padding:'7px 10px',border:'none',borderRadius:0,borderLeft:'2px solid rgba(0,230,118,0.4)',background:'rgba(0,230,118,0.07)',color:T.GREEN,cursor:'pointer',fontSize:10,fontFamily:T.MONO,textAlign:'left',marginBottom:4}}>
             <span>💾</span> Exportar JSON
           </button>
-          <button onClick={function(){importRef.current.click();}} style={{display:'flex',gap:6,alignItems:'center',width:'100%',padding:'7px 10px',border:'none',borderRadius:4,background:'rgba(52,152,219,0.25)',color:'#7FB3D3',cursor:'pointer',fontSize:11,fontWeight:600,textAlign:'left',marginBottom:4}}>
+          <button onClick={function(){importRef.current.click();}} style={{display:'flex',gap:6,alignItems:'center',width:'100%',padding:'7px 10px',border:'none',borderRadius:0,borderLeft:'2px solid rgba(0,212,255,0.4)',background:'rgba(0,212,255,0.07)',color:T.CYAN,cursor:'pointer',fontSize:10,fontFamily:T.MONO,textAlign:'left',marginBottom:4}}>
             <span>📂</span> Importar JSON
           </button>
-          <button onClick={function(){setConfigOpen(true);}} style={{display:'flex',gap:6,alignItems:'center',width:'100%',padding:'7px 10px',border:'none',borderRadius:4,background:activeKeyOk?'rgba(39,174,96,0.15)':'rgba(231,76,60,0.25)',color:activeKeyOk?'#7DCEA0':'#F1948A',cursor:'pointer',fontSize:11,fontWeight:600,textAlign:'left',marginBottom:6}}>
+          <button onClick={function(){setConfigOpen(true);}} style={{display:'flex',gap:6,alignItems:'center',width:'100%',padding:'7px 10px',border:'none',borderRadius:0,borderLeft:activeKeyOk?'2px solid rgba(0,230,118,0.4)':'2px solid rgba(255,68,85,0.4)',background:activeKeyOk?'rgba(0,230,118,0.07)':'rgba(255,68,85,0.07)',color:activeKeyOk?T.GREEN:T.RED,cursor:'pointer',fontSize:10,fontFamily:T.MONO,textAlign:'left',marginBottom:6}}>
             <span>⚙️</span> {activeKeyOk?(provider==='openai'?'GPT-4o ✓':'Claude ✓'):'IA sin configurar ⚠'}
           </button>
         </div>
-        <div style={{padding:'8px 14px 12px',borderTop:'1px solid rgba(255,255,255,0.07)',color:'rgba(255,255,255,0.3)',fontSize:9,lineHeight:1.7}}>
+        <div style={{padding:'8px 14px 12px',borderTop:'1px solid '+T.BORDER,color:T.TEXT4,fontSize:9,lineHeight:1.7,fontFamily:T.MONO}}>
           GOAT S.A. — CUIT 30-71703953-6<br/>
           Design System v2.2.0<br/>
           {legajos.length} legajos · {periodos.length} periodos<br/>
           {currentUser && <span style={{color:'rgba(255,255,255,0.5)',fontSize:9}}>{currentUser.nombre} · {ROL_LABELS[currentUser.rol]||currentUser.rol}<br/></span>}
-          <span style={{color:syncStatus==='ok'?'rgba(39,174,96,0.6)':syncStatus==='error'?'rgba(231,76,60,0.6)':syncStatus==='saving'?'rgba(241,196,15,0.6)':'rgba(255,255,255,0.2)'}}>
-            {syncStatus==='ok'?'☁ Supabase ✓':syncStatus==='saving'?'☁ guardando...':syncStatus==='loading'?'☁ cargando...':syncStatus==='error'?'☁ sync ⚠':'☁ —'}<br/>
+          <span style={{color:syncStatus==='ok'?T.GREEN:syncStatus==='error'?T.RED:syncStatus==='saving'?T.AMBER:T.TEXT4}}>
+            {syncStatus==='ok'?'// supabase OK':syncStatus==='saving'?'// guardando...':syncStatus==='loading'?'// cargando...':syncStatus==='error'?'// sync ERROR':'// —'}<br/>
           </span>
-          <button onClick={function(){if(window.confirm('¿Cerrar sesión?')){setCurrentUser(null);}}} style={{background:'none',border:'none',color:'rgba(255,255,255,0.25)',cursor:'pointer',fontSize:9,padding:0,marginTop:4,textDecoration:'underline'}}>Cerrar sesión</button>
+          <button onClick={function(){if(window.confirm('¿Cerrar sesión?')){setCurrentUser(null);}}} style={{background:'none',border:'none',color:T.TEXT4,cursor:'pointer',fontSize:9,padding:0,marginTop:4,textDecoration:'none',fontFamily:T.MONO}}>// cerrar sesión →</button>
         </div>
       </div>
-      <div style={{flex:1,overflowY:'auto',maxHeight:'100vh'}}>
+      <div style={{flex:1,overflowY:'auto',maxHeight:'100vh',background:T.BG}}>
         {syncStatus==='error' && (
-          <div style={{background:'#FEF3E8',borderBottom:'1px solid #F0B27A',padding:'8px 20px',display:'flex',alignItems:'center',gap:10,fontSize:12}}>
-            <span style={{fontSize:16}}>⚠</span>
-            <span style={{color:'#B7770D',fontWeight:600}}>Sin conexión a Supabase</span>
-            <span style={{color:'#555'}}>— Los datos que ves están en memoria. Los cambios se guardarán cuando se restaure la conexión.</span>
-            <button onClick={function(){setSyncStatus('loading');serverLoad().then(function(d){if(d){setLegajos(d.legajos||[]);setPeriodos(d.periodos||[]);setSyncStatus('ok');}else{setSyncStatus('error');}});}} style={{marginLeft:'auto',background:'white',border:'1px solid #F0B27A',color:'#E67E22',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:600}}>
+          <div style={{background:'rgba(255,184,48,0.08)',borderBottom:'1px solid rgba(255,184,48,0.2)',padding:'7px 20px',display:'flex',alignItems:'center',gap:10,fontSize:10,fontFamily:T.MONO}}>
+            <span style={{fontSize:13}}>⚠</span>
+            <span style={{color:T.AMBER,fontWeight:600}}>SIN CONEXIÓN A SUPABASE</span>
+            <span style={{color:T.TEXT3}}>— datos en memoria. Los cambios se guardarán al restaurar.</span>
+            <button onClick={function(){setSyncStatus('loading');serverLoad().then(function(d){if(d){setLegajos(d.legajos||[]);setPeriodos(d.periodos||[]);setSyncStatus('ok');}else{setSyncStatus('error');}});}} style={{marginLeft:'auto',background:T.BG2,border:'1px solid rgba(255,184,48,0.3)',color:T.AMBER,borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:600}}>
               Reintentar
             </button>
           </div>
