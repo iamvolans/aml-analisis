@@ -1126,13 +1126,33 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
       if (proxyResp.status === 429 || proxyErrMsg.indexOf('rate limit') >= 0 || proxyErrMsg.indexOf('tokens per minute') >= 0) {
         throw new Error('RATE_LIMIT:' + proxyErrMsg);
       }
-      console.warn('[Rebit IA] Proxy falló (' + proxyResp.status + '), usando llamada directa...');
+      // En producción (Vercel) el proxy es la única vía — no hay fallback directo
+      var isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (!isLocalhost) {
+        throw new Error('Error del servidor proxy (' + proxyResp.status + '): ' + proxyErrMsg + '\n\n'
+          + '─────────────────\n'
+          + 'Para resolverlo:\n'
+          + '1. Abrí Vercel → tu proyecto → Settings → Environment Variables\n'
+          + '2. Verificá que ANTHROPIC_API_KEY esté configurada y tenga valor\n'
+          + '3. Hacé un nuevo Deploy (el cambio de variables requiere redeploy)\n'
+          + '4. Si el problema persiste, revisá los Function Logs en Vercel para más detalles.');
+      }
+      console.warn('[Rebit IA] Proxy falló (' + proxyResp.status + '), usando llamada directa (solo localhost)...');
     } catch(proxyErr) {
       if (proxyErr.message && proxyErr.message.indexOf('RATE_LIMIT:') === 0) throw proxyErr;
-      console.warn('[Rebit IA] Proxy no alcanzable:', proxyErr.message);
+      var isLocalhostCatch = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (!isLocalhostCatch) {
+        throw new Error('No se pudo conectar con el servidor proxy.\n\n'
+          + '─────────────────\n'
+          + 'Posibles causas:\n'
+          + '• Las Serverless Functions de Vercel no están disponibles\n'
+          + '• La variable ANTHROPIC_API_KEY no está configurada en Vercel\n'
+          + 'Revisá Vercel → Settings → Environment Variables y hacé un nuevo Deploy.');
+      }
+      console.warn('[Rebit IA] Proxy no alcanzable (localhost):', proxyErr.message);
     }
 
-    // 2. Fallback: llamada directa
+    // 2. Fallback: llamada directa (SOLO en desarrollo local)
     var apiKey = provider === 'openai'
       ? (_KEYS.openai || '')
       : (_KEYS.anthropic || '');
@@ -1172,7 +1192,7 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
     } catch(directErr) {
       if (directErr.message && directErr.message.indexOf('RATE_LIMIT:') === 0) throw directErr;
       if (directErr.message && (directErr.message.indexOf('Load failed') >= 0 || directErr.message.indexOf('NetworkError') >= 0 || directErr.message.indexOf('Failed to fetch') >= 0)) {
-        throw new Error('CORS: Browser bloqueó la llamada directa al API. Verificá las variables de entorno en Vercel.');
+        throw new Error('CORS: El browser bloqueó la llamada directa al API (solo ocurre en desarrollo local cuando el proxy no responde).');
       }
       throw directErr;
     }
