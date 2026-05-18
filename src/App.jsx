@@ -1981,7 +1981,7 @@ function DashboardView(props) {
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
               <thead><tr>{['Empresa','CUIT','Estado','Segmento','Situación','Acción'].map(function(h,i){return <th key={i} style={{background:'#E67E22',color:'white',padding:'5px 10px',textAlign:'left',fontWeight:700}}>{h}</th>;})}</tr></thead>
               <tbody>{notificaciones.map(function(n,i){return(
-                <tr key={i} style={{background:i%2===0?'#FFFDF5':'white'}}>
+                <tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
                   <td style={{padding:'6px 10px',fontWeight:500,color:T.TEXT2}}>{n.l.razonSocial||'—'}</td>
                   <td style={{padding:'6px 10px',color:T.TEXT2}}>{n.l.cuit||'—'}</td>
                   <td style={{padding:'6px 10px'}}><span style={{background:n.est.bg,color:n.est.color,border:'1px solid '+n.est.color,borderRadius:8,padding:'2px 7px',fontSize:10,fontWeight:700}}>{n.est.label}</span></td>
@@ -2050,7 +2050,7 @@ function DashboardView(props) {
             <thead><tr>{['Razón Social','CUIT','Estado','Períodos','Señales ALTA'].map(function(h,i){return <th key={i} style={{background:'#E74C3C',color:'white',padding:'6px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
             <tbody>{activasConAlertas.map(function(x,i){
               var est=getEstado(x.l.estadoCuenta||'ACTIVA');
-              return(<tr key={i} style={{background:i%2===0?'#FDF9F9':'white'}}>
+              return(<tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
                 <td style={{padding:'5px 10px',fontWeight:600}}>{x.l.razonSocial||'—'}</td>
                 <td style={{padding:'5px 10px',color:T.TEXT2}}>{x.l.cuit||'—'}</td>
                 <td style={{padding:'5px 10px'}}><span style={{background:est.bg,color:est.color,border:'1px solid '+est.color,borderRadius:10,padding:'2px 8px',fontSize:10,fontWeight:700}}>{est.label}</span></td>
@@ -2065,7 +2065,7 @@ function DashboardView(props) {
             <thead><tr>{['Razon Social','CUIT','Estado','Segmento','Dictamen'].map(function(h,i){return <th key={i} style={{background:T.BG3,color:T.TEXT3,padding:'6px 10px',textAlign:'left',fontSize:9,letterSpacing:'1px',fontFamily:T.MONO,fontWeight:400}}>{h}</th>;})}</tr></thead>
             <tbody>{legajos.slice(-5).reverse().map(function(l,i){
               var est=getEstado(l.estadoCuenta||'EN_ONBOARDING');
-              return(<tr key={i} style={{background:i%2===0?'#F8FBFE':'white'}}>
+              return(<tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
                 <td style={{padding:'5px 10px'}}>{l.razonSocial||'—'}</td>
                 <td style={{padding:'5px 10px'}}>{l.cuit||'—'}</td>
                 <td style={{padding:'5px 10px'}}><span style={{background:est.bg,color:est.color,border:'1px solid '+est.color,borderRadius:8,padding:'2px 7px',fontSize:10,fontWeight:700}}>{est.label}</span></td>
@@ -2456,7 +2456,7 @@ function LegajosView(props) {
           </div>
           <div style={{display:'flex',gap:8}}>
             <button onClick={handleSave} style={btnG}>💾 Guardar</button>
-            <button onClick={function(){setEditing(false);setForm(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'8px 14px',cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
+            <button onClick={function(){setEditing(false);setForm(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 14px',cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
           </div>
         </div>
         <div style={{display:'flex',gap:2,marginBottom:14,background:C.CEL,borderRadius:6,padding:4}}>
@@ -2700,7 +2700,7 @@ function LegajosView(props) {
             var stC = val==='OK'?C.VERDE:val==='Bloqueante'?C.ROJO:'#888';
             var isIA = iaFields && iaFields.okChecklist > 0;
             return(
-              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:i%2===0?'#F8FBFE':'white',borderBottom:'1px solid '+T.BORDER,fontSize:13,borderLeft:val==='OK'?'3px solid '+C.VERDE:val==='Bloqueante'?'3px solid '+C.ROJO:'3px solid transparent'}}>
+              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:i%2===0?T.BG3:T.BG2,borderBottom:'1px solid '+T.BORDER,fontSize:13,borderLeft:val==='OK'?'3px solid '+C.VERDE:val==='Bloqueante'?'3px solid '+C.ROJO:'3px solid transparent'}}>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
                   <span style={{color:T.TEXT}}>{item}</span>
                   {isIA && val !== 'Pendiente' && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 4px',fontSize:9,fontWeight:700}}>IA</span>}
@@ -2729,7 +2729,7 @@ function LegajosView(props) {
             var scC = val>=4?C.ROJO:val>=3?C.NARANJA:C.VERDE;
             var isIA = iaFields && iaFields.kybFilled > 0;
             return(
-              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:i%2===0?'#F8FBFE':'white',borderBottom:'1px solid '+T.BORDER,borderLeft:'3px solid '+scC}}>
+              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:i%2===0?T.BG3:T.BG2,borderBottom:'1px solid '+T.BORDER,borderLeft:'3px solid '+scC}}>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
                   <span style={{fontSize:13,color:T.TEXT}}>{f}</span>
                   {isIA && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 4px',fontSize:9,fontWeight:700}}>IA</span>}
@@ -3055,7 +3055,7 @@ function LegajosView(props) {
                   {rosSelPer.length === 0 && <div style={{color:T.AMBER,fontSize:12,marginBottom:10}}>⚠ Seleccioná al menos un período para generar el ROS.</div>}
 
                   <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-                    <button onClick={function(){setRosOpen(false);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:13}}>Cancelar</button>
+                    <button onClick={function(){setRosOpen(false);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:13}}>Cancelar</button>
                     <button
                       disabled={rosSelPer.length===0}
                       onClick={async function(){
@@ -3183,7 +3183,7 @@ function LegajosView(props) {
                 >
                   📄 Generar INF-07 Cierre
                 </button>
-                <button onClick={function(){setCierreOpen(false);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'11px 18px',cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
+                <button onClick={function(){setCierreOpen(false);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'11px 18px',cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
               </div>
             </div>
           </div> : null}
@@ -3192,7 +3192,7 @@ function LegajosView(props) {
           <Card title="Perfil KYB">
             <table style={{width:'100%',fontSize:13}}>
               <tbody>{[['Actividad',sel.actividad||'N/D'],['Beneficiario final',sel.beneficiarioFinal||'N/D'],['Facturacion mensual',fmtM(sel.facturacionMensual)],['Limite diario',fmtM(sel.limiteDiario)],['Limite mensual',fmtM(sel.limiteMensual)]].map(function(r,i){return(
-                <tr key={i} style={{background:i%2===0?'#F8FBFE':'white'}}>
+                <tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
                   <td style={{padding:'5px 8px',color:T.TEXT2,fontWeight:600}}>{r[0]}</td>
                   <td style={{padding:'5px 8px'}}>{r[1]}</td>
                 </tr>
@@ -3281,7 +3281,7 @@ function LegajosView(props) {
               <span style={{fontSize:12,color:T.TEXT2}}>{selected.length} seleccionado(s)</span>
               <button onClick={selectAll} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 12px',cursor:'pointer',fontSize:12}}>Todos ({filteredLegs.length})</button>
               <button onClick={deleteSelected} disabled={!selected.length} style={{background:selected.length?C.ROJO:'#ccc',color:'white',border:'none',borderRadius:4,padding:'6px 14px',cursor:selected.length?'pointer':'not-allowed',fontWeight:700,fontSize:12}}>🗑 Eliminar ({selected.length})</button>
-              <button onClick={function(){setSelectMode(false);clearSel();}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'6px 12px',cursor:'pointer',fontSize:12}}>Cancelar</button>
+              <button onClick={function(){setSelectMode(false);clearSel();}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'6px 12px',cursor:'pointer',fontSize:12}}>Cancelar</button>
             </div>
           ) : (
             <div style={{display:'flex',gap:8}}>
@@ -3944,7 +3944,7 @@ function AnalisisView(props) {
                       {label:'Señales ALTA activas', fn:function(d){return d.sigsAlta||'0';}, colFn:function(d){return d.sigsAlta>0?C.ROJO:C.VERDE;}},
                     ].map(function(row,ri){
                       return (
-                        <tr key={ri} style={{background:ri%2===0?'#F8FBFE':'white'}}>
+                        <tr key={ri} style={{background:ri%2===0?T.BG3:T.BG2}}>
                           <td style={{padding:'6px 10px',fontWeight:600,color:T.TEXT2,borderRight:'2px solid #eee'}}>{row.label}</td>
                           {periodosDatos.map(function(d,di){
                             var val = row.fn(d);
@@ -3979,7 +3979,7 @@ function AnalisisView(props) {
                       {cpAnalysis.map(function(cp,i){
                         var alerta = cp.pctNuevas > 60;
                         return (
-                          <tr key={i} style={{background:alerta?'#FFF9F5':i%2===0?'#F8FBFE':'white'}}>
+                          <tr key={i} style={{background:alerta?'#FFF9F5':i%2===0?T.BG3:T.BG2}}>
                             <td style={{padding:'6px 10px',fontWeight:600}}>{cp.periodo}</td>
                             <td style={{padding:'6px 10px'}}>{cp.total}</td>
                             <td style={{padding:'6px 10px',color:cp.nuevas>0?C.NARANJA:'inherit',fontWeight:cp.nuevas>0?700:400}}>{cp.nuevas}</td>
@@ -4088,7 +4088,7 @@ function AnalisisView(props) {
           </div>
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
             <tbody>{[['Monto promedio',fmtM(m.avg)],['Monto maximo',fmtM(m.maxMonto)],['HHI concentracion IN',m.hhiIn.toFixed(3)+' | top-1: '+m.top1In.toFixed(1)+'%'],['HHI concentracion OUT',m.hhiOut.toFixed(3)+' | top-1: '+m.top1Out.toFixed(1)+'%'],['Fraccionamiento',m.splitGroupsCount+' grupos | '+m.splitDays+' dias'],['Montos redondos',m.pctRound.toFixed(1)+'%'],['Pass-through',m.tIn>0?(m.passThrough*100).toFixed(1)+'%':'N/D'],['Circularidad',m.circularCount+' contrapartes'],['Dias activos',m.activeDays+' | '+m.opsByDay.toFixed(1)+' ops/dia'],['Horario atipico',m.pctAtypicalHour!==null?m.pctAtypicalHour.toFixed(1)+'%':'N/D']].map(function(r,i){return(
-              <tr key={i} style={{background:i%2===0?'#F8FBFE':'white'}}>
+              <tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
                 <td style={{padding:'5px 8px',color:T.TEXT2,fontWeight:600}}>{r[0]}</td>
                 <td style={{padding:'5px 8px',fontWeight:700}}>{r[1]}</td>
               </tr>
@@ -4534,7 +4534,7 @@ function AnalisisView(props) {
                 />
               </div>
               <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-                <button onClick={function(){setRfiMode(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
+                <button onClick={function(){setRfiMode(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
                 <button onClick={crearRfi} disabled={!rfiForm.contenido.trim()} style={{background:rfiForm.contenido.trim()?'#1A4A6B':'#ccc',color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rfiForm.contenido.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:12}}>💾 Registrar RFI</button>
               </div>
             </div>
@@ -4574,7 +4574,7 @@ function AnalisisView(props) {
                     </div>
 
                     {/* Acciones rápidas de estado */}
-                    <div style={{display:'flex',gap:6,padding:'6px 16px',borderBottom:'1px solid '+T.BORDER,background:'#FAFCFF',flexWrap:'wrap'}}>
+                    <div style={{display:'flex',gap:6,padding:'6px 16px',borderBottom:'1px solid '+T.BORDER,background:T.BG3,flexWrap:'wrap'}}>
                       <span style={{fontSize:10,color:T.TEXT3,alignSelf:'center',marginRight:4}}>Estado:</span>
                       {RFI_ESTADOS.map(function(e){
                         var isCur = rfi.estado===e.id;
@@ -4886,7 +4886,7 @@ function AlertasView(props) {
                     var f = parseFechaAR(r.createdAt);
                     var dias = f ? Math.floor((hoy-f)/86400000) : '?';
                     return (
-                      <div key={i} style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.25)',borderLeft:'2px solid '+T.RED+',borderRadius:3,padding:'10px 14px',marginBottom:8}}>
+                      <div key={i} style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.25)',borderLeft:'2px solid '+T.RED,borderRadius:3,padding:'10px 14px',marginBottom:8}}>
                         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
                           <div>
                             <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
@@ -4919,7 +4919,7 @@ function AlertasView(props) {
                     var f = parseFechaAR(r.createdAt);
                     var dias = f ? Math.floor((hoy-f)/86400000) : '?';
                     return (
-                      <div key={i} style={{background:'rgba(255,140,0,0.08)',border:'1px solid rgba(255,140,0,0.25)',borderLeft:'2px solid '+T.AMBER+',borderRadius:3,padding:'10px 14px',marginBottom:8}}>
+                      <div key={i} style={{background:'rgba(255,140,0,0.08)',border:'1px solid rgba(255,140,0,0.25)',borderLeft:'2px solid '+T.AMBER,borderRadius:3,padding:'10px 14px',marginBottom:8}}>
                         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
                           <div>
                             <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
@@ -4958,7 +4958,7 @@ function AlertasView(props) {
             </div>
           ) : sinAnalizar.map(function(item,i){
             return (
-              <div key={i} style={{background:'rgba(255,140,0,0.08)',border:'1px solid rgba(255,140,0,0.25)',borderLeft:'2px solid '+T.AMBER+',borderRadius:3,padding:'12px 16px',marginBottom:8}}>
+              <div key={i} style={{background:'rgba(255,140,0,0.08)',border:'1px solid rgba(255,140,0,0.25)',borderLeft:'2px solid '+T.AMBER,borderRadius:3,padding:'12px 16px',marginBottom:8}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
                   <div>
                     <div style={{fontSize:13,fontWeight:600,color:T.TEXT,marginBottom:3}}>{item.legajoNom}</div>
@@ -5009,7 +5009,7 @@ function NormativaView() {
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
           <thead><tr>{['Normativa','Descripcion','Articulo / Alcance'].map(function(h,i){return <th key={i} style={{background:C.AO,color:'white',padding:'7px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
           <tbody>{normas.map(function(n,i){return(
-            <tr key={i} style={{background:i%2===0?'#F8FBFE':'white'}}>
+            <tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
               <td style={{padding:'6px 10px',fontWeight:700,color:C.AM,whiteSpace:'nowrap'}}>{n.cod}</td>
               <td style={{padding:'6px 10px'}}>{n.nombre}</td>
               <td style={{padding:'6px 10px',color:T.TEXT2,fontSize:11}}>{n.art}</td>
@@ -5021,7 +5021,7 @@ function NormativaView() {
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
           <thead><tr>{['#','Fuente','Jurisdiccion'].map(function(h,i){return <th key={i} style={{background:C.AO,color:'white',padding:'7px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
           <tbody>{SCREENING.map(function(s,i){return(
-            <tr key={i} style={{background:i%2===0?'#F8FBFE':'white'}}>
+            <tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
               <td style={{padding:'6px 10px',fontWeight:700,color:C.AM}}>{i+1}</td>
               <td style={{padding:'6px 10px'}}><strong>{s.n}</strong></td>
               <td style={{padding:'6px 10px',color:T.TEXT2}}>{s.j}</td>
@@ -5448,7 +5448,7 @@ function WikiTbl({headers, rows}) {
         <thead><tr>{headers.map((h,i)=><th key={i} style={{background:C.AO,color:'white',padding:'8px 12px',textAlign:'left',fontSize:11,fontWeight:700,letterSpacing:'0.03em'}}>{h}</th>)}</tr></thead>
         <tbody>
           {rows.map((row,ri)=>(
-            <tr key={ri} style={{background:ri%2===0?'#F8FBFE':'white'}}>
+            <tr key={ri} style={{background:ri%2===0?T.BG3:T.BG2}}>
               {row.map((cell,ci)=><td key={ci} style={{padding:'8px 12px',color:T.TEXT,borderBottom:'1px solid '+T.BORDER,verticalAlign:'top',lineHeight:1.6}}>{cell}</td>)}
             </tr>
           ))}
@@ -6025,7 +6025,7 @@ function UsuariosView(props) {
             </div>
           </div>
           <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-            <button onClick={function(){setForm(null);setErr('');}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
+            <button onClick={function(){setForm(null);setErr('');}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
             <button onClick={handleCrear} style={{background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'8px 20px',cursor:'pointer',fontWeight:700,fontSize:12}}>✓ Crear usuario</button>
           </div>
         </div>
@@ -6042,7 +6042,7 @@ function UsuariosView(props) {
               style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'10px 12px',fontSize:14,boxSizing:'border-box',marginBottom:12}}/>
             {err && <div style={{fontSize:12,color:T.RED,marginBottom:10}}>⚠ {err}</div>}
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-              <button onClick={function(){setPassModal(null);setNewPass('');setErr('');}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2+',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
+              <button onClick={function(){setPassModal(null);setNewPass('');setErr('');}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
               <button onClick={handlePassword} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'8px 20px',cursor:'pointer',fontWeight:700,fontSize:12}}>💾 Guardar</button>
             </div>
           </div>
@@ -6063,7 +6063,7 @@ function UsuariosView(props) {
                 var rolCol = ROL_COL[u.rol]||'#888';
                 var esSelf = u.id === currentUser.id;
                 return (
-                  <tr key={u.id} style={{background:i%2===0?'#F8FBFE':'white',opacity:u.activo?1:0.6}}>
+                  <tr key={u.id} style={{background:i%2===0?T.BG3:T.BG2,opacity:u.activo?1:0.6}}>
                     <td style={{padding:'10px 14px',fontWeight:500,color:T.TEXT2}}>
                       {u.nombre} {esSelf && <span style={{background:C.AC,color:'white',borderRadius:4,padding:'1px 6px',fontSize:9,marginLeft:4}}>Vos</span>}
                     </td>
