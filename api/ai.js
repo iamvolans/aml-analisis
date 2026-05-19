@@ -1,5 +1,14 @@
 // api/ai.js — Proxy seguro para llamadas a Claude y GPT-4o
 // Las API keys nunca llegan al browser — todo pasa por este servidor
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '35mb',
+    },
+  },
+};
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
