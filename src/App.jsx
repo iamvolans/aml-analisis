@@ -1114,49 +1114,49 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
   var RETRY_DELAYS = [15000, 30000, 60000, 90000]; // 15s, 30s, 60s, 90s
 
   async function doCall() {
-    // 1. Intentar proxy del servidor (funciona en TODOS los browsers)
+    var isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    // 1. Intentar proxy del servidor
+    var proxyResp;
     try {
-      var proxyResp = await fetch('/api/ai', {
+      proxyResp = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-app-token': '123aml2026' },
         body: JSON.stringify({ provider: provider, messages: messages, max_tokens: maxTokens || 8000 })
       });
+    } catch(networkErr) {
+      // fetch() lanzó error de red real (sin conexión, DNS, etc.)
+      if (!isLocalhost) {
+        throw new Error('Error de red al contactar el servidor proxy.\n'
+          + 'Verificá tu conexión a internet y que las Serverless Functions de Vercel estén disponibles.\n'
+          + 'Detalle: ' + networkErr.message);
+      }
+      console.warn('[Rebit IA] Proxy no alcanzable (localhost):', networkErr.message);
+      proxyResp = null;
+    }
+
+    if (proxyResp) {
       if (proxyResp.ok) {
         var proxyData = await proxyResp.json();
         if (proxyData.text) return returnRaw ? proxyData.text : parseJsonFromResponse(proxyData.text);
       }
-      // Si el proxy devuelve error, leer el mensaje
+      // Proxy respondió con error HTTP
       var proxyErrData = {};
       try { proxyErrData = await proxyResp.json(); } catch(e) {}
-      var proxyErrMsg = proxyErrData.error || ('Proxy status ' + proxyResp.status);
-      // Propagar rate limit para que el retry lo maneje
+      var proxyErrMsg = proxyErrData.error || ('HTTP ' + proxyResp.status);
       if (proxyResp.status === 429 || proxyErrMsg.indexOf('rate limit') >= 0 || proxyErrMsg.indexOf('tokens per minute') >= 0) {
         throw new Error('RATE_LIMIT:' + proxyErrMsg);
       }
-      // En producción (Vercel) el proxy es la única vía — no hay fallback directo
-      var isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (proxyResp.status === 413) {
+        throw new Error('El documento es demasiado grande (HTTP 413).\nIntentá con documentos más pequeños o de a uno por vez.');
+      }
+      if (proxyResp.status === 503 || proxyErrMsg.indexOf('no configurado') >= 0) {
+        throw new Error('ANTHROPIC_API_KEY no está configurada en el servidor.\n'
+          + 'Vercel → Settings → Environment Variables → agregar ANTHROPIC_API_KEY');
+      }
       if (!isLocalhost) {
-        throw new Error('Error del servidor proxy (' + proxyResp.status + '): ' + proxyErrMsg + '\n\n'
-          + '─────────────────\n'
-          + 'Para resolverlo:\n'
-          + '1. Abrí Vercel → tu proyecto → Settings → Environment Variables\n'
-          + '2. Verificá que ANTHROPIC_API_KEY esté configurada y tenga valor\n'
-          + '3. Hacé un nuevo Deploy (el cambio de variables requiere redeploy)\n'
-          + '4. Si el problema persiste, revisá los Function Logs en Vercel para más detalles.');
+        throw new Error('Error del servidor proxy (' + proxyResp.status + '): ' + proxyErrMsg);
       }
       console.warn('[Rebit IA] Proxy falló (' + proxyResp.status + '), usando llamada directa (solo localhost)...');
-    } catch(proxyErr) {
-      if (proxyErr.message && proxyErr.message.indexOf('RATE_LIMIT:') === 0) throw proxyErr;
-      var isLocalhostCatch = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      if (!isLocalhostCatch) {
-        throw new Error('No se pudo conectar con el servidor proxy.\n\n'
-          + '─────────────────\n'
-          + 'Posibles causas:\n'
-          + '• Las Serverless Functions de Vercel no están disponibles\n'
-          + '• La variable ANTHROPIC_API_KEY no está configurada en Vercel\n'
-          + 'Revisá Vercel → Settings → Environment Variables y hacé un nuevo Deploy.');
-      }
-      console.warn('[Rebit IA] Proxy no alcanzable (localhost):', proxyErr.message);
     }
 
     // 2. Fallback: llamada directa (SOLO en desarrollo local)
