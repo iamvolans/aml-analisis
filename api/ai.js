@@ -1,18 +1,27 @@
 // api/ai.js — Proxy seguro para llamadas a Claude y GPT-4o
-// Las API keys nunca llegan al browser — todo pasa por este servidor
+// Soporta payloads comprimidos con gzip para superar el límite de 4.5MB de Vercel
+
+import { gunzipSync } from 'zlib';
 
 export const config = {
   api: {
-    bodyParser: {
-      sizeLimit: '35mb',
-    },
+    bodyParser: false,
   },
 };
+
+async function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-app-token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-app-token, x-encoding');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
@@ -20,7 +29,21 @@ export default async function handler(req, res) {
   const APP_TOKEN = process.env.APP_TOKEN || '123aml2026';
   if (token !== APP_TOKEN) return res.status(401).json({ error: 'No autorizado' });
 
-  const { provider, messages, max_tokens = 8000, useWebSearch = false, system } = req.body;
+  let parsed;
+  try {
+    const rawBody = await getRawBody(req);
+    const encoding = req.headers['x-encoding'];
+    if (encoding === 'gzip-json') {
+      const decompressed = gunzipSync(rawBody);
+      parsed = JSON.parse(decompressed.toString('utf8'));
+    } else {
+      parsed = JSON.parse(rawBody.toString('utf8'));
+    }
+  } catch (parseErr) {
+    return res.status(400).json({ error: 'Error al leer el body: ' + parseErr.message });
+  }
+
+  const { provider, messages, max_tokens = 8000, useWebSearch = false, system } = parsed;
   if (!messages) return res.status(400).json({ error: 'Faltan parámetros' });
 
   try {
@@ -39,18 +62,11 @@ export default async function handler(req, res) {
       return res.json({ text });
 
     } else {
-      // Claude (default)
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) return res.status(503).json({ error: 'Anthropic no configurado en el servidor' });
 
-      const body = {
-        model: 'claude-sonnet-4-20250514',
-        max_tokens,
-        messages
-      };
+      const body = { model: 'claude-sonnet-4-20250514', max_tokens, messages };
       if (system) body.system = system;
-
-      // Agregar web search cuando se solicita (para screening de listas de sanciones)
       if (useWebSearch) {
         body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
         body.max_tokens = Math.max(max_tokens, 4000);
@@ -68,7 +84,6 @@ export default async function handler(req, res) {
       });
       const data = await r.json();
       if (data.error) return res.status(400).json({ error: data.error.message });
-      // Extraer texto de todos los bloques (puede haber tool_use y tool_result)
       const text = (data.content || [])
         .filter(b => b.type === 'text')
         .map(b => b.text)

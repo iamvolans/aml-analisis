@@ -1118,10 +1118,23 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
     // 1. Intentar proxy del servidor
     var proxyResp;
     try {
+      // Comprimir payload con gzip para evitar el límite de 4.5MB de Vercel
+      var payload = JSON.stringify({ provider: provider, messages: messages, max_tokens: maxTokens || 8000 });
+      var proxyBody, proxyHeaders;
+      try {
+        var stream = new Blob([payload]).stream().pipeThrough(new CompressionStream('gzip'));
+        var compressed = await new Response(stream).arrayBuffer();
+        proxyBody = compressed;
+        proxyHeaders = { 'Content-Type': 'application/octet-stream', 'x-encoding': 'gzip-json', 'x-app-token': '123aml2026' };
+      } catch(compErr) {
+        // Fallback sin compresión si el browser no soporta CompressionStream
+        proxyBody = payload;
+        proxyHeaders = { 'Content-Type': 'application/json', 'x-app-token': '123aml2026' };
+      }
       proxyResp = await fetch('/api/ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-app-token': '123aml2026' },
-        body: JSON.stringify({ provider: provider, messages: messages, max_tokens: maxTokens || 8000 })
+        headers: proxyHeaders,
+        body: proxyBody
       });
     } catch(networkErr) {
       // fetch() lanzó error de red real (sin conexión, DNS, etc.)
