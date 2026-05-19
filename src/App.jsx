@@ -309,7 +309,7 @@ function genINF01(legajo, periodos, memosList) {
     + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0">'
     + '<div style="background:#EBF9F0;border:1px solid #A9DFBF;padding:12px;border-radius:4px;text-align:center"><div style="font-size:18pt;font-weight:700;color:#27AE60">'+okC+'</div><div style="font-size:9pt;color:#555">Documentos OK</div></div>'
     + '<div style="background:#FEF9E7;border:1px solid #F9E79F;padding:12px;border-radius:4px;text-align:center"><div style="font-size:18pt;font-weight:700;color:#E67E22">'+pend+'</div><div style="font-size:9pt;color:#555">Pendientes</div></div>'
-    + '<div style="background:'+(bloq>0?'#FDEDEC':'#F8FBFE')+';border:1px solid '+(bloq>0?'#F1948A':'#eee')+';padding:12px;border-radius:4px;text-align:center"><div style="font-size:18pt;font-weight:700;color:'+(bloq>0?'#E74C3C':'#888')+'">'+bloq+'</div><div style="font-size:9pt;color:#555">Bloqueantes</div></div>'
+    + '<div style="background:'+(bloq>0?'#FDEDEC':'#162035')+';border:1px solid '+(bloq>0?'#F1948A':'#eee')+';padding:12px;border-radius:4px;text-align:center"><div style="font-size:18pt;font-weight:700;color:'+(bloq>0?'#E74C3C':'#888')+'">'+bloq+'</div><div style="font-size:9pt;color:#555">Bloqueantes</div></div>'
     + '</div>'
     + '<p style="font-size:9pt;color:#555">Completitud del legajo: <strong>'+okC+'/'+CHECKLIST_ITEMS.length+' documentos ('+pctOK+'%)</strong>.</p>'
     + tbl(th(['Estado','Documento requerido','Observación']),clRows)
@@ -340,7 +340,7 @@ function genINF01(legajo, periodos, memosList) {
         + '<div style="font-size:8.5pt;color:#888;margin-bottom:8px">Registro cronológico de acciones tomadas, solicitudes de información y seguimiento del período.</div>'
         + memosList.map(function(memo,i){
             var esCompliance = memo.tipo==='compliance';
-            return '<div style="background:'+(esCompliance?'#EBF5FB':'#F9FAFB')+';border:1px solid '+(esCompliance?'#AED6F1':'#E8EEF4')+';border-left:3px solid '+(esCompliance?'#2471A3':'#27AE60')+';border-radius:4px;padding:12px 14px;margin-bottom:10px">'
+            return '<div style="background:'+(esCompliance?'rgba(0,212,255,0.08)':'rgba(0,230,118,0.05)')+';border:1px solid '+(esCompliance?'rgba(0,212,255,0.25)':'rgba(0,230,118,0.2)')+';border-left:2px solid '+(esCompliance?'#00D4FF':'#00E676')+';border-radius:4px;padding:12px 14px;margin-bottom:10px">'
               + '<div style="display:flex;justify-content:space-between;margin-bottom:6px">'
               + '<strong style="font-size:9.5pt;color:#1B2A4A">'+(esCompliance?'📋 ':'')+(memo.autor||'Analista')+(esCompliance?' — Memo de Compliance':'')+'</strong>'
               + '<span style="font-size:8.5pt;color:#888">'+memo.fecha+(memo.hora?' · '+memo.hora:'')+'</span>'
@@ -2009,7 +2009,7 @@ function DashboardView(props) {
               <span style={{fontWeight:700,color:T.AMBER,fontSize:14}}>Atención requerida — {notificaciones.length} cuenta(s) activa(s) sin análisis AML reciente</span>
             </div>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-              <thead><tr>{['Empresa','CUIT','Estado','Segmento','Situación','Acción'].map(function(h,i){return <th key={i} style={{background:'#E67E22',color:'white',padding:'5px 10px',textAlign:'left',fontWeight:700}}>{h}</th>;})}</tr></thead>
+              <thead><tr>{['Empresa','CUIT','Estado','Segmento','Situación','Acción'].map(function(h,i){return <th key={i} style={{background:T.BG3,color:T.TEXT3,padding:'5px 10px',textAlign:'left',fontWeight:400,fontSize:9,letterSpacing:'1px',fontFamily:T.MONO}}>{h}</th>;})}</tr></thead>
               <tbody>{notificaciones.map(function(n,i){return(
                 <tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
                   <td style={{padding:'6px 10px',fontWeight:500,color:T.TEXT2}}>{n.l.razonSocial||'—'}</td>
@@ -2042,7 +2042,7 @@ function DashboardView(props) {
           );})}
         </div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:18}}>
-          {[{label:'En Onboarding',val:onboarding,col:'#7F8C8D',bg:'#F2F3F4'},{label:'Activas',val:activas,col:'#27AE60',bg:'#EBF9F0'},{label:'Monitoreo Ref.',val:activasRef,col:'#E67E22',bg:'#FEF9E7'},{label:'Suspendidas',val:suspendidas,col:'#F39C12',bg:'#FDFBD5'},{label:'Cerradas',val:cerradas,col:'#E74C3C',bg:'#FDEDEC'}].map(function(kpi,i){return(
+          {[{label:'En Onboarding',val:onboarding,col:'#8BA3C0',bg:T.BG3},{label:'Activas',val:activas,col:T.GREEN,bg:'rgba(0,230,118,0.1)'},{label:'Monitoreo Ref.',val:activasRef,col:T.AMBER,bg:'rgba(255,140,0,0.1)'},{label:'Suspendidas',val:suspendidas,col:T.AMBER,bg:'rgba(255,184,48,0.1)'},{label:'Cerradas',val:cerradas,col:T.RED,bg:'rgba(255,68,85,0.1)'}].map(function(kpi,i){return(
             <div key={i} style={{background:kpi.bg,border:'2px solid '+kpi.col,borderRadius:6,padding:'10px 14px',textAlign:'center'}}>
               <div style={{fontSize:10,color:kpi.col,fontWeight:700}}>{kpi.label}</div>
               <div style={{fontSize:24,fontWeight:700,color:kpi.col}}>{kpi.val}</div>
@@ -2077,7 +2077,7 @@ function DashboardView(props) {
         </div>
         {activasConAlertas.length > 0 && <Card title="⚠ Cuentas activas con señales ALTA pendientes">
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-            <thead><tr>{['Razón Social','CUIT','Estado','Períodos','Señales ALTA'].map(function(h,i){return <th key={i} style={{background:'#E74C3C',color:'white',padding:'6px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
+            <thead><tr>{['Razón Social','CUIT','Estado','Períodos','Señales ALTA'].map(function(h,i){return <th key={i} style={{background:T.BG3,color:T.TEXT3,padding:'6px 10px',textAlign:'left',fontSize:9,letterSpacing:'1px',fontWeight:400,fontFamily:T.MONO}}>{h}</th>;})}</tr></thead>
             <tbody>{activasConAlertas.map(function(x,i){
               var est=getEstado(x.l.estadoCuenta||'ACTIVA');
               return(<tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
@@ -2113,12 +2113,12 @@ function DashboardView(props) {
         {/* KPIs ejecutivos */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
           {[
-            {label:'Clientes activos',val:activas+activasRef,icon:'🏢',col:C.AM,bg:'#EBF5FB'},
-            {label:'Señales ALTA totales',val:altas,icon:'🚨',col:C.ROJO,bg:'#FDEDEC'},
-            {label:'RFIs abiertos',val:rfisAbiertos.length,icon:'📧',col:rfisAbiertos.length>0?C.NARANJA:C.VERDE,bg:rfisAbiertos.length>0?'#FEF9E7':'#EBF9F0'},
-            {label:'RFIs vencidos',val:rfisVencidos.length,icon:'⏰',col:rfisVencidos.length>0?C.ROJO:'#7F8C8D',bg:rfisVencidos.length>0?'#FDEDEC':'#F2F3F4'},
+            {label:'Clientes activos',val:activas+activasRef,icon:'🏢',col:T.CYAN,bg:'rgba(0,212,255,0.1)'},
+            {label:'Señales ALTA totales',val:altas,icon:'🚨',col:T.RED,bg:'rgba(255,68,85,0.1)'},
+            {label:'RFIs abiertos',val:rfisAbiertos.length,icon:'📧',col:rfisAbiertos.length>0?T.AMBER:T.GREEN,bg:rfisAbiertos.length>0?'rgba(255,184,48,0.1)':'rgba(0,230,118,0.1)'},
+            {label:'RFIs vencidos',val:rfisVencidos.length,icon:'⏰',col:rfisVencidos.length>0?T.RED:T.TEXT3,bg:rfisVencidos.length>0?'rgba(255,68,85,0.1)':T.BG3},
           ].map(function(k,i){return(
-            <div key={i} style={{background:k.bg,border:'2px solid '+k.col,borderRadius:8,padding:'14px 16px'}}>
+            <div key={i} style={{background:k.bg,border:'1px solid '+k.col+'33',borderRadius:4,padding:'14px 16px'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
                 <div>
                   <div style={{fontSize:10,color:k.col,fontWeight:700,marginBottom:4}}>{k.label}</div>
@@ -2486,7 +2486,7 @@ function LegajosView(props) {
           </div>
           <div style={{display:'flex',gap:8}}>
             <button onClick={handleSave} style={btnG}>💾 Guardar</button>
-            <button onClick={function(){setEditing(false);setForm(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 14px',cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
+            <button onClick={function(){setEditing(false);setForm(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 14px',cursor:'pointer',fontWeight:600,fontSize:12,color:T.TEXT}}>Cancelar</button>
           </div>
         </div>
         <div style={{display:'flex',gap:2,marginBottom:14,background:C.CEL,borderRadius:6,padding:4}}>
@@ -2735,7 +2735,7 @@ function LegajosView(props) {
                   <span style={{color:T.TEXT}}>{item}</span>
                   {isIA && val !== 'Pendiente' && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 4px',fontSize:9,fontWeight:700}}>IA</span>}
                 </div>
-                <select value={val} onChange={function(e){setClItem(item,e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'4px 8px',fontSize:12,color:stC,fontWeight:700,background:val!=='Pendiente'?'#F0F7FF':'white'}}>
+                <select value={val} onChange={function(e){setClItem(item,e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'4px 8px',fontSize:12,color:stC,fontWeight:700,background:val!=='Pendiente'?'rgba(59,109,170,0.1)':T.BG4}}>
                   <option>Pendiente</option><option>OK</option><option>Bloqueante</option><option>N/A</option>
                 </select>
               </div>
@@ -2931,7 +2931,7 @@ function LegajosView(props) {
                 {scr && !screeningLoading && (
                   <div>
                     {/* Badge resultado general */}
-                    <div style={{background:scr.estadoGeneral==='LIMPIO'?'#EBF9F0':scr.estadoGeneral==='COINCIDENCIA'?'#FDEDEC':'#FEF9E7',border:'2px solid '+(scr.estadoGeneral==='LIMPIO'?C.VERDE:scr.estadoGeneral==='COINCIDENCIA'?C.ROJO:C.AMARILLO),borderRadius:6,padding:'12px 16px',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div style={{background:scr.estadoGeneral==='LIMPIO'?'rgba(0,230,118,0.1)':scr.estadoGeneral==='COINCIDENCIA'?'rgba(255,68,85,0.1)':'rgba(255,184,48,0.1)',border:'1px solid '+(scr.estadoGeneral==='LIMPIO'?'rgba(0,230,118,0.3)':scr.estadoGeneral==='COINCIDENCIA'?'rgba(255,68,85,0.3)':'rgba(255,184,48,0.3)'),borderRadius:4,padding:'12px 16px',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                       <div>
                         <span style={{fontWeight:700,fontSize:14,color:getCol(scr.estadoGeneral)}}>
                           {scr.estadoGeneral==='LIMPIO'?'✅ SIN COINCIDENCIAS':scr.estadoGeneral==='COINCIDENCIA'?'🔴 COINCIDENCIA DETECTADA':'🟡 REQUIERE REVISIÓN MANUAL'}
@@ -2950,10 +2950,10 @@ function LegajosView(props) {
                         var estado = res ? res.estado : 'PENDIENTE';
                         var col = getCol(estado);
                         return (
-                          <div key={lista.key} style={{border:'2px solid '+(estado==='LIMPIO'?'#A9DFBF':estado==='COINCIDENCIA'?C.ROJO:estado==='REVISAR'?C.AMARILLO:'#ddd'),borderRadius:6,padding:'12px 14px',background:estado==='LIMPIO'?'#F0FAF4':estado==='COINCIDENCIA'?'#FDEDEC':estado==='REVISAR'?'#FFFDF5':'#F8FBFE'}}>
+                          <div key={lista.key} style={{border:'1px solid '+(estado==='LIMPIO'?'rgba(0,230,118,0.3)':estado==='COINCIDENCIA'?'rgba(255,68,85,0.3)':estado==='REVISAR'?'rgba(255,184,48,0.3)':T.BORDER),borderRadius:3,padding:'12px 14px',background:estado==='LIMPIO'?'rgba(0,230,118,0.08)':estado==='COINCIDENCIA'?'rgba(255,68,85,0.08)':estado==='REVISAR'?'rgba(255,184,48,0.08)':T.BG3}}>
                             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
                               <span style={{fontWeight:700,fontSize:12}}>{lista.flag} {lista.label}</span>
-                              <span style={{background:col,color:'white',borderRadius:8,padding:'2px 10px',fontSize:10,fontWeight:700}}>{estado}</span>
+                              <span style={{background:col+'22',color:col,borderRadius:2,padding:'2px 8px',fontSize:9,fontWeight:600,fontFamily:T.MONO}}>{estado}</span>
                             </div>
                             <div style={{fontSize:11,color:T.TEXT2,lineHeight:1.5}}>{res ? res.detalle : '—'}</div>
                             <a href={lista.url} target="_blank" rel="noreferrer" style={{fontSize:10,color:T.CYAN,display:'block',marginTop:4}}>Ver lista oficial →</a>
@@ -2973,7 +2973,7 @@ function LegajosView(props) {
                 )}
 
                 {!scr && !screeningLoading && (
-                  <div style={{background:T.BG3,border:'2px dashed #ddd',borderRadius:6,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
+                  <div style={{background:T.BG3,border:'1px dashed '+T.BORDER3,borderRadius:6,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
                     <div style={{fontSize:32,marginBottom:8}}>🛡</div>
                     <div style={{fontSize:14,fontWeight:600,color:T.TEXT2}}>Screening no realizado</div>
                     <div style={{fontSize:12,marginTop:4}}>Hacé clic en "Ejecutar Screening" para verificar contra las 4 listas de sanciones.</div>
@@ -3066,10 +3066,10 @@ function LegajosView(props) {
                           setRosSelPer(function(prev){
                             return prev.indexOf(p.id)>=0 ? prev.filter(function(x){return x!==p.id;}) : prev.concat([p.id]);
                           });
-                        }} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',borderRadius:4,cursor:'pointer',background:checked?'#F5EEF8':'white',border:'1px solid '+(checked?'#7D3C98':'#ddd'),marginBottom:6}}>
+                        }} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',borderRadius:4,cursor:'pointer',background:checked?'rgba(139,103,192,0.12)':T.BG3,border:'1px solid '+(checked?'rgba(139,103,192,0.4)':T.BORDER),marginBottom:6}}>
                           <input type="checkbox" checked={checked} readOnly style={{cursor:'pointer'}}/>
                           <div style={{flex:1}}>
-                            <div style={{fontWeight:600,fontSize:13}}>{p.nombre}</div>
+                            <div style={{fontWeight:600,fontSize:12,color:T.TEXT}}>{p.nombre}</div>
                             <div style={{fontSize:11,color:T.TEXT2}}>{p.metricas?fmtM(p.metricas.tIn)+' IN · '+fmtM(p.metricas.tOut)+' OUT · '+(p.txns&&p.txns.length?p.txns.length.toLocaleString('es-AR'):0)+' txns':'Sin métricas calculadas'}</div>
                           </div>
                           {hasSigs && <span style={{background:T.RED,color:'white',borderRadius:8,padding:'2px 8px',fontSize:10,fontWeight:700}}>ALTA</span>}
@@ -3194,7 +3194,7 @@ function LegajosView(props) {
                   </button>
                 </div>
                 {cierreIA ? <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:4,padding:'10px 12px',fontSize:11,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{cierreIA}</div>
-                  : <div style={{background:T.BG3,border:'1px dashed #ddd',borderRadius:4,padding:'12px',fontSize:11,color:T.TEXT3,textAlign:'center'}}>Hacé clic en "Analizar con IA" para generar un análisis automático basado en el legajo y el último período AML.</div>}
+                  : <div style={{background:T.BG3,border:'1px dashed '+T.BORDER3,borderRadius:4,padding:'12px',fontSize:11,color:T.TEXT3,textAlign:'center'}}>Hacé clic en "Analizar con IA" para generar un análisis automático basado en el legajo y el último período AML.</div>}
               </div>
 
               {/* Botones */}
@@ -3213,7 +3213,7 @@ function LegajosView(props) {
                 >
                   📄 Generar INF-07 Cierre
                 </button>
-                <button onClick={function(){setCierreOpen(false);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'11px 18px',cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
+                <button onClick={function(){setCierreOpen(false);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'11px 18px',cursor:'pointer',fontWeight:600,fontSize:12,color:T.TEXT}}>Cancelar</button>
               </div>
             </div>
           </div> : null}
@@ -3622,10 +3622,10 @@ function AnalisisView(props) {
   var rfiRespState = useState({contenido:'',tipo:'RESPUESTA',autor:''}); var rfiResp=rfiRespState[0]; var setRfiResp=rfiRespState[1];
 
   var RFI_ESTADOS = [
-    {id:'ENVIADO',    label:'Enviado',        color:T.AMBER, bg:'#FEF9E7'},
-    {id:'RESPONDIDO', label:'Respondido',     color:T.GREEN, bg:'#EBF9F0'},
+    {id:'ENVIADO',    label:'Enviado',        color:T.AMBER, bg:'rgba(255,184,48,0.1)'},
+    {id:'RESPONDIDO', label:'Respondido',     color:T.GREEN, bg:'rgba(0,230,118,0.1)'},
     {id:'PARCIAL',    label:'Resp. parcial',  color:T.AMBER, bg:'#FEF0E7'},
-    {id:'SIN_RESP',   label:'Sin respuesta',  color:T.RED, bg:'#FDEDEC'},
+    {id:'SIN_RESP',   label:'Sin respuesta',  color:T.RED, bg:'rgba(255,68,85,0.1)'},
     {id:'CERRADO',    label:'Cerrado',        color:T.TEXT3, bg:'#F2F3F4'},
   ];
   function getRfiEstado(id) { return RFI_ESTADOS.find(function(e){return e.id===id;}) || RFI_ESTADOS[0]; }
@@ -3875,7 +3875,7 @@ function AnalisisView(props) {
         }).filter(function(d){return d.tIn>0||d.totalTxns>0;});
 
         if (periodosDatos.length === 0) {
-          return <div style={{background:T.BG3,border:'2px dashed #ddd',borderRadius:6,padding:'30px',textAlign:'center',color:T.TEXT3}}>
+          return <div style={{background:T.BG3,border:'1px dashed '+T.BORDER3,borderRadius:6,padding:'30px',textAlign:'center',color:T.TEXT3}}>
             <div style={{fontSize:32,marginBottom:8}}>📊</div>
             <div style={{fontSize:14,fontWeight:600}}>Sin datos de métricas para mostrar tendencias</div>
             <div style={{fontSize:12,marginTop:4}}>Subí los archivos XLS de cada período para generar las métricas.</div>
@@ -4068,11 +4068,11 @@ function AnalisisView(props) {
             {/* Estado del período */}
             {(function(){
               var ESTADOS_PERIODO = [
-                {id:'EN_REVISION',label:'🔍 En revisión',col:'#2471A3',bg:'#EBF5FB'},
-                {id:'RFI_ENVIADO',label:'📧 RFI enviado',col:'#E67E22',bg:'#FEF9E7'},
-                {id:'CERRADO_SIN_ALERTA',label:'✅ Cerrado — sin alerta',col:'#27AE60',bg:'#EBF9F0'},
-                {id:'CERRADO_CON_ALERTA',label:'🚨 Cerrado — con alerta',col:'#E74C3C',bg:'#FDEDEC'},
-                {id:'ARCHIVADO',label:'📦 Archivado',col:'#7F8C8D',bg:'#F2F3F4'},
+                {id:'EN_REVISION',label:'🔍 En revisión',col:T.CYAN,bg:'rgba(0,212,255,0.1)'},
+                {id:'RFI_ENVIADO',label:'📧 RFI enviado',col:T.AMBER,bg:'rgba(255,184,48,0.1)'},
+                {id:'CERRADO_SIN_ALERTA',label:'✅ Cerrado — sin alerta',col:T.GREEN,bg:'rgba(0,230,118,0.1)'},
+                {id:'CERRADO_CON_ALERTA',label:'🚨 Cerrado — con alerta',col:T.RED,bg:'rgba(255,68,85,0.1)'},
+                {id:'ARCHIVADO',label:'📦 Archivado',col:T.TEXT3,bg:T.BG3},
               ];
               var estadoActual = ESTADOS_PERIODO.find(function(e){return e.id===(selPeriodo.estadoPeriodo||'EN_REVISION');}) || ESTADOS_PERIODO[0];
               var puedeEditar = currentUser && (puedeAprobar(currentUser.rol));
@@ -4431,7 +4431,7 @@ function AnalisisView(props) {
                       var memoKey2 = 'memos_'+( selPeriodo&&selPeriodo.id||'x');
                       var updated = memos.concat([entry]);
                       setMemos(updated);                    }}
-                    style={{background:'#2471A3',color:'white',border:'none',borderRadius:4,padding:'9px 18px',cursor:'pointer',fontWeight:700,fontSize:12}}
+                    style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'9px 18px',cursor:'pointer',fontWeight:600,fontSize:11,fontFamily:T.MONO}}
                   >
                     📋 Generar memo de cumplimiento
                   </button>
@@ -4440,7 +4440,7 @@ function AnalisisView(props) {
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
                   {accionesSugeridas.slice(0,4).map(function(a,i){
                     var col = a.urgencia==='ALTA'?'#E74C3C':a.urgencia==='MEDIA'?'#E67E22':'#27AE60';
-                    var bg = a.urgencia==='ALTA'?'#FDEDEC':a.urgencia==='MEDIA'?'#FEF9E7':'#EBF9F0';
+                    var bg = a.urgencia==='ALTA'?'rgba(255,68,85,0.1)':a.urgencia==='MEDIA'?'rgba(255,184,48,0.1)':'rgba(0,230,118,0.1)';
                     return (
                       <div key={i} style={{background:bg,border:'1px solid '+col,borderRadius:4,padding:'8px 10px',borderLeft:'3px solid '+col}}>
                         <div style={{display:'flex',gap:6,marginBottom:3}}>
@@ -4458,7 +4458,7 @@ function AnalisisView(props) {
           }())}
 
           {/* ── NUEVA ANOTACIÓN LIBRE ─────────────────────────────────────────── */}
-          <div style={{background:'#F0FAF4',border:'2px solid #27AE60',borderRadius:6,padding:'16px 18px',marginBottom:14}}>
+          <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.25)',borderRadius:3,padding:'16px 18px',marginBottom:14}}>
             <div style={{fontWeight:700,color:T.GREEN,fontSize:14,marginBottom:12}}>📝 Nueva anotación — {selLegajo&&selLegajo.razonSocial} · {selPeriodo&&selPeriodo.nombre}</div>
             <div style={{display:'flex',gap:10,marginBottom:10}}>
               <div style={{flex:'0 0 160px'}}>
@@ -4501,7 +4501,7 @@ function AnalisisView(props) {
                       <div>
                         <div style={{display:'flex',gap:6,alignItems:'center'}}>
                           <span style={{fontWeight:600,color:T.TEXT,fontSize:11}}>{memo.autor||'Analista'}</span>
-                          {esCompliance && <span style={{background:'#2471A3',color:'white',borderRadius:4,padding:'1px 7px',fontSize:9,fontWeight:700}}>MEMO COMPLIANCE</span>}
+                          {esCompliance && <span style={{background:'rgba(0,212,255,0.15)',color:T.CYAN,borderRadius:2,padding:'1px 7px',fontSize:9,fontWeight:600}}>MEMO COMPLIANCE</span>}
                         </div>
                         <div style={{fontSize:11,color:T.TEXT2}}>{memo.fecha} · {memo.hora}</div>
                       </div>
@@ -4531,7 +4531,7 @@ function AnalisisView(props) {
                 setRfiMode('nuevo');
                 setRfiForm({asunto:'Requerimiento de información — '+(selPeriodo&&selPeriodo.nombre||''), refNum:genRfiRef(), contenido:'', autor:analistaVal||'Analista'});
               }}
-              style={{background:'#1A4A6B',color:'white',border:'none',borderRadius:4,padding:'9px 18px',cursor:'pointer',fontWeight:700,fontSize:12}}
+              style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'9px 18px',cursor:'pointer',fontWeight:600,fontSize:11,fontFamily:T.MONO}}
             >+ Nuevo RFI</button>
           </div>
 
@@ -4622,7 +4622,7 @@ function AnalisisView(props) {
                           var isNota = msg.tipo==='NOTA';
                           var isCierre = msg.tipo==='CIERRE';
                           var msgColor = isEnvio?'#1A4A6B':isResp?'#1A6B3A':isCierre?'#7F8C8D':'#E67E22';
-                          var msgBg = isEnvio?'#EBF5FB':isResp?'#EBF9F0':isCierre?'#F2F3F4':'#FEF9E7';
+                          var msgBg = isEnvio?'rgba(0,212,255,0.08)':isResp?'rgba(0,230,118,0.08)':isCierre?T.BG3:'rgba(255,184,48,0.08)';
                           var msgLabel = isEnvio?'📤 ENVÍO':'📥 RESPUESTA';
                           if (isNota) msgLabel = '📌 NOTA INTERNA';
                           if (isCierre) msgLabel = '🔒 CIERRE';
@@ -4821,7 +4821,7 @@ function AlertasView(props) {
       </div>
 
       {/* Tabs */}
-      <div style={{display:'flex',gap:4,marginBottom:16,background:'#F4F6F9',borderRadius:8,padding:4}}>
+      <div style={{display:'flex',gap:4,marginBottom:16,background:T.BG3,borderRadius:3,padding:4,border:'1px solid '+T.BORDER}}>
         {TAB_COUNTS.map(function(t){
           var on = tab===t[0];
           var hasCnt = t[2]>0;
@@ -4842,7 +4842,7 @@ function AlertasView(props) {
       {tab==='senales' && (
         <div>
           {allSigs.length===0 ? (
-            <div style={{background:T.BG3,border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
+            <div style={{background:T.BG3,border:'1px dashed '+T.BORDER3,borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
               <div style={{fontSize:32,marginBottom:8}}>✅</div>
               <div style={{fontSize:14,fontWeight:600,color:T.TEXT2}}>Sin señales activas</div>
               <div style={{fontSize:12,marginTop:4}}>Todos los períodos analizados están sin alertas pendientes.</div>
@@ -4901,7 +4901,7 @@ function AlertasView(props) {
       {tab==='rfis' && (
         <div>
           {rfisVencidos.length===0 && rfisProximos.length===0 ? (
-            <div style={{background:T.BG3,border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
+            <div style={{background:T.BG3,border:'1px dashed '+T.BORDER3,borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
               <div style={{fontSize:32,marginBottom:8}}>📧</div>
               <div style={{fontSize:14,fontWeight:600,color:T.TEXT2}}>Sin RFIs vencidos o próximos a vencer</div>
             </div>
@@ -4954,7 +4954,7 @@ function AlertasView(props) {
                           <div>
                             <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
                               <span style={{fontFamily:'monospace',fontSize:12,fontWeight:700,color:T.CYAN}}>{r.refNum||'RFI'}</span>
-                              <span style={{background:'#FEF3E8',color:T.AMBER,borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>día {dias} de 7</span>
+                              <span style={{background:'rgba(255,184,48,0.15)',color:T.AMBER,borderRadius:2,padding:'1px 8px',fontSize:11,fontWeight:700}}>día {dias} de 7</span>
                             </div>
                             <div style={{fontSize:13,fontWeight:500,color:T.TEXT2}}>{r.legajoNombre}</div>
                             <div style={{fontSize:12,color:T.TEXT2,marginTop:2}}>{r.asunto||'Sin asunto'}</div>
@@ -4982,7 +4982,7 @@ function AlertasView(props) {
       {tab==='analisis' && (
         <div>
           {sinAnalizar.length===0 ? (
-            <div style={{background:T.BG3,border:'2px dashed #ddd',borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
+            <div style={{background:T.BG3,border:'1px dashed '+T.BORDER3,borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
               <div style={{fontSize:32,marginBottom:8}}>⏱</div>
               <div style={{fontSize:14,fontWeight:600,color:T.TEXT2}}>Todos los clientes tienen análisis reciente</div>
             </div>
@@ -5040,7 +5040,7 @@ function NormativaView() {
           <thead><tr>{['Normativa','Descripcion','Articulo / Alcance'].map(function(h,i){return <th key={i} style={{background:C.AO,color:'white',padding:'7px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
           <tbody>{normas.map(function(n,i){return(
             <tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
-              <td style={{padding:'6px 10px',fontWeight:700,color:C.AM,whiteSpace:'nowrap'}}>{n.cod}</td>
+              <td style={{padding:'6px 10px',fontWeight:600,color:T.CYAN,whiteSpace:'nowrap'}}>{n.cod}</td>
               <td style={{padding:'6px 10px'}}>{n.nombre}</td>
               <td style={{padding:'6px 10px',color:T.TEXT2,fontSize:11}}>{n.art}</td>
             </tr>
@@ -5052,7 +5052,7 @@ function NormativaView() {
           <thead><tr>{['#','Fuente','Jurisdiccion'].map(function(h,i){return <th key={i} style={{background:C.AO,color:'white',padding:'7px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
           <tbody>{SCREENING.map(function(s,i){return(
             <tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
-              <td style={{padding:'6px 10px',fontWeight:700,color:C.AM}}>{i+1}</td>
+              <td style={{padding:'6px 10px',fontWeight:600,color:T.CYAN}}>{i+1}</td>
               <td style={{padding:'6px 10px'}}><strong>{s.n}</strong></td>
               <td style={{padding:'6px 10px',color:T.TEXT2}}>{s.j}</td>
             </tr>
@@ -5315,7 +5315,7 @@ function PatronesView() {
   ];
 
   var SEV_COLOR = { 'ALTA': C.ROJO, 'MEDIA': C.NARANJA };
-  var SEV_BG    = { 'ALTA': '#FDEDEC', 'MEDIA': '#FEF3E8' };
+  var SEV_BG    = { 'ALTA': 'rgba(255,68,85,0.1)', 'MEDIA': 'rgba(255,184,48,0.1)' };
 
   var expandState = useState(null); var expanded = expandState[0]; var setExpanded = expandState[1];
 
@@ -5332,7 +5332,7 @@ function PatronesView() {
 
       {/* Leyenda de severidad */}
       <div style={{display:'flex',gap:10,marginBottom:16}}>
-        {[['ALTA',C.ROJO,'#FDEDEC'],['MEDIA',C.NARANJA,'#FEF3E8']].map(function(s){return(
+        {[['ALTA',T.RED,'rgba(255,68,85,0.1)'],['MEDIA',T.AMBER,'rgba(255,184,48,0.1)']].map(function(s){return(
           <div key={s[0]} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 12px',background:s[2],border:'1px solid '+s[1],borderRadius:20}}>
             <div style={{width:7,height:7,borderRadius:'50%',background:s[1]}}></div>
             <span style={{fontSize:11,fontWeight:700,color:s[1]}}>Severidad {s[0]}</span>
@@ -5361,7 +5361,7 @@ function PatronesView() {
               {/* Row */}
               <div
                 onClick={function(){ setExpanded(isOpen ? null : p.code); }}
-                style={{display:'grid',gridTemplateColumns:'90px 1fr 80px 80px',padding:'11px 16px',gap:12,cursor:'pointer',background:isOpen ? '#EBF5FB' : (i%2===0?'white':'#F8FBFE'),transition:'background 0.1s',alignItems:'center'}}
+                style={{display:'grid',gridTemplateColumns:'90px 1fr 80px 80px',padding:'11px 16px',gap:12,cursor:'pointer',background:isOpen ? 'rgba(59,109,170,0.15)' : (i%2===0?T.BG2:T.BG3),transition:'background 0.1s',alignItems:'center'}}
               >
                 <div style={{fontFamily:'monospace',fontWeight:700,fontSize:12.5,color:T.CYAN}}>{p.code}</div>
                 <div style={{fontSize:13,fontWeight:isOpen?700:500,color:T.TEXT}}>{p.name}</div>
@@ -5410,7 +5410,7 @@ function PatronesView() {
       </div>
 
       {/* Footer nota */}
-      <div style={{marginTop:14,padding:'10px 14px',background:'#F4F6F9',borderRadius:6,fontSize:11,color:T.TEXT3,lineHeight:1.6}}>
+      <div style={{marginTop:14,padding:'10px 14px',background:T.BG3,borderRadius:3,fontSize:11,color:T.TEXT3,lineHeight:1.6}}>
         <strong>Nota regulatoria:</strong> Los patrones PAT-01 a PAT-12 son indicadores internos del sistema Rebit AML Tool mapeados
         a las tipologías de lavado de activos definidas por la UIF en la Resolución 156/2018 y sus modificatorias.
         La detección de un patrón no implica automáticamente la existencia de una operación ilícita —
@@ -5424,8 +5424,8 @@ function PatronesView() {
 
 function WikiBadge({type, children}) {
   var map = {
-    red:['#FDEDEC','#E74C3C'],orange:['#FEF3E8','#E67E22'],yellow:['#FFFDE7','#B7770D'],
-    green:['#EBF9F0','#27AE60'],blue:['#EBF5FB','#2C4A7C'],gray:['#F4F6F9','#7F8C8D'],purple:['#F5EEF8','#7D3C98']
+    red:['rgba(255,68,85,0.1)',T.RED],orange:['rgba(255,140,0,0.1)',T.AMBER],yellow:['rgba(255,184,48,0.1)',T.AMBER],
+    green:['rgba(0,230,118,0.1)',T.GREEN],blue:['rgba(0,212,255,0.1)',T.CYAN],gray:[T.BG3,T.TEXT2],purple:['rgba(139,103,192,0.1)','#B39DDB']
   };
   var c = map[type] || map.blue;
   return <span style={{background:c[0],color:c[1],borderRadius:12,padding:'2px 10px',fontSize:11,fontWeight:700,marginRight:4,whiteSpace:'nowrap',display:'inline-block'}}>{children}</span>;
@@ -5453,7 +5453,7 @@ function WikiStepList({steps}) {
             <div onClick={()=>toggle(i)} style={{width:28,height:28,borderRadius:'50%',flexShrink:0,marginTop:2,background:ok?C.VERDE:C.AM,color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,cursor:'pointer',transition:'background 0.2s'}}>
               {ok ? '✓' : i+1}
             </div>
-            <div style={{flex:1,background:ok?'#F0FAF4':'white',border:'1px solid '+(ok?'#A9DFBF':'#E8EEF4'),borderRadius:8,padding:'9px 13px',transition:'all 0.2s'}}>
+            <div style={{flex:1,background:ok?'rgba(0,230,118,0.08)':T.BG2,border:'1px solid '+(ok?'rgba(0,230,118,0.25)':T.BORDER),borderRadius:8,padding:'9px 13px',transition:'all 0.2s'}}>
               <div style={{fontSize:13,fontWeight:600,color:ok?C.VERDE:C.AO,marginBottom:2,textDecoration:ok?'line-through':'none'}}>{step[0]}</div>
               <div style={{fontSize:12.5,color:T.TEXT2,lineHeight:1.6}}>{step[1]}</div>
             </div>
@@ -5466,7 +5466,7 @@ function WikiStepList({steps}) {
 }
 
 function WikiBox({type, children}) {
-  var cfg = {tip:['#EBF9F0','#A9DFBF','#1E8449','✓ '],warn:['#FEF3E8','#F0B27A','#B7770D','⚠ '],danger:['#FDEDEC','#F1948A','#922B21','⚠ '],info:['#EBF5FB','#AED6F1','#1A5276','ℹ ']};
+  var cfg = {tip:['rgba(0,230,118,0.08)','rgba(0,230,118,0.25)',T.GREEN,'✓ '],warn:['rgba(255,184,48,0.08)','rgba(255,184,48,0.25)',T.AMBER,'⚠ '],danger:['rgba(255,68,85,0.08)','rgba(255,68,85,0.25)',T.RED,'⚠ '],info:['rgba(0,212,255,0.08)','rgba(0,212,255,0.25)',T.CYAN,'ℹ ']};
   var c = cfg[type]||cfg.info;
   return <div style={{background:c[0],border:'1px solid '+c[1],borderLeft:'4px solid '+c[1],borderRadius:6,padding:'10px 14px',marginBottom:14,fontSize:12.5,color:c[2],lineHeight:1.6}}><strong>{c[3]}</strong>{children}</div>;
 }
@@ -5543,17 +5543,17 @@ function WikiView() {
             <p style={{fontSize:13,color:'rgba(255,255,255,0.75)',margin:0,lineHeight:1.6}}>Guía completa de operación para todo el equipo de Compliance. Navegá por las secciones del panel izquierdo.</p>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:20}}>
-            {[['📁','Legajos KYB','Onboarding, documentación y ciclo de vida','legajos','#EBF5FB','#2C4A7C'],
-              ['📈','Análisis AML','Carga de archivos, métricas y señales','aml','#EBF9F0','#1E8449'],
-              ['🔄','Flujos','Timelines completos paso a paso','flujos','#FEF3E8','#B7770D'],
-              ['📧','RFI','Requerimientos y gestión de respuestas','rfi','#F5EEF8','#7D3C98'],
-              ['🛡','Screening','OFAC · ONU · REPET · PEPs','screening','#FDEDEC','#922B21'],
-              ['📋','ROS','Reporte de Operación Sospechosa','ros','#F8FBFE','#1B2A4A']
+            {[['📁','Legajos KYB','Onboarding, documentación y ciclo de vida','legajos','rgba(59,109,170,0.12)',T.CYAN],
+              ['📈','Análisis AML','Carga de archivos, métricas y señales','aml','rgba(0,230,118,0.1)',T.GREEN],
+              ['🔄','Flujos','Timelines completos paso a paso','flujos','rgba(255,184,48,0.1)',T.AMBER],
+              ['📧','RFI','Requerimientos y gestión de respuestas','rfi','rgba(139,103,192,0.1)','#B39DDB'],
+              ['🛡','Screening','OFAC · ONU · REPET · PEPs','screening','rgba(255,68,85,0.1)',T.RED],
+              ['📋','ROS','Reporte de Operación Sospechosa','ros','rgba(59,109,170,0.08)',T.TEXT2]
             ].map(([ic,tit,desc,id,bg,col])=>(
-              <div key={id} onClick={()=>setActive(id)} style={{background:bg,border:'1px solid '+bg,borderRadius:10,padding:'14px',cursor:'pointer',transition:'all 0.15s'}}>
-                <div style={{fontSize:22,marginBottom:6}}>{ic}</div>
-                <div style={{fontSize:13,fontWeight:700,color:col,marginBottom:3}}>{tit}</div>
-                <div style={{fontSize:11.5,color:T.TEXT3,lineHeight:1.5}}>{desc}</div>
+              <div key={id} onClick={()=>setActive(id)} style={{background:bg,border:'1px solid rgba(255,255,255,0.06)',borderRadius:4,padding:'14px',cursor:'pointer',transition:'all 0.15s'}}>
+                <div style={{fontSize:20,marginBottom:6}}>{ic}</div>
+                <div style={{fontSize:12,fontWeight:600,color:col,marginBottom:3,fontFamily:T.MONO}}>{tit}</div>
+                <div style={{fontSize:11,color:T.TEXT3,lineHeight:1.5}}>{desc}</div>
               </div>
             ))}
           </div>
@@ -5942,14 +5942,14 @@ function WikiView() {
 
   return (
     <div style={{display:'flex',gap:0,minHeight:'calc(100vh - 60px)'}}>
-      <div style={{width:200,flexShrink:0,background:'#F4F6F9',borderRight:'1px solid #E8EEF4',padding:'14px 0',overflowY:'auto'}}>
+      <div style={{width:200,flexShrink:0,background:T.BG2,borderRight:'1px solid '+T.BORDER+',padding:'14px 0',overflowY:'auto'}}>
         <div style={{padding:'0 10px 10px',borderBottom:'1px solid '+T.BORDER,marginBottom:8}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar sección..." style={{width:'100%',padding:'6px 10px',border:'1px solid '+T.BORDER2,borderRadius:6,fontSize:12,color:T.TEXT,background:T.BG2}}/>
         </div>
         {visible.map(s=>{
           var on = active===s.id;
           return (
-            <button key={s.id} onClick={()=>{setActive(s.id);setSearch('');}} style={{display:'block',width:'100%',textAlign:'left',padding:'7px 16px',border:'none',background:on?'#EBF5FB':'transparent',color:on?C.AO:'#555',fontWeight:on?700:400,fontSize:12,cursor:'pointer',borderLeft:'3px solid '+(on?C.AC:'transparent'),transition:'all 0.12s'}}>
+            <button key={s.id} onClick={()=>{setActive(s.id);setSearch('');}} style={{display:'block',width:'100%',textAlign:'left',padding:'7px 16px',border:'none',background:on?'rgba(59,109,170,0.15)':'transparent',color:on?T.CYAN:T.TEXT2,fontWeight:on?600:400,fontSize:11,cursor:'pointer',fontFamily:T.MONO,borderLeft:'2px solid '+(on?C.AC:'transparent'),transition:'all 0.12s'}}>
               <span style={{marginRight:6}}>{s.icon}</span>{s.label}
             </button>
           );
@@ -6019,8 +6019,8 @@ function UsuariosView(props) {
         </button>
       </div>
 
-      {ok && <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:4,padding:'10px 14px',marginBottom:12,color:T.GREEN,fontWeight:600,fontSize:13}}>✅ {ok}</div>}
-      {err && <div style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.2)',borderRadius:4,padding:'10px 14px',marginBottom:12,color:T.RED,fontWeight:600,fontSize:13}}>⚠ {err}</div>}
+      {ok && <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:4,padding:'10px 14px',marginBottom:12,color:T.GREEN,fontWeight:600,fontSize:12,color:T.TEXT}}>✅ {ok}</div>}
+      {err && <div style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.2)',borderRadius:4,padding:'10px 14px',marginBottom:12,color:T.RED,fontWeight:600,fontSize:12,color:T.TEXT}}>⚠ {err}</div>}
 
       {/* Formulario nuevo usuario */}
       {form && (
@@ -6109,7 +6109,7 @@ function UsuariosView(props) {
                       )}
                     </td>
                     <td style={{padding:'10px 14px'}}>
-                      <span style={{background:u.activo?'#EBF9F0':'#F2F3F4',color:u.activo?C.VERDE:'#888',border:'1px solid '+(u.activo?C.VERDE:'#ddd'),borderRadius:8,padding:'2px 10px',fontSize:11,fontWeight:700}}>
+                      <span style={{background:u.activo?'rgba(0,230,118,0.1)':T.BG3,color:u.activo?T.GREEN:T.TEXT3,border:'1px solid '+(u.activo?C.VERDE:'#ddd'),borderRadius:8,padding:'2px 10px',fontSize:11,fontWeight:700}}>
                         {u.activo ? '● Activo' : '○ Inactivo'}
                       </span>
                     </td>
@@ -6121,7 +6121,7 @@ function UsuariosView(props) {
                         </button>
                         {!esSelf && (
                           <button onClick={function(){handleToggle(u);}}
-                            style={{background:u.activo?'#FEF9E7':'#EBF9F0',border:'1px solid '+(u.activo?C.AMARILLO:C.VERDE),borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:11,color:u.activo?'#E67E22':C.VERDE}}>
+                            style={{background:u.activo?'rgba(255,184,48,0.1)':'rgba(0,230,118,0.1)',border:'1px solid '+(u.activo?T.AMBER:T.GREEN),borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:11,color:u.activo?'#E67E22':C.VERDE}}>
                             {u.activo ? '⏸ Desactivar' : '▶ Activar'}
                           </button>
                         )}
