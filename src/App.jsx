@@ -969,10 +969,27 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
   contentBlocks.push({ type:'text', text:prompt });
 
   // Siempre usar el proxy del servidor para evitar CORS en todos los browsers
-  var DOC_BLOCKS_PER_BATCH = 2;
+  var DOC_BLOCKS_PER_BATCH = 1; // 1 doc por lote para evitar 413 en Vercel (límite 4.5MB)
 
   // Separar los bloques de documentos del prompt
   var docBlocks = contentBlocks.filter(function(b){ return b.type === 'document' || b.type === 'image'; });
+
+  // Filtrar documentos que superen 3.5MB de tamaño (para dejar margen al prompt y compresión)
+  var MAX_DOC_BYTES = 3.5 * 1024 * 1024;
+  var docsOmitidos = 0;
+  docBlocks = docBlocks.filter(function(b) {
+    var dataStr = (b.source && b.source.data) ? b.source.data : '';
+    var byteSize = dataStr.length * 0.75; // base64 → bytes aprox
+    if (byteSize > MAX_DOC_BYTES) {
+      docsOmitidos++;
+      console.warn('[Rebit IA] Documento omitido por tamaño: ' + (byteSize/1024/1024).toFixed(1) + 'MB (límite 3.5MB)');
+      return false;
+    }
+    return true;
+  });
+  if (docsOmitidos > 0) {
+    console.warn('[Rebit IA] ' + docsOmitidos + ' documento(s) omitido(s) por exceder el límite de tamaño. Usá PDFs más livianos o comprimí las imágenes antes de subir.');
+  }
   var textBlocks = contentBlocks.filter(function(b){ return b.type === 'text'; });
   var promptBlock = textBlocks[textBlocks.length - 1];
 
