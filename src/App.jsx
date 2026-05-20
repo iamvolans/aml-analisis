@@ -1989,11 +1989,11 @@ function DashboardView(props) {
     <div style={{padding:22}}>
       {/* TABS */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
-        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,letterSpacing:'1px',margin:0}}>Dashboard — GOAT S.A. / Rebit</h2>
+        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>Dashboard — GOAT S.A. / Rebit</h2>
         <div style={{display:'flex',gap:2,background:C.CEL,borderRadius:6,padding:4}}>
           {[['operacional','📊 Operacional'],['ejecutivo','📈 Ejecutivo']].map(function(t){return(
             <button key={t[0]} onClick={function(){setDashTab(t[0]);}}
-              style={{padding:'7px 18px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:dashTab===t[0]?700:400,background:dashTab===t[0]?'rgba(59,109,170,0.15)':'transparent',color:dashTab===t[0]?T.CYAN:T.TEXT3,fontSize:12}}>
+              style={{padding:'7px 18px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:dashTab===t[0]?700:400,background:dashTab===t[0]?'rgba(59,109,170,0.15)':'transparent',color:dashTab===t[0]?T.CYAN:T.TEXT2,fontFamily:T.MONO,fontSize:11,fontSize:12}}>
               {t[1]}
             </button>
           );})}
@@ -2470,7 +2470,7 @@ function LegajosView(props) {
   }
 
   var iS = {width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 9px',fontSize:13};
-  var btnB = {background:C.AC,color:'white',border:'none',borderRadius:3,padding:'8px 18px',cursor:'pointer',fontWeight:700,fontSize:13};
+  var btnB = {background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'8px 18px',cursor:'pointer',fontWeight:700,fontSize:13};
   var btnG = {background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'8px 18px',cursor:'pointer',fontWeight:700,fontSize:13};
   var btnR = {background:'rgba(255,68,85,0.15)',color:T.RED,border:'1px solid rgba(255,68,85,0.3)',borderRadius:3,padding:'7px 14px',cursor:'pointer',fontWeight:600,fontSize:12};
 
@@ -2481,7 +2481,7 @@ function LegajosView(props) {
       <div style={{padding:22,maxWidth:900}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
           <div>
-            <h2 style={{color:T.TEXT,fontSize:14,fontWeight:600,letterSpacing:'1px',margin:0}}>{legajos.find(function(l){return l.id===form.id;}) ? 'Editar Legajo' : 'Nuevo Legajo KYB'}</h2>
+            <h2 style={{color:T.TEXT,fontSize:14,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>{legajos.find(function(l){return l.id===form.id;}) ? 'Editar Legajo' : 'Nuevo Legajo KYB'}</h2>
             {!legajos.find(function(l){return l.id===form.id;}) && <div style={{fontSize:12,color:T.TEXT2,marginTop:3}}>Paso 1: subí los documentos → Paso 2: revisá los datos → Paso 3: guardá</div>}
           </div>
           <div style={{display:'flex',gap:8}}>
@@ -2499,7 +2499,7 @@ function LegajosView(props) {
             ['historial', '🕐 Historial'],
             ['screening', '🛡 Screening' + (form.screening ? (form.screening.estadoGeneral==='LIMPIO'?' ✅':form.screening.estadoGeneral==='COINCIDENCIA'?' 🔴':' 🟡') : '')]
           ].map(function(t){return(
-            <button key={t[0]} onClick={function(){setTab(t[0]);}} style={{flex:1,padding:'7px 4px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:tab===t[0]?700:400,background:tab===t[0]?'rgba(59,109,170,0.2)':'transparent',color:tab===t[0]?T.CYAN:T.TEXT3,borderBottom:tab===t[0]?'2px solid '+C.AC:'2px solid transparent',fontSize:11,whiteSpace:'nowrap'}}>{t[1]}</button>
+            <button key={t[0]} onClick={function(){setTab(t[0]);}} style={{flex:1,padding:'7px 4px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:tab===t[0]?700:400,background:tab===t[0]?'rgba(59,109,170,0.15)':'transparent',color:tab===t[0]?T.CYAN:T.TEXT2,borderBottom:tab===t[0]?'2px solid '+C.AC:'2px solid transparent',fontFamily:T.MONO,fontSize:11,letterSpacing:'0.5px',fontSize:11,whiteSpace:'nowrap'}}>{t[1]}</button>
           );})}
         </div>
         {tab === 'resumen_ia' ? <div>
@@ -2619,9 +2619,9 @@ function LegajosView(props) {
             </div>
 
             <div style={{display:'flex',gap:8}}>
-              <button onClick={function(){setTab('datos');}} style={{flex:1,background:C.AC,color:'white',border:'none',borderRadius:3,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13}}>📋 Revisar Datos →</button>
+              <button onClick={function(){setTab('datos');}} style={{flex:1,background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13}}>📋 Revisar Datos →</button>
               <button onClick={function(){setTab('checklist');}} style={{flex:1,background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13}}>✅ Revisar Checklist →</button>
-              <button onClick={function(){setTab('scoring');}} style={{flex:1,background:C.AC,color:'white',border:'none',borderRadius:3,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13}}>📊 Revisar Scoring →</button>
+              <button onClick={function(){setTab('scoring');}} style={{flex:1,background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13}}>📊 Revisar Scoring →</button>
             </div>
           </div> : null}
         </div> : null}
@@ -2735,7 +2735,7 @@ function LegajosView(props) {
                   <span style={{color:T.TEXT}}>{item}</span>
                   {isIA && val !== 'Pendiente' && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 4px',fontSize:9,fontWeight:700}}>IA</span>}
                 </div>
-                <select value={val} onChange={function(e){setClItem(item,e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'4px 8px',fontSize:12,color:stC,fontWeight:700,background:val!=='Pendiente'?'rgba(59,109,170,0.1)':T.BG4}}>
+                <select value={val} onChange={function(e){setClItem(item,e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:3,padding:'4px 8px',fontSize:11,color:stC,fontWeight:600,background:val!=='Pendiente'?'rgba(59,109,170,0.1)':T.BG4,fontFamily:T.MONO}}>
                   <option>Pendiente</option><option>OK</option><option>Bloqueante</option><option>N/A</option>
                 </select>
               </div>
@@ -2823,7 +2823,7 @@ function LegajosView(props) {
                 var entrada = { estado:form.estadoCuenta||'EN_ONBOARDING', fecha:todayStr(), hora:ahora.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}), analista:'Analista — '+nota };
                 fld('estadoHistorial', safeArr(form.estadoHistorial).concat([entrada]));
                 document.getElementById('histNota').value='';
-              }} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'6px 14px',cursor:'pointer',fontSize:12,fontWeight:700}}>+ Agregar</button>
+              }} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'6px 14px',cursor:'pointer',fontSize:12,fontWeight:700}}>+ Agregar</button>
             </div>
           </div>
         </div> : null}
@@ -3193,7 +3193,7 @@ function LegajosView(props) {
                     {cierreLoading?'⏳ Analizando...':'🤖 Analizar con IA'}
                   </button>
                 </div>
-                {cierreIA ? <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:4,padding:'10px 12px',fontSize:11,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{cierreIA}</div>
+                {cierreIA ? <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:4,padding:'10px 12px',fontSize:11,lineHeight:1.7,color:T.TEXT2,whiteSpace:'pre-wrap'}}>{cierreIA}</div>
                   : <div style={{background:T.BG3,border:'1px dashed '+T.BORDER3,borderRadius:4,padding:'12px',fontSize:11,color:T.TEXT3,textAlign:'center'}}>Hacé clic en "Analizar con IA" para generar un análisis automático basado en el legajo y el último período AML.</div>}
               </div>
 
@@ -3249,7 +3249,7 @@ function LegajosView(props) {
                   <span style={{color:T.TEXT2,fontSize:12,marginLeft:8}}>{p.txns?p.txns.length:0} txns</span>
                   {hi2 > 0 ? <span style={{marginLeft:6,background:C.ROJO,color:'white',borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>{hi2} ALTA</span> : null}
                 </div>
-                <button onClick={function(){onAnalizar(sel,p);}} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'5px 12px',cursor:'pointer',fontSize:12,fontWeight:700}}>Analizar →</button>
+                <button onClick={function(){onAnalizar(sel,p);}} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'5px 12px',cursor:'pointer',fontSize:12,fontWeight:700}}>Analizar →</button>
               </div>
             );
           })}
@@ -3304,7 +3304,7 @@ function LegajosView(props) {
   return (
     <div style={{padding:22}} onClick={function(){if(menuOpen)setMenuOpen(null);}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,letterSpacing:'1px'}}>Legajos KYB ({legajos.length})</h2>
+        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px'}}>Legajos KYB ({legajos.length})</h2>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           {selectMode ? (
             <div style={{display:'flex',gap:8,alignItems:'center'}}>
@@ -3324,15 +3324,15 @@ function LegajosView(props) {
 
       <div style={{display:'flex',gap:10,marginBottom:14,flexWrap:'wrap'}}>
         <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="🔍 Buscar por razón social, CUIT o actividad..." style={{flex:'1 1 220px',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 12px',fontSize:13}}/>
-        <select value={filtroSeg} onChange={function(e){setFiltroSeg(e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:12}}>
+        <select value={filtroSeg} onChange={function(e){setFiltroSeg(e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:12,color:T.TEXT}}>
           <option value="TODOS">Todos los segmentos</option>
           <option>BAJO</option><option>MEDIO</option><option>MEDIO-ALTO</option><option>ALTO</option>
         </select>
-        <select value={filtroDict} onChange={function(e){setFiltroDict(e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:12}}>
+        <select value={filtroDict} onChange={function(e){setFiltroDict(e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:12,color:T.TEXT}}>
           <option value="TODOS">Todos los dictámenes</option>
           <option>APROBADO</option><option>CONDICIONAL</option><option>RECHAZADO</option>
         </select>
-        <select value={filtroEst} onChange={function(e){setFiltroEst(e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:12}}>
+        <select value={filtroEst} onChange={function(e){setFiltroEst(e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:12,color:T.TEXT}}>
           <option value="TODOS">Todos los estados</option>
           {ESTADOS_CUENTA.map(function(e){return <option key={e.id} value={e.id}>{e.label}</option>;})}
         </select>
@@ -3415,12 +3415,12 @@ function LegajosView(props) {
                 <Pill v={l.dictamen}/>
                 {!selectMode && (
                   <div style={{display:'flex',gap:4}}>
-                    <button onClick={function(){setSelId(l.id);}} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:700}}>Abrir</button>
+                    <button onClick={function(){setSelId(l.id);}} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:700}}>Abrir</button>
                     {/* MENÚ ⋯ */}
                     <div style={{position:'relative'}}>
                       <button
                         onClick={function(e){e.stopPropagation();setMenuOpen(isMenuOpen?null:l.id);}}
-                        style={{background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,padding:'5px 9px',cursor:'pointer',fontSize:14,lineHeight:1}}
+                        style={{background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,padding:'5px 9px',cursor:'pointer',fontSize:14,color:T.TEXT2,lineHeight:1}}
                       >⋯</button>
                       {isMenuOpen && (
                         <div style={{position:'absolute',right:0,top:'110%',background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',zIndex:200,minWidth:170,padding:4}}>
@@ -3797,11 +3797,11 @@ function AnalisisView(props) {
 
   return (
     <div style={{padding:22}}>
-      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700}}>Analisis Transaccional — INF-02</h2>
+      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700,color:T.TEXT}}>Analisis Transaccional — INF-02</h2>
       <div style={{display:'flex',gap:12,marginBottom:16,flexWrap:'wrap',alignItems:'flex-end'}}>
         <div style={{flex:'1 1 200px'}}>
           <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:3}}>Legajo</label>
-          <select value={selLegajo?selLegajo.id:''} onChange={function(e){setSelLegajo(legajos.find(function(l){return l.id===e.target.value;})||null);setSelPeriodo(null);setCsv(null);setTendencias(false);}} style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13}}>
+          <select value={selLegajo?selLegajo.id:''} onChange={function(e){setSelLegajo(legajos.find(function(l){return l.id===e.target.value;})||null);setSelPeriodo(null);setCsv(null);setTendencias(false);}} style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,color:T.TEXT}}>
             <option value="">— Seleccionar legajo —</option>
             {legajos.map(function(l){return <option key={l.id} value={l.id}>{(l.razonSocial||'Sin nombre')} — {(l.cuit||'CUIT N/D')}</option>;})}
           </select>
@@ -3818,7 +3818,7 @@ function AnalisisView(props) {
             <select value={selPeriodo?selPeriodo.id:''} onChange={function(e){
               var p = lP.find(function(x){return x.id===e.target.value;})||null;
               handleSelectPeriodo(p);
-            }} style={{flex:1,border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13}}>
+            }} style={{flex:1,border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,color:T.TEXT}}>
               <option value="">— Seleccionar periodo —</option>
               {lP.map(function(p){
                 // Mostrar txns desde metricas si no están en memoria
@@ -3877,7 +3877,7 @@ function AnalisisView(props) {
         if (periodosDatos.length === 0) {
           return <div style={{background:T.BG3,border:'1px dashed '+T.BORDER3,borderRadius:6,padding:'30px',textAlign:'center',color:T.TEXT3}}>
             <div style={{fontSize:32,marginBottom:8}}>📊</div>
-            <div style={{fontSize:14,fontWeight:600}}>Sin datos de métricas para mostrar tendencias</div>
+            <div style={{fontSize:14,fontWeight:600,color:T.TEXT}}>Sin datos de métricas para mostrar tendencias</div>
             <div style={{fontSize:12,marginTop:4}}>Subí los archivos XLS de cada período para generar las métricas.</div>
           </div>;
         }
@@ -4100,7 +4100,7 @@ function AnalisisView(props) {
           <button onClick={function(){
             onReport(genINF02(selLegajo,selPeriodo,m,sigs,sc,memos));
             auditLog(currentUser,'generar_inf02','periodo',selPeriodo.id,{razonSocial:selLegajo.razonSocial,periodo:selPeriodo.nombre,riesgo:sc&&sc.clasificacion});
-          }} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontWeight:700,fontSize:13}}>📄 INF-02</button>
+          }} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontWeight:700,fontSize:13}}>📄 INF-02</button>
         </div>
         <div style={{display:'flex',gap:2,marginBottom:12,background:C.CEL,borderRadius:6,padding:4,flexWrap:'wrap'}}>
           {[['metricas','📊 Metricas'],['senales','🚨 Senales'],['scoring','📈 Scoring'],['graficos','📉 Graficos'],['dd','🔍 Nota DD'],['memos','📝 Memos'+(memos.length>0?' ('+memos.length+')':'')],['rfi','📧 RFI'+(rfis.length>0?' ('+rfis.filter(function(r){return r.estado!=='CERRADO';}).length+')':'')]].map(function(t){return(
@@ -4120,7 +4120,7 @@ function AnalisisView(props) {
             <tbody>{[['Monto promedio',fmtM(m.avg)],['Monto maximo',fmtM(m.maxMonto)],['HHI concentracion IN',m.hhiIn.toFixed(3)+' | top-1: '+m.top1In.toFixed(1)+'%'],['HHI concentracion OUT',m.hhiOut.toFixed(3)+' | top-1: '+m.top1Out.toFixed(1)+'%'],['Fraccionamiento',m.splitGroupsCount+' grupos | '+m.splitDays+' dias'],['Montos redondos',m.pctRound.toFixed(1)+'%'],['Pass-through',m.tIn>0?(m.passThrough*100).toFixed(1)+'%':'N/D'],['Circularidad',m.circularCount+' contrapartes'],['Dias activos',m.activeDays+' | '+m.opsByDay.toFixed(1)+' ops/dia'],['Horario atipico',m.pctAtypicalHour!==null?m.pctAtypicalHour.toFixed(1)+'%':'N/D']].map(function(r,i){return(
               <tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
                 <td style={{padding:'5px 8px',color:T.TEXT2,fontWeight:600}}>{r[0]}</td>
-                <td style={{padding:'5px 8px',fontWeight:700}}>{r[1]}</td>
+                <td style={{padding:'5px 8px',fontWeight:700,color:T.TEXT}}>{r[1]}</td>
               </tr>
             );})}</tbody>
           </table>
@@ -4431,7 +4431,7 @@ function AnalisisView(props) {
                       var memoKey2 = 'memos_'+( selPeriodo&&selPeriodo.id||'x');
                       var updated = memos.concat([entry]);
                       setMemos(updated);                    }}
-                    style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'9px 18px',cursor:'pointer',fontWeight:600,fontSize:11,fontFamily:T.MONO}}
+                    style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'9px 18px',cursor:'pointer',fontWeight:600,fontSize:11,fontFamily:T.MONO}}
                   >
                     📋 Generar memo de cumplimiento
                   </button>
@@ -4531,7 +4531,7 @@ function AnalisisView(props) {
                 setRfiMode('nuevo');
                 setRfiForm({asunto:'Requerimiento de información — '+(selPeriodo&&selPeriodo.nombre||''), refNum:genRfiRef(), contenido:'', autor:analistaVal||'Analista'});
               }}
-              style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'9px 18px',cursor:'pointer',fontWeight:600,fontSize:11,fontFamily:T.MONO}}
+              style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'9px 18px',cursor:'pointer',fontWeight:600,fontSize:11,fontFamily:T.MONO}}
             >+ Nuevo RFI</button>
           </div>
 
@@ -4814,7 +4814,7 @@ function AlertasView(props) {
     <div style={{padding:22}}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
-        <h2 style={{color:T.TEXT,margin:0,fontSize:19,fontWeight:700}}>Centro de Alertas</h2>
+        <h2 style={{color:T.TEXT,margin:0,fontSize:19,fontWeight:700,color:T.TEXT}}>Centro de Alertas</h2>
         <span style={{background:totalAlertas>0?C.ROJO:'#27AE60',color:'white',borderRadius:10,padding:'2px 10px',fontSize:11,fontWeight:700}}>
           {totalAlertas > 0 ? totalAlertas+' activas' : '✓ Sin alertas'}
         </span>
@@ -5034,7 +5034,7 @@ function NormativaView() {
   ];
   return (
     <div style={{padding:22}}>
-      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700}}>Normativa Aplicable</h2>
+      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700,color:T.TEXT}}>Normativa Aplicable</h2>
       <Card title="Marco regulatorio AML/CFT — Argentina">
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
           <thead><tr>{['Normativa','Descripcion','Articulo / Alcance'].map(function(h,i){return <th key={i} style={{background:C.AO,color:'white',padding:'7px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
@@ -5322,7 +5322,7 @@ function PatronesView() {
   return (
     <div style={{padding:22, maxWidth:960}}>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:6}}>
-        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,letterSpacing:'1px',margin:0}}>🔍 Patrones AML — Referencia</h2>
+        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>🔍 Patrones AML — Referencia</h2>
         <span style={{background:C.AO,color:'white',borderRadius:10,padding:'2px 10px',fontSize:11,fontWeight:700}}>12 patrones activos</span>
       </div>
       <p style={{fontSize:12,color:T.TEXT2,marginBottom:20}}>
@@ -5499,7 +5499,7 @@ function WikiFlow({title, nodes, vertical}) {
               <div style={{fontSize:12,fontWeight:700,lineHeight:1.4}}>{node.label}</div>
               {node.sub && <div style={{fontSize:10,opacity:0.8,marginTop:2,lineHeight:1.4}}>{node.sub}</div>}
             </div>
-            {i < nodes.length-1 && <div style={{color:T.CYAN,fontSize:16,fontWeight:700,padding:vertical?'2px 0':'0 3px',flexShrink:0,lineHeight:1}}>{vertical?'↓':'→'}</div>}
+            {i < nodes.length-1 && <div style={{color:T.CYAN,fontSize:16,fontWeight:700,color:T.TEXT,padding:vertical?'2px 0':'0 3px',flexShrink:0,lineHeight:1}}>{vertical?'↓':'→'}</div>}
           </div>
         ))}
       </div>
@@ -5942,7 +5942,7 @@ function WikiView() {
 
   return (
     <div style={{display:'flex',gap:0,minHeight:'calc(100vh - 60px)'}}>
-      <div style={{width:200,flexShrink:0,background:T.BG2,borderRight:'1px solid '+T.BORDER+',padding:'14px 0',overflowY:'auto'}}>
+      <div style={{width:200,flexShrink:0,background:T.BG2,borderRight:'1px solid '+T.BORDER,padding:'14px 0',overflowY:'auto'}}>
         <div style={{padding:'0 10px 10px',borderBottom:'1px solid '+T.BORDER,marginBottom:8}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar sección..." style={{width:'100%',padding:'6px 10px',border:'1px solid '+T.BORDER2,borderRadius:6,fontSize:12,color:T.TEXT,background:T.BG2}}/>
         </div>
@@ -6012,7 +6012,7 @@ function UsuariosView(props) {
   return (
     <div style={{padding:22}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,letterSpacing:'1px',margin:0}}>👥 Gestión de Usuarios</h2>
+        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>👥 Gestión de Usuarios</h2>
         <button onClick={function(){setForm({email:'',password:'',nombre:'',rol:'analista'});setErr('');}}
           style={{background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontWeight:700,fontSize:13}}>
           + Nuevo usuario
@@ -6045,7 +6045,7 @@ function UsuariosView(props) {
             <div>
               <label style={{fontSize:11,fontWeight:700,color:T.TEXT2,display:'block',marginBottom:3}}>Rol</label>
               <select value={form.rol} onChange={function(e){setForm(Object.assign({},form,{rol:e.target.value}));}}
-                style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,boxSizing:'border-box'}}>
+                style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,boxSizing:'border-box',color:T.TEXT}}>
                 <option value="analista">📋 Analista</option>
                 <option value="supervisor">👁 Supervisor</option>
                 <option value="oficial_cumplimiento">⚖️ Oficial de Cumplimiento</option>
@@ -6073,7 +6073,7 @@ function UsuariosView(props) {
             {err && <div style={{fontSize:12,color:T.RED,marginBottom:10}}>⚠ {err}</div>}
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button onClick={function(){setPassModal(null);setNewPass('');setErr('');}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
-              <button onClick={handlePassword} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'8px 20px',cursor:'pointer',fontWeight:700,fontSize:12}}>💾 Guardar</button>
+              <button onClick={handlePassword} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'8px 20px',cursor:'pointer',fontWeight:700,fontSize:12}}>💾 Guardar</button>
             </div>
           </div>
         </div>
@@ -6179,6 +6179,28 @@ export default function App() {
     link.rel = 'stylesheet';
     link.href = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap';
     document.head.appendChild(link);
+    // CSS global para asegurar tema oscuro en todos los elementos nativos
+    var styleEl = document.createElement('style');
+    styleEl.textContent = [
+      '*, *::before, *::after { box-sizing: border-box; }',
+      'body { background: #0D1520; color: #E2EAF4; margin: 0; }',
+      'input, select, textarea, button { font-family: \'JetBrains Mono\',monospace; color: #E2EAF4; background: #1A2940; border-color: #253A5E; }',
+      'input::placeholder, textarea::placeholder { color: #4A6A8A; }',
+      'select option { background: #111D2E; color: #E2EAF4; }',
+      'input[type="checkbox"] { accent-color: #3B6DAA; width: 14px; height: 14px; cursor: pointer; }',
+      'input[type="radio"] { accent-color: #3B6DAA; cursor: pointer; }',
+      '::-webkit-scrollbar { width: 6px; height: 6px; }',
+      '::-webkit-scrollbar-track { background: #0D1520; }',
+      '::-webkit-scrollbar-thumb { background: #253A5E; border-radius: 3px; }',
+      '::-webkit-scrollbar-thumb:hover { background: #2E4870; }',
+      'a { color: #00D4FF; text-decoration: none; }',
+      '::selection { background: rgba(59,109,170,0.4); color: #E2EAF4; }',
+      'table { border-collapse: collapse; width: 100%; }',
+      'th { font-weight: 500; text-align: left; color: #4A6A8A; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }',
+      'td { color: #E2EAF4; }',
+      'tr:hover td { background: rgba(59,109,170,0.06); }'
+    ].join('\n');
+    document.head.appendChild(styleEl);
     setSyncStatus('loading');
 
     // 1. Config del servidor — API keys desde variables de entorno Vercel
@@ -6348,13 +6370,13 @@ export default function App() {
   );
 
   return (
-    <div style={{display:'flex',height:'100vh',overflow:'hidden',fontFamily:T.MONO,background:T.BG}}>
+    <div style={{display:'flex',height:'100vh',overflow:'hidden',fontFamily:T.MONO,background:T.BG,color:T.TEXT}}>
       {reportHTML ? <ReportModal html={reportHTML} onClose={function(){setReportHTML(null);}} /> : null}
       <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:'none'}}/>
 
       {/* MODAL CONFIGURACIÓN IA */}
       {configOpen ? <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',overflow:'auto'}}>
-        <div style={{background:T.BG2,border:'1px solid '+T.BORDER2,borderRadius:4,padding:28,width:540,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto'}}>
+        <div style={{background:T.BG2,border:'1px solid '+T.BORDER2,borderRadius:4,padding:28,color:T.TEXT,width:540,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div>
               <div style={{fontWeight:600,color:T.TEXT,fontSize:13,letterSpacing:'1px'}}>⚙ CONFIGURACIÓN IA & SYNC</div>
@@ -6393,7 +6415,7 @@ export default function App() {
               <input type={showKey?'text':'password'} value={apiKey} onChange={function(e){setApiKey(e.target.value);}}
                 placeholder="sk-ant-api03-..." style={{flex:1,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 10px',fontSize:11,fontFamily:T.MONO,background:T.BG4,color:T.TEXT,outline:'none'}}/>
               <button onClick={function(){setShowKey(!showKey);}} style={{background:T.BG4,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 10px',cursor:'pointer',color:T.TEXT3}}>{showKey?'🙈':'👁'}</button>
-              <button onClick={function(){saveApiKey(apiKey);}} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'8px 12px',cursor:'pointer',fontSize:10,fontWeight:600,fontFamily:T.MONO}}>guardar</button>
+              <button onClick={function(){saveApiKey(apiKey);}} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'8px 12px',cursor:'pointer',fontSize:10,fontWeight:600,fontFamily:T.MONO}}>guardar</button>
             </div>
             {apiKey && apiKey.startsWith('sk-ant-') && <div style={{fontSize:11,color:T.GREEN}}>✓ Formato válido</div>}
             {apiKey && !apiKey.startsWith('sk-ant-') && <div style={{fontSize:11,color:T.RED}}>⚠ Debe empezar con "sk-ant-"</div>}
@@ -6409,7 +6431,7 @@ export default function App() {
               <input type={showOaiKey?'text':'password'} value={oaiKey} onChange={function(e){setOaiKey(e.target.value);}}
                 placeholder="sk-..." style={{flex:1,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 10px',fontSize:11,fontFamily:T.MONO,background:T.BG4,color:T.TEXT,outline:'none'}}/>
               <button onClick={function(){setShowOaiKey(!showOaiKey);}} style={{background:T.BG4,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 10px',cursor:'pointer',color:T.TEXT3}}>{showOaiKey?'🙈':'👁'}</button>
-              <button onClick={function(){saveOaiKey(oaiKey);}} style={{background:C.AC,color:'white',border:'none',borderRadius:3,padding:'8px 12px',cursor:'pointer',fontSize:10,fontWeight:600,fontFamily:T.MONO}}>guardar</button>
+              <button onClick={function(){saveOaiKey(oaiKey);}} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'8px 12px',cursor:'pointer',fontSize:10,fontWeight:600,fontFamily:T.MONO}}>guardar</button>
             </div>
             {oaiKey && oaiKey.startsWith('sk-') && <div style={{fontSize:11,color:T.GREEN}}>✓ Formato válido</div>}
           </div>
