@@ -74,17 +74,56 @@ function rpH(e, f) { return '<div class="hdr"><span>GOAT S.A./Rebit — Informe 
 function rpF() { return '<div class="ftr"><span>Confidencial — Uso interno</span><span>GOAT S.A./Rebit — Compliance & AML — Design System v2.1.3</span></div>'; }
 
 // ─── INF-01 HTML HELPERS (module level) ──────────────────────────────────────
-function infSec(n, title) { return '<h2 style="background:#1B2A4A;color:white;padding:8px 14px;font-size:11pt;margin:22px 0 8px;border-radius:3px;">' + n + '. ' + title + '</h2>'; }
-function infBadge(txt, col) { return '<span style="display:inline-block;padding:3px 12px;border-radius:10px;background:'+col+';color:white;font-weight:700;font-size:10pt;">'+txt+'</span>'; }
-function infCallout(cls, txt) {
-  var infStyles = {ok:'background:#EBF9F0;border-left:4px solid #27AE60;', warn:'background:#FEF9E7;border-left:4px solid #F39C12;', err:'background:#FDEDEC;border-left:4px solid #E74C3C;', info:'background:#EBF5FB;border-left:4px solid #2471A3;'};
-  return '<div style="'+(infStyles[cls]||infStyles.info)+'padding:10px 14px;border-radius:0 4px 4px 0;margin:8px 0;font-size:9.5pt;">'+txt+'</div>';
+// ── Paleta del informe KYB (dark theme) ────────────────────────────────
+var INF = {
+  BG:  '#0D1520', BG2: '#111D2E', BG3: '#162035', BG4: '#1A2940',
+  BD:  '#1E3050', BD2: '#253A5E', BD3: '#2E4870',
+  TX:  '#E2EAF4', TX2: '#8BA3C0', TX3: '#4A6A8A',
+  AO:  '#1B2A4A', AM:  '#2C4A7C', AC:  '#3B6DAA',
+  GR:  '#00E676', AM2: '#FFB830', RD:  '#FF4455', CY:  '#00D4FF'
+};
+function infSec(n, title) {
+  return '<h2 style="background:'+INF.AM+';color:'+INF.TX+';padding:9px 14px;font-size:10.5pt;margin:20px 0 6px;border-radius:3px;font-family:monospace;letter-spacing:0.5px;border-left:3px solid '+INF.AC+'">'
+    + (n ? n+'. ' : '') + title + '</h2>';
 }
-function infTr2(a, b) { return '<tr><td style="color:#555;font-weight:600;width:42%">'+a+'</td><td><strong>'+b+'</strong></td></tr>'; }
-function infTr3(a, b, c) { return '<tr><td><strong>'+a+'</strong></td><td>'+b+'</td><td style="color:#555;font-size:9pt">'+c+'</td></tr>'; }
-function infTbl(thead, rows) { return '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:9.5pt;">'+thead+rows+'</table>'; }
-function infTh(cols) { return '<thead><tr>'+cols.map(function(c){return '<th style="background:#1B2A4A;color:white;padding:6px 10px;text-align:left">'+c+'</th>';}).join('')+'</tr></thead>'; }
-function infTd(row) { return '<tr>'+row.map(function(c){return '<td style="padding:5px 10px;border-bottom:1px solid #eee">'+c+'</td>';}).join('')+'</tr>'; }
+function infBadge(txt, col) {
+  return '<span style="display:inline-block;padding:2px 10px;border-radius:2px;background:'+col+'22;color:'+col+';font-weight:600;font-size:9.5pt;font-family:monospace;border:1px solid '+col+'44">'+txt+'</span>';
+}
+function infCallout(cls, txt) {
+  var s = {
+    ok:   'background:rgba(0,230,118,0.08);border-left:3px solid #00E676;color:#00E676;',
+    warn: 'background:rgba(255,184,48,0.08);border-left:3px solid #FFB830;color:#E2EAF4;',
+    err:  'background:rgba(255,68,85,0.08);border-left:3px solid #FF4455;color:#E2EAF4;',
+    info: 'background:rgba(0,212,255,0.08);border-left:3px solid #00D4FF;color:#E2EAF4;'
+  };
+  return '<div style="'+(s[cls]||s.info)+'padding:9px 14px;border-radius:0 3px 3px 0;margin:8px 0;font-size:9pt;">'+txt+'</div>';
+}
+function infTr2(a, b) {
+  return '<tr>'
+    + '<td style="color:'+INF.TX3+';font-size:9pt;padding:7px 10px;border-bottom:1px solid '+INF.BD+';width:42%;font-family:monospace;letter-spacing:0.3px">'+a+'</td>'
+    + '<td style="color:'+INF.TX+';font-weight:600;padding:7px 10px;border-bottom:1px solid '+INF.BD+'">'+b+'</td>'
+    + '</tr>';
+}
+function infTr3(a, b, c) {
+  return '<tr>'
+    + '<td style="color:'+INF.TX+';font-weight:600;padding:7px 10px;border-bottom:1px solid '+INF.BD+'">'+a+'</td>'
+    + '<td style="color:'+INF.TX+';padding:7px 10px;border-bottom:1px solid '+INF.BD+'">'+b+'</td>'
+    + '<td style="color:'+INF.TX3+';font-size:8.5pt;padding:7px 10px;border-bottom:1px solid '+INF.BD+'">'+c+'</td>'
+    + '</tr>';
+}
+function infTbl(thead, rows) {
+  return '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:9.5pt;background:'+INF.BG2+';">'+thead+'<tbody>'+rows+'</tbody></table>';
+}
+function infTh(cols) {
+  return '<thead><tr>'+cols.map(function(c){
+    return '<th style="background:'+INF.BG3+';color:'+INF.TX3+';padding:7px 10px;text-align:left;font-size:8.5pt;letter-spacing:1px;font-family:monospace;font-weight:400;border-bottom:1px solid '+INF.BD3+'">'+c.toUpperCase()+'</th>';
+  }).join('')+'</tr></thead>';
+}
+function infTd(row) {
+  return '<tr>'+row.map(function(c){
+    return '<td style="padding:7px 10px;border-bottom:1px solid '+INF.BD+';color:'+INF.TX+'">'+c+'</td>';
+  }).join('')+'</tr>';
+}
 
 function genINF01(legajo, periodos, memosList) {
   memosList = memosList || [];  // defensive: nunca undefined
@@ -207,7 +246,7 @@ function genINF01(legajo, periodos, memosList) {
 
     // ── ÍNDICE ─────────────────────────────────────────────────────────────
     + sec('Índice','')
-    + '<ol style="font-size:9.5pt;line-height:1.9;color:#2C4A7C">'
+    + '<ol style="font-size:9.5pt;line-height:1.9;color:#8BA3C0">'
     + '<li>Resumen ejecutivo y dictamen de riesgo</li>'
     + '<li>Identificación KYB – Datos societarios</li>'
     + '<li>Identificación del firmante / apoderado</li>'
@@ -311,7 +350,7 @@ function genINF01(legajo, periodos, memosList) {
     + '<div style="background:#FEF9E7;border:1px solid #F9E79F;padding:12px;border-radius:4px;text-align:center"><div style="font-size:18pt;font-weight:700;color:#E67E22">'+pend+'</div><div style="font-size:9pt;color:#555">Pendientes</div></div>'
     + '<div style="background:'+(bloq>0?'#FDEDEC':'#162035')+';border:1px solid '+(bloq>0?'#F1948A':'#eee')+';padding:12px;border-radius:4px;text-align:center"><div style="font-size:18pt;font-weight:700;color:'+(bloq>0?'#E74C3C':'#888')+'">'+bloq+'</div><div style="font-size:9pt;color:#555">Bloqueantes</div></div>'
     + '</div>'
-    + '<p style="font-size:9pt;color:#555">Completitud del legajo: <strong>'+okC+'/'+CHECKLIST_ITEMS.length+' documentos ('+pctOK+'%)</strong>.</p>'
+    + '<p style="font-size:9pt;color:#8BA3C0">Completitud del legajo: <strong style="color:#E2EAF4">'+okC+'/'+CHECKLIST_ITEMS.length+' documentos ('+pctOK+'%)</strong>.</p>'
     + tbl(th(['Estado','Documento requerido','Observación']),clRows)
     + (bloq>0 ? callout('err','⚠ ATENCIÓN: '+bloq+' documento(s) bloqueante(s) requieren resolución inmediata.') : '')
 
