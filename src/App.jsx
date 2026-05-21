@@ -1719,6 +1719,17 @@ function setModuleKeys(anthropic, openai, provider) {
   if (provider)  _KEYS.provider  = provider;
 }
 
+async function gzipPayload(obj) {
+  var json = JSON.stringify(obj);
+  try {
+    var stream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
+    var buf = await new Response(stream).arrayBuffer();
+    return { body: buf, headers: { 'Content-Type': 'application/octet-stream', 'x-encoding': 'gzip-json', 'x-app-token': APP_TOKEN } };
+  } catch(e) {
+    return { body: json, headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN } };
+  }
+}
+
 async function serverSave(data) {
   try {
     // Limpiar txns antes de enviar — se guardan por separado en /api/sync?action=txns
@@ -1728,11 +1739,8 @@ async function serverSave(data) {
     var payload = { legajos: data.legajos||[], periodos: persWithoutTxns,
                     deletedLegajoIds: data.deletedLegajoIds||[],
                     deletedPeriodoIds: data.deletedPeriodoIds||[] };
-    var r = await fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
-      body: JSON.stringify(payload)
-    });
+    var gz = await gzipPayload(payload);
+    var r = await fetch('/api/sync', { method: 'POST', headers: gz.headers, body: gz.body });
     var res = await r.json();
     return !res.error;
   } catch(e) { console.warn('[Sync] Error guardando:', e.message); return false; }
@@ -1740,11 +1748,8 @@ async function serverSave(data) {
 
 async function serverSaveTxns(periodoId, txns) {
   try {
-    await fetch('/api/sync?action=txns', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
-      body: JSON.stringify({ periodo_id: periodoId, txns: txns })
-    });
+    var gz = await gzipPayload({ periodo_id: periodoId, txns: txns });
+    await fetch('/api/sync?action=txns', { method: 'POST', headers: gz.headers, body: gz.body });
   } catch(e) { console.warn('[Sync] Error guardando txns:', e.message); }
 }
 
