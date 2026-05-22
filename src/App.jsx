@@ -1787,18 +1787,39 @@ async function serverSave(data) {
 async function serverSaveTxns(periodoId, txns) {
   try {
     var gz = await gzipPayload({ periodo_id: periodoId, txns: txns });
-    await fetch('/api/sync?action=txns', { method: 'POST', headers: gz.headers, body: gz.body });
-  } catch(e) { console.warn('[Sync] Error guardando txns:', e.message); }
+    var r = await fetch('/api/sync?action=txns', { method: 'POST', headers: gz.headers, body: gz.body });
+    if (!r.ok) {
+      var err = await r.json().catch(function(){return {};});
+      throw new Error(err.error || 'HTTP ' + r.status);
+    }
+    console.log('[Sync] Txns guardadas OK — período:', periodoId, '— cantidad:', (txns||[]).length);
+    return true;
+  } catch(e) {
+    console.error('[Sync] Error guardando txns:', e.message);
+    throw e; // Re-throw para que el caller pueda manejar
+  }
 }
 
 async function serverLoadTxns(periodoId) {
   try {
     var r = await fetch('/api/sync?action=txns&id=' + periodoId,
       { headers: { 'x-app-token': APP_TOKEN } });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      console.error('[Sync] Error cargando txns HTTP', r.status, 'período:', periodoId);
+      return null;
+    }
     var res = await r.json();
-    return res.txns || null;
-  } catch(e) { return null; }
+    var txns = res.txns || null;
+    if (txns) {
+      console.log('[Sync] Txns cargadas OK — período:', periodoId, '— cantidad:', txns.length);
+    } else {
+      console.warn('[Sync] Sin txns en Supabase para período:', periodoId);
+    }
+    return txns;
+  } catch(e) {
+    console.error('[Sync] Error cargando txns:', e.message, 'período:', periodoId);
+    return null;
+  }
 }
 
 async function serverSaveKV(k, v) {
@@ -3827,43 +3848,47 @@ function AnalisisView(props) {
   function saveRfis(updated) {
     setRfis(updated);
     if (rfiKey) serverSaveKV(rfiKey, updated);
-    if (onSync) onSync();
+    if (onSync) onSync(legajos, periodos);
   }
 
   // Lazy load txns cuando el período seleccionado no los tiene (dispositivo nuevo)
   var txnsLoadingState = useState(false); var txnsLoading=txnsLoadingState[0]; var setTxnsLoading=txnsLoadingState[1];
 
   useEffect(function() {
-    if (!selPeriodo || (selPeriodo.txns && selPeriodo.txns.length > 0)) return;
-    // Txns no están en memoria — cargar desde Supabase
+    if (!selPeriodo) return;
+    // Cargar txns si no están en memoria (o están vacías)
+    if (selPeriodo.txns && selPeriodo.txns.length > 0) return;
     setTxnsLoading(true);
     serverLoadTxns(selPeriodo.id).then(function(txns) {
       if (txns && txns.length > 0) {
-        // Calcular métricas al momento de la carga (si no las tiene ya)
         var updatedPer = Object.assign({}, selPeriodo, {txns: txns});
         if (!updatedPer.metricas) {
           var leg = legajos.find(function(l){return l.id===selPeriodo.legajoId;});
-          var m = calcMetricas(txns, leg);
-          var sigs = m ? detectPatrones(m, leg) : [];
-          var sc = m ? calcScoring(m, sigs) : null;
-          updatedPer = Object.assign({}, updatedPer, {
-            metricas: m||null, scoring: sc||null,
-            estadoPeriodo: updatedPer.estadoPeriodo||'EN_REVISION',
-            sigsResolucion: updatedPer.sigsResolucion||{}
-          });
+          if (leg) {
+            var m = calcMetricas(txns, leg);
+            var sigs = m ? detectPatrones(m, leg) : [];
+            var sc = m ? calcScoring(m, sigs) : null;
+            updatedPer = Object.assign({}, updatedPer, {
+              metricas: m||null, scoring: sc||null,
+              estadoPeriodo: updatedPer.estadoPeriodo||'EN_REVISION',
+              sigsResolucion: updatedPer.sigsResolucion||{}
+            });
+          }
         }
         var updated = props.periodos.map(function(p){
           return p.id === selPeriodo.id ? updatedPer : p;
         });
         props.setPeriodos(updated);
         setSelPeriodo(updatedPer);
-        // Guardar métricas en Supabase si las acabamos de calcular
-        if (!selPeriodo.metricas) {
+        if (!selPeriodo.metricas && updatedPer.metricas) {
           onSync(legajos, updated);
         }
       }
       setTxnsLoading(false);
-    }).catch(function(){ setTxnsLoading(false); });
+    }).catch(function(e){
+      console.error('[Rebit] Error useEffect txns:', e);
+      setTxnsLoading(false);
+    });
   }, [selPeriodo && selPeriodo.id]);
 
   // RFI UI state
@@ -3974,20 +3999,44 @@ function AnalisisView(props) {
   // Auto-carga de txns desde Supabase cuando se selecciona un período sin txns en memoria
   function handleSelectPeriodo(p) {
     if (!p) { setSelPeriodo(null); return; }
+    // Si ya tiene txns en memoria, usarlas directamente
     if (p.txns && p.txns.length > 0) { setSelPeriodo(p); return; }
     setSelPeriodo(p);
-    if (p.metricas) {
-      setTxnsLoading(true);
-      serverLoadTxns(p.id).then(function(txns) {
-        if (txns && txns.length > 0) {
-          var updatedP = Object.assign({}, p, { txns: txns });
-          setSelPeriodo(updatedP);
-          var updatedAll = periodos.map(function(x){ return x.id===p.id ? updatedP : x; });
-          props.setPeriodos(updatedAll);
+    // Siempre intentar cargar desde Supabase (con o sin métricas precalculadas)
+    setTxnsLoading(true);
+    serverLoadTxns(p.id).then(function(txns) {
+      if (txns && txns.length > 0) {
+        var updatedP = Object.assign({}, p, { txns: txns });
+        // Recalcular métricas si no existen o si el período las necesita
+        if (!updatedP.metricas) {
+          var leg = props.legajos ? props.legajos.find(function(l){return l.id===p.legajoId;}) : null;
+          if (leg) {
+            var m = calcMetricas(txns, leg);
+            var sigs = m ? detectPatrones(m, leg) : [];
+            var sc = m ? calcScoring(m, sigs) : null;
+            updatedP = Object.assign({}, updatedP, {
+              metricas: m||null, scoring: sc||null,
+              estadoPeriodo: updatedP.estadoPeriodo||'EN_REVISION',
+              sigsResolucion: updatedP.sigsResolucion||{}
+            });
+          }
         }
-        setTxnsLoading(false);
-      }).catch(function(){ setTxnsLoading(false); });
-    }
+        setSelPeriodo(updatedP);
+        var updatedAll = periodos.map(function(x){ return x.id===p.id ? updatedP : x; });
+        props.setPeriodos(updatedAll);
+        // Persistir métricas recalculadas
+        if (!p.metricas && updatedP.metricas) {
+          onSync(legajos, updatedAll);
+        }
+      } else {
+        // Supabase no devolvió txns — puede ser período nuevo no persistido aún
+        console.warn('[Rebit] No se encontraron txns para período', p.id, p.nombre);
+      }
+      setTxnsLoading(false);
+    }).catch(function(e){
+      console.error('[Rebit] Error cargando txns:', e);
+      setTxnsLoading(false);
+    });
   }
 
   async function handleFileUpload(e) {
@@ -4037,8 +4086,13 @@ function AnalisisView(props) {
     };
     var updated = periodos.concat([p]);
     setPeriodos(updated);
-    onSync(legajos, updated);
-    serverSaveTxns(p.id, csv.txns);
+    // Primero guardar las txns, luego el período con sus métricas
+    serverSaveTxns(p.id, csv.txns).then(function(){
+      onSync(legajos, updated);
+    }).catch(function(e){
+      console.error('[Rebit] Error guardando txns:', e);
+      onSync(legajos, updated); // guardar el período igual, sin txns
+    });
     setSelPeriodo(p); setCsv(null); setPeriodoNombre('');
   }
 
@@ -4078,8 +4132,18 @@ function AnalisisView(props) {
                 return <option key={p.id} value={p.id}>{p.nombre} ({txnCount.toLocaleString('es-AR')} txns)</option>;
               })}
             </select>
-            {txnsLoading && <span style={{fontSize:11,color:T.CYAN,flexShrink:0}}>⏳ cargando...</span>}
-            {selPeriodo && (
+            {txnsLoading && <span style={{fontSize:11,color:T.CYAN,flexShrink:0,fontFamily:T.MONO}}>// cargando txns...</span>}
+            {!txnsLoading && selPeriodo && (!selPeriodo.txns || selPeriodo.txns.length === 0) && selPeriodo.metricas && (
+              <span style={{fontSize:10,color:T.AMBER,flexShrink:0,fontFamily:T.MONO}} title="Txns no cargadas en memoria, pero las métricas están disponibles">⚠ cached</span>
+            )}
+            {selPeriodo && !txnsLoading && (!selPeriodo.txns || selPeriodo.txns.length === 0) && (
+              <button
+                onClick={function(){ handleSelectPeriodo(Object.assign({},selPeriodo,{txns:[]})); }}
+                title="Recargar transacciones desde Supabase"
+                style={{background:'rgba(0,212,255,0.1)',border:'1px solid rgba(0,212,255,0.3)',borderRadius:3,padding:'7px 10px',cursor:'pointer',fontSize:11,color:T.CYAN,flexShrink:0,fontFamily:T.MONO}}
+              >↺ recargar</button>
+            )}
+          {selPeriodo && (
               <button
                 onClick={function(){
                   if (!window.confirm('Eliminar período "' + selPeriodo.nombre + '"?\n\nEsto elimina el período y sus transacciones. No se puede deshacer.')) return;
@@ -4354,7 +4418,7 @@ function AnalisisView(props) {
         </div>
         <div style={{display:'flex',gap:2,marginBottom:12,background:T.BG3,borderRadius:4,padding:4,border:'1px solid '+T.BORDER,flexWrap:'wrap'}}>
           {[['metricas','📊 Metricas'],['senales','🚨 Senales'],['scoring','📈 Scoring'],['graficos','📉 Graficos'],['dd','🔍 Nota DD'],['memos','📝 Memos'+(memos.length>0?' ('+memos.length+')':'')],['rfi','📧 RFI'+(rfis.length>0?' ('+rfis.filter(function(r){return r.estado!=='CERRADO';}).length+')':'')]].map(function(t){return(
-            <button key={t[0]} onClick={function(){setTab(t[0]);}} style={{flex:1,minWidth:80,padding:'7px 0',border:'none',borderRadius:4,cursor:'pointer',fontWeight:tab===t[0]?700:400,background:tab===t[0]?(t[0]==='dd'?'#5D4E8C':t[0]==='memos'?'#1A6B3A':t[0]==='rfi'?'#1A4A6B':C.AO):'transparent',color:tab===t[0]?'white':C.AO,fontSize:11}}>{t[1]}</button>
+            <button key={t[0]} onClick={function(){setTab(t[0]);}} style={{flex:1,minWidth:80,padding:'7px 0',border:'none',borderRadius:3,cursor:'pointer',fontWeight:tab===t[0]?700:400,background:tab===t[0]?'rgba(59,109,170,0.25)':'transparent',color:tab===t[0]?T.CYAN:T.TEXT2,fontSize:11,fontFamily:T.MONO}}>{t[1]}</button>
           );})}
         </div>
         {tab === 'metricas' ? <Card title="Metricas del periodo">
@@ -4396,7 +4460,7 @@ function AnalisisView(props) {
             }
 
             return(
-              <div key={i} style={{padding:'10px 14px',borderLeft:'4px solid '+(resuelta?'#27AE60':propuesta?'#F39C12':sevColor(s.sev)),background:resuelta?'#F0FFF4':propuesta?'#FFFDF5':i%2===0?'#FFF9F5':'white',marginBottom:6,borderRadius:'0 4px 4px 0',opacity:resuelta?0.75:1}}>
+              <div key={i} style={{padding:'10px 14px',borderLeft:'3px solid '+(resuelta?T.GREEN:propuesta?T.AMBER:sevColor(s.sev)),background:resuelta?'rgba(0,230,118,0.06)':propuesta?'rgba(255,184,48,0.06)':i%2===0?T.BG3:T.BG2,marginBottom:6,borderRadius:'0 4px 4px 0',opacity:resuelta?0.75:1}}>
                 <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3,justifyContent:'space-between'}}>
                   <div style={{display:'flex',gap:8,alignItems:'center'}}>
                     <span style={{fontWeight:600,color:T.TEXT,fontSize:11}}>{s.pat}</span>
