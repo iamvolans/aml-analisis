@@ -3510,17 +3510,29 @@ function LegajosView(props) {
         <Card title="Periodos AML" actions={<button onClick={function(){onAnalizar(sel,null);}} style={{background:'none',border:'1px solid rgba(255,255,255,0.5)',color:'white',borderRadius:4,padding:'4px 12px',cursor:'pointer',fontSize:12}}>+ Nuevo periodo</button>}>
           {lPeriodos.length === 0 ? <p style={{color:T.TEXT2,fontSize:13}}>Sin periodos. Subi un CSV para analizar.</p> :
           lPeriodos.map(function(p,i){
-            var m2 = calcMetricas(p.txns, sel);
-            var sigs2 = m2 ? detectPatrones(m2, sel) : [];
-            var hi2 = sigs2.filter(function(s){return s.sev==='ALTA';}).length;
+            // Usar métricas guardadas si existen, o recalcular si txns están en memoria
+            var m2 = p.metricas || (p.txns && p.txns.length > 0 ? calcMetricas(p.txns, sel) : null);
+            var txnCount = (p.txns && p.txns.length > 0) ? p.txns.length : (m2 ? m2.totalTxns : 0);
+            var enMemoria = p.txns && p.txns.length > 0;
+            // Contar señales ALTA desde scoring guardado o detectar si txns están en memoria
+            var hi2 = 0;
+            if (p.scoring && p.scoring.senales) {
+              hi2 = p.scoring.senales.filter(function(s){return s.sev==='ALTA';}).length;
+            } else if (m2 && enMemoria) {
+              var sigs2 = detectPatrones(m2, sel);
+              hi2 = sigs2.filter(function(s){return s.sev==='ALTA';}).length;
+            }
             return (
               <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid '+T.BORDER}}>
                 <div>
-                  <span style={{fontWeight:600,color:T.TEXT,fontSize:11}}>{p.nombre}</span>
-                  <span style={{color:T.TEXT2,fontSize:12,marginLeft:8}}>{p.txns?p.txns.length:0} txns</span>
-                  {hi2 > 0 ? <span style={{marginLeft:6,background:C.ROJO,color:'white',borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>{hi2} ALTA</span> : null}
+                  <span style={{fontWeight:600,color:T.TEXT,fontSize:11,fontFamily:T.MONO}}>{p.nombre}</span>
+                  <span style={{color:enMemoria?T.TEXT2:T.TEXT3,fontSize:11,marginLeft:8,fontFamily:T.MONO}}>
+                    {txnCount.toLocaleString('es-AR')} txns
+                    {!enMemoria && txnCount > 0 && <span style={{fontSize:9,color:T.AMBER,marginLeft:4}} title="Txns en Supabase, no cargadas en memoria">⚠</span>}
+                  </span>
+                  {hi2 > 0 ? <span style={{marginLeft:6,background:'rgba(255,68,85,0.2)',color:T.RED,borderRadius:2,padding:'2px 8px',fontSize:10,fontWeight:600,fontFamily:T.MONO,border:'1px solid rgba(255,68,85,0.4)'}}>{hi2} ALTA</span> : null}
                 </div>
-                <button onClick={function(){onAnalizar(sel,p);}} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'5px 12px',cursor:'pointer',fontSize:12,fontWeight:700}}>Analizar →</button>
+                <button onClick={function(){onAnalizar(sel,p);}} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'5px 12px',cursor:'pointer',fontSize:11,fontWeight:600,fontFamily:T.MONO}}>Analizar →</button>
               </div>
             );
           })}
@@ -6476,6 +6488,7 @@ export default function App() {
   var configOpenState = useState(false); var configOpen=configOpenState[0]; var setConfigOpen=configOpenState[1];
 
   var syncStatusState = useState('idle'); var syncStatus=syncStatusState[0]; var setSyncStatus=syncStatusState[1];
+  var hydrationState = useState({total:0,loaded:0}); var hydration=hydrationState[0]; var setHydration=hydrationState[1];
 
   // Audit log viewer state — nivel de componente para cumplir reglas de hooks
   var auditItemsState = useState([]); var auditItems=auditItemsState[0]; var setAuditItems=auditItemsState[1];
@@ -6537,42 +6550,78 @@ export default function App() {
         setSyncStatus('ok');
         setLoading(false);
 
-        // ── Migración en background: períodos sin métricas → cargar txns y calcular ──
-        var sinMetricas = cloudPers.filter(function(p){ return !p.metricas; });
-        if (sinMetricas.length > 0) {
-          setSyncStatus('saving');
-          (function migrarEnBackground() {
+        // ── Lazy loading automático de txns en background ──
+        // Identificar períodos sin txns en memoria (cargar de Supabase)
+        var sinTxns = cloudPers.filter(function(p){
+          return !p.txns || p.txns.length === 0;
+        });
+        
+        if (sinTxns.length > 0) {
+          console.log('[Rebit] Hidratando txns en background:', sinTxns.length, 'períodos');
+          setSyncStatus('loading');
+          (function hidratar() {
             var allPers = cloudPers.slice();
-            var pendiente = sinMetricas.slice();
+            var pendiente = sinTxns.slice();
             var procesados = 0;
+            var total = pendiente.length;
+            var needsSave = false;
+            setHydration({total:total, loaded:0});
+            
             function procesarSiguiente() {
               if (pendiente.length === 0) {
+                setHydration({total:0, loaded:0});
+                console.log('[Rebit] Hidratación completa:', procesados, '/', total);
                 setLegajos(cloudLegs);
                 setPeriodos(allPers);
-                serverSave({ legajos: cloudLegs, periodos: allPers })
-                  .then(function(){ setSyncStatus('ok'); })
-                  .catch(function(){ setSyncStatus('ok'); });
+                // Guardar solo si hubo cambios (períodos sin métricas recalculadas)
+                if (needsSave) {
+                  serverSave({ legajos: cloudLegs, periodos: allPers })
+                    .then(function(){ setSyncStatus('ok'); })
+                    .catch(function(){ setSyncStatus('ok'); });
+                } else {
+                  setSyncStatus('ok');
+                }
                 return;
               }
+              
               var p = pendiente.shift();
+              procesados++;
+              
               serverLoadTxns(p.id).then(function(txns) {
                 if (txns && txns.length > 0) {
-                  var leg = cloudLegs.find(function(l){ return l.id === p.legajoId; });
-                  var m = calcMetricas(txns, leg);
-                  var sigs = m ? detectPatrones(m, leg) : [];
-                  var sc = m ? calcScoring(m, sigs) : null;
-                  var updatedP = Object.assign({}, p, {
-                    txns: txns, metricas: m||null, scoring: sc||null,
-                    estadoPeriodo: p.estadoPeriodo||'EN_REVISION',
-                    sigsResolucion: p.sigsResolucion||{}
-                  });
+                  var updatedP = Object.assign({}, p, { txns: txns });
+                  
+                  // Recalcular métricas solo si no existen
+                  if (!updatedP.metricas) {
+                    var leg = cloudLegs.find(function(l){ return l.id === p.legajoId; });
+                    if (leg) {
+                      var m = calcMetricas(txns, leg);
+                      var sigs = m ? detectPatrones(m, leg) : [];
+                      var sc = m ? calcScoring(m, sigs) : null;
+                      updatedP = Object.assign({}, updatedP, {
+                        metricas: m||null, scoring: sc||null,
+                        estadoPeriodo: updatedP.estadoPeriodo||'EN_REVISION',
+                        sigsResolucion: updatedP.sigsResolucion||{}
+                      });
+                      needsSave = true;
+                    }
+                  }
+                  
                   var idx = allPers.findIndex(function(x){ return x.id === p.id; });
                   if (idx >= 0) allPers[idx] = updatedP;
-                  procesados++;
-                  setPeriodos(allPers.slice());
+                  
+                  // Actualizar UI progresivamente cada 3 períodos
+                  if (procesados % 3 === 0 || pendiente.length === 0) {
+                    setPeriodos(allPers.slice());
+                    setHydration({total:total, loaded:procesados});
+                    setSyncStatus('loading'); // mantener estado de loading
+                  }
                 }
-                setTimeout(procesarSiguiente, 300);
-              }).catch(function(){ setTimeout(procesarSiguiente, 300); });
+                setTimeout(procesarSiguiente, 200); // delay corto entre períodos
+              }).catch(function(e){
+                console.error('[Rebit] Error hidratando período', p.nombre, e);
+                setTimeout(procesarSiguiente, 200);
+              });
             }
             procesarSiguiente();
           })();
@@ -6771,6 +6820,7 @@ export default function App() {
               {syncStatus==='ok' && <div style={{fontSize:10,color:T.GREEN,marginTop:6,fontFamily:T.MONO}}>✓ Última sincronización exitosa</div>}
               {syncStatus==='error' && <div style={{fontSize:10,color:T.RED,marginTop:6,fontFamily:T.MONO}}>⚠ Error de sincronización — verificá las variables SUPABASE_URL y SUPABASE_SERVICE_KEY en Vercel</div>}
               {syncStatus==='saving' && <div style={{fontSize:10,color:T.AMBER,marginTop:6,fontFamily:T.MONO}}>⏳ Guardando...</div>}
+              {syncStatus==='loading' && hydration.total > 0 && <div style={{fontSize:10,color:T.CYAN,marginTop:6,fontFamily:T.MONO}}>// hidratando txns: {hydration.loaded}/{hydration.total}</div>}
               <button onClick={function(){syncToCloud(legajos,periodos);}} style={{marginTop:8,width:'100%',background:T.BG3,border:'1px solid '+T.BORDER2,color:T.CYAN,borderRadius:3,padding:'7px 0',cursor:'pointer',fontSize:11,fontWeight:500,fontFamily:T.MONO}}>
                 🔄 Sincronizar ahora ({legajos.length} legajos, {periodos.length} periodos)
               </button>
