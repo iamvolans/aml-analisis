@@ -166,7 +166,11 @@ function genINF01(legajo, periodos, memosList) {
   // ── RESUMEN EJECUTIVO ─────────────────────────────────────────────────────
   var rfCount = rf.length;
   var riesgoText = dictamen==='APROBADO' ? 'sin observaciones críticas' : dictamen==='CONDICIONAL' ? 'con observaciones que requieren seguimiento' : 'con señales de alto riesgo';
-  var resumenText = empresa + ' es una ' + (legajo.actividad||'empresa') + ' domiciliada en ' + (legajo.domicilio||'Argentina') + '. El análisis documental y de riesgo resulta en dictamen <strong>' + dictamen + '</strong> ' + riesgoText + '. ' + (rfCount>0 ? 'Se identificaron ' + rfCount + ' señal(es) de alerta. ' : 'Screening de listas sin coincidencias. ') + 'Segmento de riesgo asignado: <strong>' + segmento + '</strong>. Frecuencia de revisión: ' + frec + '. Score KYB promedio: ' + scProm + '/5.';
+  var amStatus = legajo.adverseMedia ? ' Adverse Media: <strong>' + legajo.adverseMedia.resumenGeneral + '</strong>.' : '';
+  var scrStatus = legajo.screening ? ' Screening listas (' + legajo.screening.resultados ? 'OFAC/ONU/REPET/PEPs' : 'listas' + '): <strong>' + legajo.screening.estadoGeneral + '</strong>.' : ' Screening de listas sin coincidencias.';
+  var presText = legajo.presidente ? ' Presidente/Gerente: ' + legajo.presidente + '.' : '';
+  var repText = legajo.representanteLegal ? ' Representante legal: ' + legajo.representanteLegal + '.' : '';
+  var resumenText = empresa + ' es una ' + (legajo.tipoSociedad||'sociedad') + ' dedicada a ' + (legajo.actividad||'actividades comerciales') + ', domiciliada en ' + (legajo.domicilio||'Argentina') + '.' + presText + repText + ' El análisis documental y de riesgo resulta en dictamen <strong>' + dictamen + '</strong> ' + riesgoText + '. ' + (rfCount>0 ? 'Se identificaron ' + rfCount + ' señal(es) de alerta. ' : '') + scrStatus + amStatus + ' Segmento de riesgo asignado: <strong>' + segmento + '</strong>. Frecuencia de revisión: ' + frec + '. Score KYB promedio: ' + scProm + '/5.';
 
   // ── CHECKLIST ROWS ────────────────────────────────────────────────────────
   var clRows = CHECKLIST_ITEMS.map(function(item) {
@@ -327,7 +331,34 @@ function genINF01(legajo, periodos, memosList) {
 
     // ── SECCIÓN 6: SCREENING ──────────────────────────────────────────────
     + sec('6','Screening de listas (PEP / Sanciones / Negativas)')
-    + callout('ok','Resultado global: <strong>SIN COINCIDENCIAS</strong> en ninguna lista. Screening realizado el '+fecha+'.')
+    + (function(){
+        var scr = legajo.screening || null;
+        if (!scr) return callout('info','Screening pendiente de ejecución.');
+        var estadoTxt = scr.estadoGeneral==='LIMPIO' ? '<strong style="color:#00E676">✅ SIN COINCIDENCIAS</strong>' : scr.estadoGeneral==='COINCIDENCIA' ? '<strong style="color:#FF4455">🔴 COINCIDENCIA DETECTADA</strong>' : '<strong style="color:#FFB830">🟡 REQUIERE REVISIÓN MANUAL</strong>';
+        var rows = '';
+        if (scr.resultados) {
+          Object.keys(scr.resultados).forEach(function(k){
+            var v = scr.resultados[k];
+            var col = v.estado==='LIMPIO'?'#00E676':v.estado==='COINCIDENCIA'?'#FF4455':'#FFB830';
+            rows += '<tr><td style="color:#8BA3C0;font-size:8.5pt">'+k+'</td><td><span style="color:'+col+';font-weight:600">'+v.estado+'</span></td><td style="color:#8BA3C0;font-size:8.5pt">'+v.detalle+'</td></tr>';
+          });
+        }
+        return callout(scr.estadoGeneral==='LIMPIO'?'ok':scr.estadoGeneral==='COINCIDENCIA'?'err':'warn','Resultado global: '+estadoTxt+'. Screening realizado el '+scr.fecha+' por '+scr.realizadoPor+'.')
+          + infTbl(infTh(['Lista','Estado','Detalle']), rows);
+      })()
+    + (function(){
+        var am = legajo.adverseMedia || null;
+        if (!am) return '';
+        var col = am.resumenGeneral==='LIMPIO'?'#00E676':am.resumenGeneral==='ADVERSO'?'#FF4455':'#FFB830';
+        var rows = (am.sujetos||[]).map(function(s){
+          var sc = s.estado==='LIMPIO'?'#00E676':s.estado==='ADVERSO'?'#FF4455':'#FFB830';
+          return '<tr><td style="color:#E2EAF4;font-weight:600">'+s.nombre+'</td><td><span style="color:'+sc+';font-weight:600">'+s.estado+'</span></td><td style="color:#8BA3C0;font-size:8.5pt">'+s.resumen+'</td></tr>';
+        }).join('');
+        return infSec(null, '6b. Adverse Media Search')
+          + callout(am.resumenGeneral==='LIMPIO'?'ok':am.resumenGeneral==='ADVERSO'?'err':'warn','Resultado: <strong style="color:'+col+'">'+am.resumenGeneral+'</strong>. Realizado el '+am.fecha+'. '+am.recomendacion)
+          + (rows ? infTbl(infTh(['Sujeto','Estado','Resumen']), rows) : '')
+          + (am.redFlags&&am.redFlags.length ? callout('err','<strong>Red Flags:</strong> '+am.redFlags.join(' | ')) : '');
+      })()
     + tbl(th(['#','Fuente','Jurisdicción','Resultado']),scrRows)
 
     // ── SECCIÓN 7: PERFIL TRANSACCIONAL ───────────────────────────────────
@@ -917,6 +948,13 @@ ESTRUCTURA REQUERIDA:
     "Antecedentes AML": 1-5
   },
 
+  "representanteLegal": "nombre completo del representante legal / apoderado con CUIT/DNI si figura",
+  "presidente": "nombre completo del presidente del directorio si es SA, o gerente si es SRL",
+  "vinculados": "nombres de otros directores, socios o personas vinculadas relevantes (separados por coma)",
+  "tipoSociedad": "SA|SRL|SAS|COOPERATIVA|ASOCIACION|OTRO",
+  "paisConstitucion": "Argentina por defecto, indicar si es extranjera",
+  "cotizaBolsa": false,
+  "grupoEconomico": "nombre del grupo económico si pertenece a uno, vacío si no",
   "redFlags": ["lista de alertas detectadas en los documentos"],
   "observaciones": ["notas tecnicas del analisis"]
 }
@@ -2371,7 +2409,9 @@ function LegajosView(props) {
   function mkNew() {
     var cl = {}; CHECKLIST_ITEMS.forEach(function(item){cl[item]='Pendiente';});
     var kybSc = {}; KYB_FACTORS.forEach(function(f){kybSc[f]=2;});
-    return { id:uid(), razonSocial:'', cuit:'', actividad:'', facturacionMensual:0, limiteDiario:0, limiteMensual:0, segmento:'MEDIO', dictamen:'CONDICIONAL', beneficiarioFinal:'', domicilio:'', checklist:cl, kybScores:kybSc, redFlags:[], observaciones:[], docsIA:[], createdAt:todayStr(), estadoCuenta:'EN_ONBOARDING', estadoCuentaUpdatedAt:todayStr(), estadoHistorial:[{estado:'EN_ONBOARDING', fecha:todayStr(), hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}), analista:'Sistema'}] };
+    return { id:uid(), razonSocial:'', cuit:'', actividad:'', facturacionMensual:0, limiteDiario:0, limiteMensual:0, segmento:'MEDIO', dictamen:'CONDICIONAL', beneficiarioFinal:'', domicilio:'',
+      representanteLegal:'', presidente:'', vinculados:'', tipoSociedad:'SA', paisConstitucion:'Argentina', cotizaBolsa:false, grupoEconomico:'',
+      checklist:cl, kybScores:kybSc, redFlags:[], observaciones:[], docsIA:[], createdAt:todayStr(), estadoCuenta:'EN_ONBOARDING', estadoCuentaUpdatedAt:todayStr(), estadoHistorial:[{estado:'EN_ONBOARDING', fecha:todayStr(), hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}), analista:'Sistema'}] };
   }
   function saveList(updated) { setLegajos(updated); onSync(updated, periodos); }
   function handleSave() {
@@ -2473,7 +2513,7 @@ function LegajosView(props) {
 
       // Calcular qué campos fueron efectivamente llenados por IA
       var filledFields = [];
-      var datosKeys = ['razonSocial','cuit','actividad','facturacionMensual','limiteDiario','limiteMensual','beneficiarioFinal','domicilio','segmento','dictamen'];
+      var datosKeys = ['razonSocial','cuit','actividad','facturacionMensual','limiteDiario','limiteMensual','beneficiarioFinal','domicilio','segmento','dictamen','representanteLegal','presidente','vinculados','tipoSociedad','paisConstitucion','grupoEconomico'];
       datosKeys.forEach(function(k){ if(extracted[k]!==undefined&&extracted[k]!==''&&extracted[k]!==0) filledFields.push(k); });
       var okChecklist = Object.values(extracted.checklist||{}).filter(function(v){return v==='OK';}).length;
       var bloqChecklist = Object.values(extracted.checklist||{}).filter(function(v){return v==='Bloqueante';}).length;
@@ -2630,8 +2670,12 @@ function LegajosView(props) {
                     {[
                       ['Razón Social', form && (form.razonSocial||'—')],
                       ['CUIT', form && (form.cuit||'—')],
+                      ['Tipo sociedad', form && (form.tipoSociedad||'SA')],
                       ['Actividad', form && (form.actividad||'—')],
+                      ['Presidente / Gerente', form && (form.presidente||'—')],
+                      ['Representante legal', form && (form.representanteLegal||'—')],
                       ['Beneficiario final', form && (form.beneficiarioFinal||'—')],
+                      ['Domicilio fiscal', form && (form.domicilio||'—')],
                       ['Facturación mensual', form && form.facturacionMensual ? fmtM(form.facturacionMensual) : '—'],
                       ['Límite diario', form && form.limiteDiario ? fmtM(form.limiteDiario) : '—'],
                       ['Límite mensual', form && form.limiteMensual ? fmtM(form.limiteMensual) : '—'],
@@ -2689,7 +2733,11 @@ function LegajosView(props) {
             {key:'cuit',label:'CUIT',type:'text',placeholder:'XX-XXXXXXXX-X'},
             {key:'actividad',label:'Actividad / Giro comercial',type:'text',placeholder:'',full:true},
             {key:'beneficiarioFinal',label:'Beneficiario final (>10%)',type:'text',placeholder:''},
-            {key:'domicilio',label:'Domicilio fiscal',type:'text',placeholder:''},
+            {key:'representanteLegal',label:'Representante legal / Apoderado',type:'text',placeholder:'Nombre completo y DNI/CUIT'},
+            {key:'presidente',label:'Presidente / Gerente',type:'text',placeholder:'Nombre completo'},
+            {key:'vinculados',label:'Otros directores / socios vinculados',type:'text',placeholder:'Nombres separados por coma',full:true},
+            {key:'domicilio',label:'Domicilio fiscal',type:'text',placeholder:'',full:true},
+            {key:'grupoEconomico',label:'Grupo económico',type:'text',placeholder:'Dejar vacío si no aplica'},
             {key:'facturacionMensual',label:'Facturacion mensual ($)',type:'number',placeholder:''},
             {key:'limiteDiario',label:'Limite diario ($)',type:'number',placeholder:''},
             {key:'limiteMensual',label:'Limite mensual ($)',type:'number',placeholder:''}
@@ -2730,7 +2778,23 @@ function LegajosView(props) {
             </select>
           </div>
           <div>
-            <label style={{display:'block',fontSize:11,fontWeight:700,color:T.TEXT2,marginBottom:4}}>Estado de cuenta</label>
+            <div>
+              <label style={{display:'block',fontSize:9,color:T.TEXT3,letterSpacing:'1px',textTransform:'uppercase',marginBottom:4}}>Tipo de sociedad</label>
+              <select value={form.tipoSociedad||'SA'} onChange={function(e){fld('tipoSociedad',e.target.value);}} style={iS}>
+                <option value="SA">SA — Sociedad Anónima</option>
+                <option value="SRL">SRL — Sociedad de Resp. Limitada</option>
+                <option value="SAS">SAS — Sociedad por Acciones Simplificada</option>
+                <option value="COOPERATIVA">Cooperativa</option>
+                <option value="ASOCIACION">Asociación Civil</option>
+                <option value="FUNDACION">Fundación</option>
+                <option value="OTRO">Otro</option>
+              </select>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:10,paddingTop:20}}>
+              <input type="checkbox" checked={!!form.cotizaBolsa} onChange={function(e){fld('cotizaBolsa',e.target.checked);}} id="cotizaBolsaChk"/>
+              <label htmlFor="cotizaBolsaChk" style={{fontSize:11,color:T.TEXT2,cursor:'pointer'}}>Cotiza en bolsa</label>
+            </div>
+            <label style={{display:'block',fontSize:9,color:T.TEXT3,letterSpacing:'1px',textTransform:'uppercase',marginBottom:4}}>Estado de cuenta</label>
             <select
               value={form.estadoCuenta||'EN_ONBOARDING'}
               onChange={function(e){
@@ -2958,6 +3022,69 @@ function LegajosView(props) {
               setScreeningLoading(false);
             }
 
+            // ── Adverse Media ─────────────────────────────────────────────────
+            var adverseState = useState(null); var adverseResult=adverseState[0]; var setAdverseResult=adverseState[1];
+            var adverseLoadingState = useState(false); var adverseLoading=adverseLoadingState[0]; var setAdverseLoading=adverseLoadingState[1];
+
+            async function ejecutarAdverseMedia() {
+              var empresa = form.razonSocial || '';
+              var presidente = form.presidente || form.representanteLegal || '';
+              if (!empresa) { alert('El legajo debe tener Razón Social para realizar Adverse Media Search.'); return; }
+              setAdverseLoading(true);
+              try {
+                var sujetos = [empresa];
+                if (presidente) sujetos.push(presidente);
+                if (form.beneficiarioFinal) sujetos.push(form.beneficiarioFinal);
+                var prompt = 'Sos analista senior AML/Compliance de un PSP argentino (GOAT S.A./Rebit, regulado UIF/BCRA).\n\n'
+                  + 'Realizá una búsqueda de Adverse Media (noticias negativas, antecedentes judiciales, regulatorios, periodísticos) para las siguientes entidades/personas.\n\n'
+                  + 'ENTIDADES A INVESTIGAR:\n' + sujetos.map(function(s,i){return (i+1)+'. '+s;}).join('\n') + '\n\n'
+                  + 'BUSCAR en fuentes públicas abiertas:\n'
+                  + '- Google Noticias / búsqueda web en español e inglés\n'
+                  + '- Infojus / Poder Judicial Argentina (causas judiciales)\n'
+                  + '- BCRA / UIF / CNV / AFIP (sanciones regulatorias)\n'
+                  + '- Periodismo de investigación (Infobae, La Nacion, Clarin, TN, Ambito, El Cronista)\n'
+                  + '- ICIJ OffshoreLeaks / Panama Papers / Pandora Papers\n\n'
+                  + 'Para cada sujeto, indicá:\n'
+                  + '- LIMPIO: sin hallazgos negativos relevantes\n'
+                  + '- REVISAR: hallazgos menores, menciones ambiguas, requiere análisis\n'
+                  + '- ADVERSO: hallazgos negativos claros (causas penales, sanciones, fraude, lavado, etc.)\n\n'
+                  + 'Devolvé SOLO JSON válido, sin backticks:\n'
+                  + '{\n'
+                  + '  "resumenGeneral": "LIMPIO|REVISAR|ADVERSO",\n'
+                  + '  "sujetos": [\n'
+                  + '    {\n'
+                  + '      "nombre": "nombre buscado",\n'
+                  + '      "estado": "LIMPIO|REVISAR|ADVERSO",\n'
+                  + '      "hallazgos": ["hallazgo 1", "hallazgo 2"],\n'
+                  + '      "fuentes": ["fuente/url 1", "fuente 2"],\n'
+                  + '      "resumen": "texto libre de 2-3 oraciones con el resultado"\n'
+                  + '    }\n'
+                  + '  ],\n'
+                  + '  "recomendacion": "Sin observaciones|Requiere análisis adicional|Escalar a Oficial de Cumplimiento",\n'
+                  + '  "redFlags": ["red flag 1", "red flag 2"]\n'
+                  + '}';
+
+                var gz = await gzipPayload({ provider: 'claude', useWebSearch: true, max_tokens: 3000, messages: [{ role: 'user', content: prompt }] });
+                var r = await fetch('/api/ai', { method: 'POST', headers: gz.headers, body: gz.body });
+                var res = await r.json();
+                var clean = (res.text||'').replace(/```json|```/g,'').trim();
+                var result = JSON.parse(clean);
+                result.fecha = todayStr();
+                result.hora = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+                result.realizadoPor = currentUser ? currentUser.nombre : 'Sistema';
+                result.sujetos_buscados = sujetos;
+                fld('adverseMedia', result);
+                setAdverseResult(result);
+              } catch(e) {
+                alert('Error en Adverse Media Search: ' + e.message);
+              }
+              setAdverseLoading(false);
+            }
+
+            var amResult = adverseResult || form.adverseMedia || null;
+            var amGeneral = amResult ? amResult.resumenGeneral : null;
+            var amCol = amGeneral==='LIMPIO' ? T.GREEN : amGeneral==='ADVERSO' ? T.RED : amGeneral==='REVISAR' ? T.AMBER : T.TEXT3;
+
             return (
               <div>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
@@ -3033,6 +3160,75 @@ function LegajosView(props) {
                     <div style={{fontSize:12,marginTop:4}}>Hacé clic en "Ejecutar Screening" para verificar contra las 4 listas de sanciones.</div>
                   </div>
                 )}
+
+                {/* ── ADVERSE MEDIA ──────────────────────────────────────────────────── */}
+                <div style={{marginTop:20,background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,padding:16}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
+                    <div>
+                      <div style={{fontWeight:600,color:T.TEXT,fontSize:13,marginBottom:3}}>
+                        📰 Adverse Media Search
+                        {amGeneral && <span style={{marginLeft:8,padding:'2px 8px',borderRadius:2,background:amCol+'22',color:amCol,fontSize:10,fontWeight:600,fontFamily:T.MONO,border:'1px solid '+amCol+'44'}}>{amGeneral}</span>}
+                      </div>
+                      <div style={{fontSize:11,color:T.TEXT2}}>Google Noticias · Poder Judicial · BCRA/UIF/CNV · ICIJ Offshore Leaks</div>
+                      {amResult && <div style={{fontSize:10,color:T.TEXT3,marginTop:2,fontFamily:T.MONO}}>Último: {amResult.fecha} {amResult.hora} — {amResult.realizadoPor}</div>}
+                    </div>
+                    <button
+                      onClick={ejecutarAdverseMedia}
+                      disabled={adverseLoading || !form.razonSocial}
+                      style={{background:adverseLoading?T.BG4:'rgba(255,184,48,0.15)',color:adverseLoading?T.TEXT3:T.AMBER,border:'1px solid '+(adverseLoading?T.BORDER:'rgba(255,184,48,0.35)'),borderRadius:3,padding:'8px 14px',cursor:adverseLoading||!form.razonSocial?'not-allowed':'pointer',fontSize:11,fontFamily:T.MONO,fontWeight:600,flexShrink:0,whiteSpace:'nowrap'}}
+                    >
+                      {adverseLoading ? '// buscando...' : '🔍 Ejecutar búsqueda'}
+                    </button>
+                  </div>
+
+                  {adverseLoading && (
+                    <div style={{textAlign:'center',padding:'16px',color:T.CYAN,fontSize:11,fontFamily:T.MONO}}>
+                      // buscando noticias y antecedentes... esto puede tardar 30-60 segundos
+                    </div>
+                  )}
+
+                  {amResult && !adverseLoading && (
+                    <div>
+                      {(amResult.sujetos||[]).map(function(s,si){
+                        var sCol = s.estado==='LIMPIO'?T.GREEN:s.estado==='ADVERSO'?T.RED:T.AMBER;
+                        return (
+                          <div key={si} style={{background:T.BG2,border:'1px solid '+(s.estado==='ADVERSO'?'rgba(255,68,85,0.3)':s.estado==='REVISAR'?'rgba(255,184,48,0.25)':T.BORDER),borderRadius:3,padding:'12px 14px',marginBottom:8}}>
+                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
+                              <div style={{fontWeight:600,color:T.TEXT,fontSize:12}}>{s.nombre}</div>
+                              <span style={{padding:'2px 8px',borderRadius:2,background:sCol+'22',color:sCol,fontSize:10,fontWeight:600,fontFamily:T.MONO}}>{s.estado}</span>
+                            </div>
+                            <div style={{fontSize:11,color:T.TEXT2,lineHeight:1.6}}>{s.resumen}</div>
+                            {s.hallazgos && s.hallazgos.length > 0 && s.hallazgos.map(function(h,hi){
+                              return <div key={hi} style={{fontSize:11,color:T.AMBER,marginTop:4}}>⚠ {h}</div>;
+                            })}
+                            {s.fuentes && s.fuentes.length > 0 && (
+                              <div style={{marginTop:6,fontSize:10,color:T.TEXT3,fontFamily:T.MONO}}>Fuentes: {s.fuentes.join(' · ')}</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {amResult.redFlags && amResult.redFlags.length > 0 && (
+                        <div style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.25)',borderRadius:3,padding:'10px 14px',marginTop:8}}>
+                          <div style={{fontSize:11,fontWeight:600,color:T.RED,marginBottom:6}}>🚨 Red Flags</div>
+                          {amResult.redFlags.map(function(rf,ri){
+                            return <div key={ri} style={{fontSize:11,color:T.TEXT,marginBottom:3}}>• {rf}</div>;
+                          })}
+                        </div>
+                      )}
+                      <div style={{background:T.BG4,borderRadius:3,padding:'10px 14px',marginTop:8}}>
+                        <div style={{fontSize:10,color:T.TEXT3,letterSpacing:'1px',marginBottom:2,fontFamily:T.MONO}}>RECOMENDACIÓN</div>
+                        <div style={{fontSize:12,color:amGeneral==='ADVERSO'?T.RED:amGeneral==='REVISAR'?T.AMBER:T.GREEN,fontWeight:600}}>{amResult.recomendacion}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!amResult && !adverseLoading && (
+                    <div style={{textAlign:'center',padding:'16px 0',color:T.TEXT3,fontSize:11,fontFamily:T.MONO}}>
+                      // sin búsqueda realizada — ejecutar para ver noticias y antecedentes
+                    </div>
+                  )}
+                </div>
+
               </div>
             );
           })()}
