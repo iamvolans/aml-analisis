@@ -148,7 +148,7 @@ function genINF01(legajo, periodos, memosList) {
   var scNum = Number(scProm);
   var scClasif = scNum>=4?'ALTO':scNum>=3?'MEDIO-ALTO':scNum>=2?'MEDIO':'BAJO';
   var dc = dictamen==='APROBADO'?'#27AE60':dictamen==='CONDICIONAL'?'#E67E22':'#E74C3C';
-  var scColor = scNum>=4?'#E74C3C':scNum>=3?'#E67E22':scNum>=2?'#F39C12':'#27AE60';
+  var scColor = scNum>=4?'#FF4455':scNum>=3?'#FF8C00':scNum>=2?'#FFB830':'#00E676';
   var frec = segmento==='ALTO'?'Mensual':segmento==='MEDIO-ALTO'?'Bimestral':segmento==='MEDIO'?'Trimestral':'Anual';
   var mon = segmento==='ALTO'?'Continuo + EDD obligatoria':segmento==='MEDIO-ALTO'?'Reforzado + EDD recomendada':segmento==='MEDIO'?'Estándar con reglas de detección':'Básico anual';
   var rescreening = segmento==='ALTO'?'Mensual':segmento==='MEDIO-ALTO'?'Bimestral':segmento==='MEDIO'?'Trimestral':'Semestral';
@@ -449,7 +449,7 @@ function genINF02(legajo, periodo, m, sigs, sc, memosList) {
     ? sigs.map(function(s) { return '<tr><td><b>' + s.pat + '</b></td><td style="color:' + sevColor(s.sev) + ';font-weight:700">' + s.sev + '</td><td>' + s.titulo + '</td><td style="font-size:9pt">' + s.desc + '</td></tr>'; }).join('')
     : '<tr><td colspan="4" style="text-align:center;color:#27AE60">Sin senales AML detectadas</td></tr>';
   var scRows = sc ? sc.scores.map(function(f) {
-    var c = f.score >= 4 ? '#E74C3C' : f.score >= 3 ? '#E67E22' : '#27AE60';
+    var c = f.score >= 4 ? '#FF4455' : f.score >= 3 ? '#FF8C00' : '#00E676';
     return '<tr><td>' + f.factor + '</td><td style="color:' + c + ';font-weight:700">' + f.score + '/5</td><td style="font-size:9pt;color:#555">' + f.ref + '</td></tr>';
   }).join('') : '';
   var rfiHtml = sigs.length > 0
@@ -2043,11 +2043,11 @@ function DashboardView(props) {
     <div style={{padding:22}}>
       {/* TABS */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
-        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>Dashboard — GOAT S.A. / Rebit</h2>
-        <div style={{display:'flex',gap:2,background:C.CEL,borderRadius:6,padding:4}}>
+        <h2 style={{fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>Dashboard — GOAT S.A. / Rebit</h2>
+        <div style={{display:'flex',gap:2,background:T.BG3,borderRadius:4,padding:4,border:'1px solid '+T.BORDER}}>
           {[['operacional','📊 Operacional'],['ejecutivo','📈 Ejecutivo']].map(function(t){return(
             <button key={t[0]} onClick={function(){setDashTab(t[0]);}}
-              style={{padding:'7px 18px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:dashTab===t[0]?700:400,background:dashTab===t[0]?'rgba(59,109,170,0.15)':'transparent',color:dashTab===t[0]?T.CYAN:T.TEXT2,fontFamily:T.MONO,fontSize:11,fontSize:12}}>
+              style={{padding:'7px 18px',border:'none',borderRadius:3,cursor:'pointer',fontWeight:dashTab===t[0]?600:400,background:dashTab===t[0]?'rgba(59,109,170,0.2)':'transparent',color:dashTab===t[0]?T.CYAN:T.TEXT2,fontFamily:T.MONO,fontSize:12}}>
               {t[1]}
             </button>
           );})}
@@ -2535,15 +2535,15 @@ function LegajosView(props) {
       <div style={{padding:22,maxWidth:900}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
           <div>
-            <h2 style={{color:T.TEXT,fontSize:14,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>{legajos.find(function(l){return l.id===form.id;}) ? 'Editar Legajo' : 'Nuevo Legajo KYB'}</h2>
+            <h2 style={{fontSize:14,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>{legajos.find(function(l){return l.id===form.id;}) ? 'Editar Legajo' : 'Nuevo Legajo KYB'}</h2>
             {!legajos.find(function(l){return l.id===form.id;}) && <div style={{fontSize:12,color:T.TEXT2,marginTop:3}}>Paso 1: subí los documentos → Paso 2: revisá los datos → Paso 3: guardá</div>}
           </div>
           <div style={{display:'flex',gap:8}}>
             <button onClick={handleSave} style={btnG}>💾 Guardar</button>
-            <button onClick={function(){setEditing(false);setForm(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 14px',cursor:'pointer',fontWeight:600,fontSize:12,color:T.TEXT}}>Cancelar</button>
+            <button onClick={function(){setEditing(false);setForm(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 14px',cursor:'pointer',fontWeight:600,fontSize:12,}}>Cancelar</button>
           </div>
         </div>
-        <div style={{display:'flex',gap:2,marginBottom:14,background:C.CEL,borderRadius:6,padding:4}}>
+        <div style={{display:'flex',gap:2,marginBottom:14,background:T.BG3,borderRadius:4,padding:4,border:'1px solid '+T.BORDER}}>
           {[
             ['resumen_ia', iaFields ? '🤖 Resumen IA' : '📄 Docs IA'],
             ['datos', '📋 Datos' + (iaFields && iaFields.filled.length > 0 ? ' ✓' : '')],
@@ -2553,7 +2553,7 @@ function LegajosView(props) {
             ['historial', '🕐 Historial'],
             ['screening', '🛡 Screening' + (form.screening ? (form.screening.estadoGeneral==='LIMPIO'?' ✅':form.screening.estadoGeneral==='COINCIDENCIA'?' 🔴':' 🟡') : '')]
           ].map(function(t){return(
-            <button key={t[0]} onClick={function(){setTab(t[0]);}} style={{flex:1,padding:'7px 4px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:tab===t[0]?700:400,background:tab===t[0]?'rgba(59,109,170,0.15)':'transparent',color:tab===t[0]?T.CYAN:T.TEXT2,borderBottom:tab===t[0]?'2px solid '+C.AC:'2px solid transparent',fontFamily:T.MONO,fontSize:11,letterSpacing:'0.5px',fontSize:11,whiteSpace:'nowrap'}}>{t[1]}</button>
+            <button key={t[0]} onClick={function(){setTab(t[0]);}} style={{flex:1,padding:'7px 4px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:tab===t[0]?700:400,background:tab===t[0]?'rgba(59,109,170,0.15)':'transparent',color:tab===t[0]?T.CYAN:T.TEXT2,borderBottom:tab===t[0]?'2px solid '+C.AC:'2px solid transparent',fontFamily:T.MONO,fontSize:11,letterSpacing:'0.5px',whiteSpace:'nowrap'}}>{t[1]}</button>
           );})}
         </div>
         {tab === 'resumen_ia' ? <div>
@@ -2607,7 +2607,7 @@ function LegajosView(props) {
               ].map(function(stat,i){return(
                 <div key={i} style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,padding:'12px 14px',textAlign:'center',borderTop:'3px solid '+stat.col}}>
                   <div style={{fontSize:20}}>{stat.icon}</div>
-                  <div style={{fontSize:22,fontWeight:700,color:stat.col,margin:'4px 0'}}>{stat.val}{stat.max?<span style={{fontSize:12,color:T.TEXT3,fontWeight:400}}>/{stat.max}</span>:''}</div>
+                  <div style={{fontSize:20,fontWeight:700,color:stat.col,margin:'4px 0',fontFamily:T.MONO}}>{stat.val}{stat.max?<span style={{fontSize:12,color:T.TEXT3,fontWeight:400}}>/{stat.max}</span>:''}</div>
                   <div style={{fontSize:11,color:T.TEXT2}}>{stat.label}</div>
                 </div>
               );})}
@@ -2798,7 +2798,7 @@ function LegajosView(props) {
         </div> : null}
 
         {tab === 'scoring' ? <div>
-          <div style={{background:C.CEL,borderRadius:6,padding:'10px 14px',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{background:'rgba(0,212,255,0.08)',borderRadius:4,padding:'10px 14px',marginBottom:12,border:'1px solid rgba(0,212,255,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <span style={{fontWeight:600,color:T.TEXT}}>Score KYB promedio</span>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               {iaFields && iaFields.kybFilled > 0 && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'2px 7px',fontSize:10,fontWeight:700}}>🤖 IA</span>}
@@ -3267,7 +3267,7 @@ function LegajosView(props) {
                 >
                   📄 Generar INF-07 Cierre
                 </button>
-                <button onClick={function(){setCierreOpen(false);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'11px 18px',cursor:'pointer',fontWeight:600,fontSize:12,color:T.TEXT}}>Cancelar</button>
+                <button onClick={function(){setCierreOpen(false);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'11px 18px',cursor:'pointer',fontWeight:600,fontSize:12,}}>Cancelar</button>
               </div>
             </div>
           </div> : null}
@@ -3358,7 +3358,7 @@ function LegajosView(props) {
   return (
     <div style={{padding:22}} onClick={function(){if(menuOpen)setMenuOpen(null);}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px'}}>Legajos KYB ({legajos.length})</h2>
+        <h2 style={{fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px'}}>Legajos KYB ({legajos.length})</h2>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           {selectMode ? (
             <div style={{display:'flex',gap:8,alignItems:'center'}}>
@@ -3851,7 +3851,7 @@ function AnalisisView(props) {
 
   return (
     <div style={{padding:22}}>
-      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700,color:T.TEXT}}>Analisis Transaccional — INF-02</h2>
+      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700,}}>Analisis Transaccional — INF-02</h2>
       <div style={{display:'flex',gap:12,marginBottom:16,flexWrap:'wrap',alignItems:'flex-end'}}>
         <div style={{flex:'1 1 200px'}}>
           <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:3}}>Legajo</label>
@@ -4156,7 +4156,7 @@ function AnalisisView(props) {
             auditLog(currentUser,'generar_inf02','periodo',selPeriodo.id,{razonSocial:selLegajo.razonSocial,periodo:selPeriodo.nombre,riesgo:sc&&sc.clasificacion});
           }} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontWeight:700,fontSize:13}}>📄 INF-02</button>
         </div>
-        <div style={{display:'flex',gap:2,marginBottom:12,background:C.CEL,borderRadius:6,padding:4,flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:2,marginBottom:12,background:T.BG3,borderRadius:4,padding:4,border:'1px solid '+T.BORDER,flexWrap:'wrap'}}>
           {[['metricas','📊 Metricas'],['senales','🚨 Senales'],['scoring','📈 Scoring'],['graficos','📉 Graficos'],['dd','🔍 Nota DD'],['memos','📝 Memos'+(memos.length>0?' ('+memos.length+')':'')],['rfi','📧 RFI'+(rfis.length>0?' ('+rfis.filter(function(r){return r.estado!=='CERRADO';}).length+')':'')]].map(function(t){return(
             <button key={t[0]} onClick={function(){setTab(t[0]);}} style={{flex:1,minWidth:80,padding:'7px 0',border:'none',borderRadius:4,cursor:'pointer',fontWeight:tab===t[0]?700:400,background:tab===t[0]?(t[0]==='dd'?'#5D4E8C':t[0]==='memos'?'#1A6B3A':t[0]==='rfi'?'#1A4A6B':C.AO):'transparent',color:tab===t[0]?'white':C.AO,fontSize:11}}>{t[1]}</button>
           );})}
@@ -4650,7 +4650,7 @@ function AnalisisView(props) {
                         </div>
                       </div>
                       <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
-                        {rfi.periodoNombre && <span style={{background:C.CEL,color:T.CYAN,borderRadius:6,padding:'2px 8px',fontSize:10,fontWeight:600}}>{rfi.periodoNombre}</span>}
+                        {rfi.periodoNombre && <span style={{background:'rgba(0,212,255,0.12)',color:T.CYAN,borderRadius:3,padding:'2px 8px',fontSize:10,fontWeight:600}}>{rfi.periodoNombre}</span>}
                         <span style={{fontSize:11,color:T.TEXT3}}>{rfi.intercambios?rfi.intercambios.length:0} msg</span>
                         <span style={{fontSize:11,color:T.TEXT3}}>{rfi.createdAt}</span>
                         <span style={{fontSize:14,color:T.TEXT3}}>{isOpen?'▲':'▼'}</span>
@@ -4662,7 +4662,7 @@ function AnalisisView(props) {
                       <span style={{fontSize:10,color:T.TEXT3,alignSelf:'center',marginRight:4}}>Estado:</span>
                       {RFI_ESTADOS.map(function(e){
                         var isCur = rfi.estado===e.id;
-                        return <button key={e.id} onClick={function(){cambiarEstadoRfi(rfi.id,e.id);}} style={{background:isCur?e.bg:'white',color:isCur?e.color:T.TEXT2,border:'1px solid '+(isCur?e.color:'#ddd'),borderRadius:8,padding:'2px 10px',cursor:'pointer',fontSize:10,fontWeight:isCur?700:400}}>{e.label}</button>;
+                        return <button key={e.id} onClick={function(){cambiarEstadoRfi(rfi.id,e.id);}} style={{background:isCur?e.bg:'white',color:isCur?e.color:T.TEXT2,borderRadius:8,padding:'2px 10px',cursor:'pointer',fontSize:10,fontWeight:isCur?700:400}}>{e.label}</button>;
                       })}
                       <button onClick={function(){eliminarRfi(rfi.id);}} style={{marginLeft:'auto',background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'2px 8px',cursor:'pointer',fontSize:10,color:T.TEXT3}}>🗑 Eliminar</button>
                     </div>
@@ -4868,8 +4868,8 @@ function AlertasView(props) {
     <div style={{padding:22}}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
-        <h2 style={{color:T.TEXT,margin:0,fontSize:19,fontWeight:700,color:T.TEXT}}>Centro de Alertas</h2>
-        <span style={{background:totalAlertas>0?C.ROJO:'#27AE60',color:'white',borderRadius:10,padding:'2px 10px',fontSize:11,fontWeight:700}}>
+        <h2 style={{color:T.TEXT,margin:0,fontSize:19,fontWeight:700,}}>Centro de Alertas</h2>
+        <span style={{background:totalAlertas>0?'rgba(255,68,85,0.2)':'rgba(0,230,118,0.2)',color:totalAlertas>0?T.RED:T.GREEN,borderRadius:3,padding:'2px 10px',fontSize:10,fontWeight:600,fontFamily:T.MONO}}>
           {totalAlertas > 0 ? totalAlertas+' activas' : '✓ Sin alertas'}
         </span>
       </div>
@@ -5088,7 +5088,7 @@ function NormativaView() {
   ];
   return (
     <div style={{padding:22}}>
-      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700,color:T.TEXT}}>Normativa Aplicable</h2>
+      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700,}}>Normativa Aplicable</h2>
       <Card title="Marco regulatorio AML/CFT — Argentina">
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
           <thead><tr>{['Normativa','Descripcion','Articulo / Alcance'].map(function(h,i){return <th key={i} style={{background:C.AO,color:'white',padding:'7px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
@@ -5376,7 +5376,7 @@ function PatronesView() {
   return (
     <div style={{padding:22, maxWidth:960}}>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:6}}>
-        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>🔍 Patrones AML — Referencia</h2>
+        <h2 style={{fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>🔍 Patrones AML — Referencia</h2>
         <span style={{background:C.AO,color:'white',borderRadius:10,padding:'2px 10px',fontSize:11,fontWeight:700}}>12 patrones activos</span>
       </div>
       <p style={{fontSize:12,color:T.TEXT2,marginBottom:20}}>
@@ -5452,7 +5452,7 @@ function PatronesView() {
                     <span style={{background:sevBg,color:sevColor,border:'1px solid '+sevColor,borderRadius:4,padding:'3px 10px',fontSize:10,fontWeight:700}}>
                       Severidad típica: {p.sev}
                     </span>
-                    <span style={{background:C.CEL,color:T.CYAN,border:'1px solid '+C.CEL,borderRadius:4,padding:'3px 10px',fontSize:10,fontWeight:700}}>
+                    <span style={{background:'rgba(0,212,255,0.12)',color:T.CYAN,border:'1px solid rgba(0,212,255,0.3)',borderRadius:4,padding:'3px 10px',fontSize:10,fontWeight:700}}>
                       Tipología UIF: {p.tip}
                     </span>
                   </div>
@@ -5553,7 +5553,7 @@ function WikiFlow({title, nodes, vertical}) {
               <div style={{fontSize:12,fontWeight:700,lineHeight:1.4}}>{node.label}</div>
               {node.sub && <div style={{fontSize:10,opacity:0.8,marginTop:2,lineHeight:1.4}}>{node.sub}</div>}
             </div>
-            {i < nodes.length-1 && <div style={{color:T.CYAN,fontSize:16,fontWeight:700,color:T.TEXT,padding:vertical?'2px 0':'0 3px',flexShrink:0,lineHeight:1}}>{vertical?'↓':'→'}</div>}
+            {i < nodes.length-1 && <div style={{color:T.TEXT2,fontSize:14,fontWeight:400,padding:vertical?'2px 0':'0 3px',flexShrink:0,lineHeight:1}}>{vertical?'↓':'→'}</div>}
           </div>
         ))}
       </div>
@@ -6066,15 +6066,15 @@ function UsuariosView(props) {
   return (
     <div style={{padding:22}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-        <h2 style={{color:T.TEXT,fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>👥 Gestión de Usuarios</h2>
+        <h2 style={{fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>👥 Gestión de Usuarios</h2>
         <button onClick={function(){setForm({email:'',password:'',nombre:'',rol:'analista'});setErr('');}}
           style={{background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontWeight:700,fontSize:13}}>
           + Nuevo usuario
         </button>
       </div>
 
-      {ok && <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:4,padding:'10px 14px',marginBottom:12,color:T.GREEN,fontWeight:600,fontSize:12,color:T.TEXT}}>✅ {ok}</div>}
-      {err && <div style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.2)',borderRadius:4,padding:'10px 14px',marginBottom:12,color:T.RED,fontWeight:600,fontSize:12,color:T.TEXT}}>⚠ {err}</div>}
+      {ok && <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:4,padding:'10px 14px',marginBottom:12,color:T.GREEN,fontWeight:600,fontSize:12}}>✅ {ok}</div>}
+      {err && <div style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.2)',borderRadius:4,padding:'10px 14px',marginBottom:12,color:T.RED,fontWeight:600,fontSize:12}}>⚠ {err}</div>}
 
       {/* Formulario nuevo usuario */}
       {form && (
