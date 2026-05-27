@@ -317,6 +317,15 @@ function genINF01(legajo, periodos, memosList) {
     + (legajo.facturacionMensual>0
       ? tbl(th(['Indicador','Valor','Referencia']),
           tr3('Facturación mensual estimada',fac,'Según declaración y perfil documental')
+          + (function(){
+      var lh = safeArr(legajo.limitesHistorial).filter(function(l){return l.estado==='VIGENTE';});
+      if (lh.length === 0) return '';
+      return '<tr><td colspan="3" style="padding-top:10px;color:#8BA3C0;font-weight:600;font-size:9pt;border:none">📈 Aumentos de límite vigentes</td></tr>'
+        + lh.map(function(l){
+          var t = l.tipo==='AUMENTO_PERMANENTE'?'Permanente':l.tipo==='OPERACION_PUNTUAL'?'Op. puntual':'Temporal';
+          return tr3(t + (l.vigenciaHasta?' (hasta '+l.vigenciaHasta+')':''), l.montoNuevo?fmtM(l.montoNuevo):'—', (l.respaldo||'DDJJ')+' — '+(l.aprobadoPor||'—'));
+        }).join('');
+    })()
           + tr3('Límite diario sugerido',limD,'~'+(legajo.facturacionMensual>0?Math.round(legajo.limiteDiario/legajo.facturacionMensual*100)+'% de facturación mensual':'N/D'))
           + tr3('Límite mensual sugerido',limM,'Según perfil de actividad')
           + tr3('Perfil de deuda','A determinar','Requiere estados contables'))
@@ -1695,7 +1704,32 @@ function detectPatrones(m, perfil) {
   if (m.ratioCpEmbudo > 5 && m.uniqueCpIn > 5) add('PAT-02', 'ALTA', 'Cuenta embudo (funnel account)', 'Ratio IN:OUT = ' + m.uniqueCpIn + ':' + m.uniqueCpOut + ' = ' + m.ratioCpEmbudo.toFixed(1) + ':1 (umbral 5:1).', 'T-04');
   if (m.circularCount > 0) add('PAT-03', 'ALTA', 'Posible circularidad (layering)', m.circularCount + ' contraparte(s) como origen Y destino.', 'T-03');
   if (m.pctOneShot > 60 && m.uniqueCpIn > 8) add('PAT-04', 'ALTA', 'Smurfing — contrapartes one-shot', m.pctOneShot.toFixed(1) + '% de contrapartes aparecen 1 sola vez (umbral 60%).', 'T-02');
-  if (m.ratioVP !== null) { if (m.ratioVP > 2.0) add('PAT-05', 'ALTA', 'Volumen excede perfil declarado', 'Volumen es ' + m.ratioVP.toFixed(2) + 'x el perfil mensual.', 'T-05'); else if (m.ratioVP < 0.3) add('PAT-05', 'MEDIA', 'Volumen muy inferior al perfil', 'Volumen es ' + m.ratioVP.toFixed(2) + 'x el perfil.', 'T-06'); }
+  if (m.ratioVP !== null) {
+    // Verificar si hay aumento de límite vigente que cubra este período
+    var limVigente = null;
+    if (perfil && perfil.limitesHistorial) {
+      limVigente = perfil.limitesHistorial.find(function(lim) {
+        if (lim.estado !== 'VIGENTE') return false;
+        if (lim.tipo === 'AUMENTO_PERMANENTE') return true;
+        // Para temporales, verificar fechas
+        if (!lim.vigenciaDesde) return true; // sin fecha = siempre vigente
+        var hoy = new Date().toISOString().slice(0,10);
+        return hoy >= lim.vigenciaDesde && (!lim.vigenciaHasta || hoy <= lim.vigenciaHasta);
+      });
+    }
+    if (m.ratioVP > 2.0) {
+      if (limVigente) {
+        // Hay aumento vigente — bajar severidad a INFO y anotar
+        var limRef = limVigente.tipo === 'AUMENTO_PERMANENTE' ? 'permanente' : 'temporal hasta ' + (limVigente.vigenciaHasta||'indefinido');
+        var nuevoLim = limVigente.montoNuevo ? fmtM(limVigente.montoNuevo) : 'sin tope definido';
+        add('PAT-05', 'BAJA', 'Volumen excede perfil original (aumento vigente)', 'Ratio ' + m.ratioVP.toFixed(2) + 'x, pero existe aumento ' + limRef + ' a ' + nuevoLim + '. Motivo: ' + (limVigente.motivo||'—') + '. Aprobado por: ' + (limVigente.aprobadoPor||'—') + '.', 'T-05');
+      } else {
+        add('PAT-05', 'ALTA', 'Volumen excede perfil declarado', 'Volumen es ' + m.ratioVP.toFixed(2) + 'x el perfil mensual.', 'T-05');
+      }
+    } else if (m.ratioVP < 0.3) {
+      add('PAT-05', 'MEDIA', 'Volumen muy inferior al perfil', 'Volumen es ' + m.ratioVP.toFixed(2) + 'x el perfil.', 'T-06');
+    }
+  }
   if (m.hhiIn > 0.80 || m.top1In > 80) add('PAT-06', 'ALTA', 'Concentracion extrema — cash-in', 'Top-1: ' + m.top1In.toFixed(1) + '% | HHI: ' + m.hhiIn.toFixed(3) + '.', 'T-02');
   else if (m.hhiIn > 0.50) add('PAT-06', 'MEDIA', 'Concentracion alta — cash-in', 'Top-1: ' + m.top1In.toFixed(1) + '%.', 'T-02');
   if (m.hhiOut > 0.80 || m.top1Out > 80) add('PAT-06', 'ALTA', 'Concentracion extrema — cash-out', 'Top-1: ' + m.top1Out.toFixed(1) + '%.', 'T-02');
@@ -2508,6 +2542,7 @@ function LegajosView(props) {
     var kybSc = {}; KYB_FACTORS.forEach(function(f){kybSc[f]=2;});
     return { id:uid(), razonSocial:'', cuit:'', actividad:'', facturacionMensual:0, limiteDiario:0, limiteMensual:0, segmento:'MEDIO', dictamen:'CONDICIONAL', beneficiarioFinal:'', domicilio:'',
       representanteLegal:'', presidente:'', vinculados:'', tipoSociedad:'SA', paisConstitucion:'Argentina', cotizaBolsa:false, grupoEconomico:'',
+      limitesHistorial:[],
       checklist:cl, kybScores:kybSc, redFlags:[], observaciones:[], docsIA:[], createdAt:todayStr(), estadoCuenta:'EN_ONBOARDING', estadoCuentaUpdatedAt:todayStr(), estadoHistorial:[{estado:'EN_ONBOARDING', fecha:todayStr(), hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}), analista:'Sistema'}] };
   }
   function saveList(updated) { setLegajos(updated); onSync(updated, periodos); }
@@ -2934,6 +2969,149 @@ function LegajosView(props) {
               Si completás esta fecha, el sistema la usa como referencia para calcular cuándo vence el próximo análisis requerido y no generará alertas hasta que se cumpla ese plazo.
             </div>
           </div>
+
+          {/* ── GESTIÓN DE LÍMITES TRANSACCIONALES ─────────────────────────── */}
+          <div style={{gridColumn:'1/-1',marginTop:16,background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,padding:16}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <div>
+                <div style={{fontWeight:600,color:T.TEXT,fontSize:13}}>📈 Gestión de límites transaccionales</div>
+                <div style={{fontSize:11,color:T.TEXT2,marginTop:2}}>Declarar aumentos de límite aprobados para que el motor AML no genere alertas PAT-05 repetitivas.</div>
+              </div>
+              <button
+                onClick={function(){
+                  var hist = safeArr(form.limitesHistorial).slice();
+                  hist.push({
+                    id: uid(), tipo:'AUMENTO_TEMPORAL', estado:'VIGENTE',
+                    fechaSolicitud: todayStr(),
+                    vigenciaDesde: todayStr(), vigenciaHasta: '',
+                    montoAnterior: form.facturacionMensual || 0,
+                    montoNuevo: 0,
+                    motivo: '', respaldo: 'DDJJ', aprobadoPor: '',
+                    observaciones: ''
+                  });
+                  fld('limitesHistorial', hist);
+                }}
+                style={{background:'rgba(0,212,255,0.12)',color:T.CYAN,border:'1px solid rgba(0,212,255,0.3)',borderRadius:3,padding:'7px 14px',cursor:'pointer',fontSize:11,fontFamily:T.MONO,fontWeight:600,whiteSpace:'nowrap'}}
+              >
+                + Declarar aumento
+              </button>
+            </div>
+
+            {/* Límites vigentes y vencidos */}
+            {safeArr(form.limitesHistorial).length === 0 && (
+              <div style={{textAlign:'center',padding:'16px 0',color:T.TEXT3,fontSize:11,fontFamily:T.MONO}}>
+                // sin aumentos declarados — el motor AML usará facturación mensual como referencia
+              </div>
+            )}
+
+            {safeArr(form.limitesHistorial).map(function(lim, li) {
+              var isVigente = lim.estado === 'VIGENTE';
+              var isVencido = lim.estado === 'VENCIDO';
+              var borderCol = isVigente ? 'rgba(0,230,118,0.3)' : isVencido ? T.BORDER : 'rgba(255,68,85,0.3)';
+              var statusCol = isVigente ? T.GREEN : isVencido ? T.TEXT3 : T.RED;
+              var statusLabel = isVigente ? '✓ VIGENTE' : isVencido ? '⏱ VENCIDO' : '✗ REVOCADO';
+
+              function updLim(k, v) {
+                var hist = safeArr(form.limitesHistorial).slice();
+                hist[li] = Object.assign({}, hist[li]);
+                hist[li][k] = v;
+                fld('limitesHistorial', hist);
+              }
+
+              function removeLim() {
+                if (!window.confirm('¿Eliminar este registro de aumento de límite?')) return;
+                var hist = safeArr(form.limitesHistorial).filter(function(x,xi){ return xi !== li; });
+                fld('limitesHistorial', hist);
+              }
+
+              var tipoLabels = {
+                'AUMENTO_TEMPORAL': '⏱ Aumento temporal',
+                'AUMENTO_PERMANENTE': '∞ Aumento permanente',
+                'OPERACION_PUNTUAL': '📌 Operación puntual'
+              };
+
+              return (
+                <div key={lim.id||li} style={{background:T.BG2,border:'1px solid '+borderCol,borderRadius:4,padding:'14px',marginBottom:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{padding:'2px 8px',borderRadius:2,background:statusCol+'22',color:statusCol,fontSize:10,fontWeight:600,fontFamily:T.MONO}}>{statusLabel}</span>
+                      <span style={{fontSize:12,color:T.TEXT,fontWeight:600}}>{tipoLabels[lim.tipo] || lim.tipo}</span>
+                    </div>
+                    <div style={{display:'flex',gap:6}}>
+                      {isVigente && (
+                        <button onClick={function(){updLim('estado','VENCIDO');}} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:3,padding:'3px 8px',cursor:'pointer',fontSize:10,color:T.AMBER,fontFamily:T.MONO}}>vencer</button>
+                      )}
+                      {isVigente && (
+                        <button onClick={function(){updLim('estado','REVOCADO');}} style={{background:'none',border:'1px solid rgba(255,68,85,0.3)',borderRadius:3,padding:'3px 8px',cursor:'pointer',fontSize:10,color:T.RED,fontFamily:T.MONO}}>revocar</button>
+                      )}
+                      <button onClick={removeLim} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:3,padding:'3px 8px',cursor:'pointer',fontSize:10,color:T.TEXT3,fontFamily:T.MONO}}>✕</button>
+                    </div>
+                  </div>
+
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:10}}>
+                    <div>
+                      <label style={{display:'block',fontSize:9,color:T.TEXT3,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}}>Tipo</label>
+                      <select value={lim.tipo} onChange={function(e){updLim('tipo',e.target.value);}} style={{width:'100%',background:T.BG4,color:T.TEXT,border:'1px solid '+T.BORDER,borderRadius:3,padding:'6px 8px',fontSize:11}}>
+                        <option value="AUMENTO_TEMPORAL">Aumento temporal</option>
+                        <option value="AUMENTO_PERMANENTE">Aumento permanente</option>
+                        <option value="OPERACION_PUNTUAL">Operación puntual</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{display:'block',fontSize:9,color:T.TEXT3,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}}>Respaldo</label>
+                      <select value={lim.respaldo||'DDJJ'} onChange={function(e){updLim('respaldo',e.target.value);}} style={{width:'100%',background:T.BG4,color:T.TEXT,border:'1px solid '+T.BORDER,borderRadius:3,padding:'6px 8px',fontSize:11}}>
+                        <option value="DDJJ">DDJJ</option>
+                        <option value="NOTA">Nota formal</option>
+                        <option value="EMAIL">Email</option>
+                        <option value="ACTA_DIRECTORIO">Acta de directorio</option>
+                        <option value="CONTRATO">Contrato comercial</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{display:'block',fontSize:9,color:T.TEXT3,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}}>Aprobado por</label>
+                      <input type="text" value={lim.aprobadoPor||''} onChange={function(e){updLim('aprobadoPor',e.target.value);}} placeholder="Nombre del oficial" style={{width:'100%',background:T.BG4,color:T.TEXT,border:'1px solid '+T.BORDER,borderRadius:3,padding:'6px 8px',fontSize:11}}/>
+                    </div>
+                  </div>
+
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:10,marginBottom:10}}>
+                    <div>
+                      <label style={{display:'block',fontSize:9,color:T.TEXT3,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}}>Vigencia desde</label>
+                      <input type="date" value={lim.vigenciaDesde||''} onChange={function(e){updLim('vigenciaDesde',e.target.value);}} style={{width:'100%',background:T.BG4,color:T.TEXT,border:'1px solid '+T.BORDER,borderRadius:3,padding:'6px 8px',fontSize:11}}/>
+                    </div>
+                    <div>
+                      <label style={{display:'block',fontSize:9,color:T.TEXT3,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}}>Vigencia hasta</label>
+                      <input type="date" value={lim.vigenciaHasta||''} onChange={function(e){updLim('vigenciaHasta',e.target.value);}} disabled={lim.tipo==='AUMENTO_PERMANENTE'} style={{width:'100%',background:lim.tipo==='AUMENTO_PERMANENTE'?T.BG3:T.BG4,color:T.TEXT,border:'1px solid '+T.BORDER,borderRadius:3,padding:'6px 8px',fontSize:11,opacity:lim.tipo==='AUMENTO_PERMANENTE'?0.5:1}}/>
+                    </div>
+                    <div>
+                      <label style={{display:'block',fontSize:9,color:T.TEXT3,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}}>Monto anterior ($)</label>
+                      <input type="number" value={lim.montoAnterior||''} onChange={function(e){updLim('montoAnterior',Number(e.target.value));}} style={{width:'100%',background:T.BG4,color:T.TEXT,border:'1px solid '+T.BORDER,borderRadius:3,padding:'6px 8px',fontSize:11}}/>
+                    </div>
+                    <div>
+                      <label style={{display:'block',fontSize:9,color:T.TEXT3,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}}>Monto nuevo ($)</label>
+                      <input type="number" value={lim.montoNuevo||''} onChange={function(e){updLim('montoNuevo',Number(e.target.value));}} style={{width:'100%',background:T.BG4,color:T.TEXT,border:'1px solid '+T.BORDER,borderRadius:3,padding:'6px 8px',fontSize:11}}/>
+                    </div>
+                  </div>
+
+                  <div style={{marginBottom:8}}>
+                    <label style={{display:'block',fontSize:9,color:T.TEXT3,letterSpacing:'1px',textTransform:'uppercase',marginBottom:3}}>Motivo / justificación</label>
+                    <textarea value={lim.motivo||''} onChange={function(e){updLim('motivo',e.target.value);}} placeholder="Ej: Expansión comercial, campaña estacional, acuerdo con nuevo proveedor..." rows={2} style={{width:'100%',background:T.BG4,color:T.TEXT,border:'1px solid '+T.BORDER,borderRadius:3,padding:'6px 8px',fontSize:11,resize:'vertical',fontFamily:T.MONO}}/>
+                  </div>
+
+                  <div style={{fontSize:10,color:T.TEXT3,fontFamily:T.MONO}}>
+                    Solicitud: {lim.fechaSolicitud||'—'}
+                    {lim.montoAnterior && lim.montoNuevo ? ' · ' + fmtM(lim.montoAnterior) + ' → ' + fmtM(lim.montoNuevo) + ' (' + (lim.montoNuevo/lim.montoAnterior).toFixed(1) + 'x)' : ''}
+                  </div>
+                </div>
+              );
+            })}
+
+            {safeArr(form.limitesHistorial).filter(function(l){return l.estado==='VIGENTE';}).length > 0 && (
+              <div style={{background:'rgba(0,230,118,0.06)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:3,padding:'10px 14px',marginTop:8,fontSize:11,color:T.GREEN}}>
+                ✓ Existe al menos un aumento de límite vigente — el motor AML clasificará PAT-05 como severidad BAJA en lugar de ALTA cuando el volumen exceda el perfil original.
+              </div>
+            )}
+          </div>
+
         </div> : null}
 
         {tab === 'checklist' ? <div>
@@ -4467,6 +4645,9 @@ function AnalisisView(props) {
           <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
             {sc ? <span style={{padding:'5px 14px',borderRadius:6,background:sc.col,color:'white',fontWeight:700,fontSize:13}}>RIESGO {sc.clasificacion}</span> : null}
             {sc ? <span style={{fontSize:13,color:T.TEXT2}}>Score: {sc.promedio.toFixed(2)}/5 | {sigs.length} senales ({sigs.filter(function(s){return s.sev==='ALTA';}).length} ALTA)</span> : null}
+            {selLegajo && safeArr(selLegajo.limitesHistorial).filter(function(x){return x.estado==='VIGENTE';}).length > 0 && (
+              <span style={{marginLeft:8,padding:'3px 10px',borderRadius:3,background:'rgba(0,212,255,0.12)',color:T.CYAN,fontSize:10,fontFamily:T.MONO,fontWeight:600,border:'1px solid rgba(0,212,255,0.25)'}}>📈 aumento vigente</span>
+            )}
             {/* Estado del período */}
             {(function(){
               var ESTADOS_PERIODO = [
