@@ -147,7 +147,7 @@ function genINF01(legajo, periodos, memosList) {
   var scProm = scVals2.length>0?(scVals2.reduce(function(a,b){return a+b;},0)/scVals2.length).toFixed(1):'2.0';
   var scNum = Number(scProm);
   var scClasif = scNum>=4?'ALTO':scNum>=3?'MEDIO-ALTO':scNum>=2?'MEDIO':'BAJO';
-  var dc = dictamen==='APROBADO'?'#27AE60':dictamen==='CONDICIONAL'?'#E67E22':'#E74C3C';
+  var dc = dictamen==='APROBADO'?'#00E676':dictamen==='CONDICIONAL'?'#FFB830':'#FF4455';
   var scColor = scNum>=4?'#FF4455':scNum>=3?'#FF8C00':scNum>=2?'#FFB830':'#00E676';
   var frec = segmento==='ALTO'?'Mensual':segmento==='MEDIO-ALTO'?'Bimestral':segmento==='MEDIO'?'Trimestral':'Anual';
   var mon = segmento==='ALTO'?'Continuo + EDD obligatoria':segmento==='MEDIO-ALTO'?'Reforzado + EDD recomendada':segmento==='MEDIO'?'Estándar con reglas de detección':'Básico anual';
@@ -389,7 +389,7 @@ function genINF01(legajo, periodos, memosList) {
     + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0">'
     + '<div style="background:#EBF9F0;border:1px solid #A9DFBF;padding:12px;border-radius:4px;text-align:center"><div style="font-size:18pt;font-weight:700;color:#27AE60">'+okC+'</div><div style="font-size:9pt;color:#555">Documentos OK</div></div>'
     + '<div style="background:#FEF9E7;border:1px solid #F9E79F;padding:12px;border-radius:4px;text-align:center"><div style="font-size:18pt;font-weight:700;color:#E67E22">'+pend+'</div><div style="font-size:9pt;color:#555">Pendientes</div></div>'
-    + '<div style="background:'+(bloq>0?'#FDEDEC':'#162035')+';border:1px solid '+(bloq>0?'#F1948A':'#eee')+';padding:12px;border-radius:4px;text-align:center"><div style="font-size:18pt;font-weight:700;color:'+(bloq>0?'#E74C3C':'#888')+'">'+bloq+'</div><div style="font-size:9pt;color:#555">Bloqueantes</div></div>'
+    + '<div style="background:'+(bloq>0?'rgba(255,68,85,0.1)':'#162035')+';border:1px solid '+(bloq>0?'#F1948A':'#eee')+';padding:12px;border-radius:4px;text-align:center"><div style="font-size:18pt;font-weight:700;color:'+(bloq>0?'#FF4455':'#4A6A8A')+'">'+bloq+'</div><div style="font-size:9pt;color:#8BA3C0">Bloqueantes</div></div>'
     + '</div>'
     + '<p style="font-size:9pt;color:#8BA3C0">Completitud del legajo: <strong style="color:#E2EAF4">'+okC+'/'+CHECKLIST_ITEMS.length+' documentos ('+pctOK+'%)</strong>.</p>'
     + tbl(th(['Estado','Documento requerido','Observación']),clRows)
@@ -528,7 +528,7 @@ function genINF07Cierre(legajo, periodos, motivoCierre, tipoMotivo, analisisIA) 
       +'<td style="padding:5px 10px;border-bottom:1px solid #eee">'+(p.txns?p.txns.length:0)+' txns</td>'
       +'<td style="padding:5px 10px;border-bottom:1px solid #eee">'+(m?fmtM(m.tIn):'-')+'</td>'
       +'<td style="padding:5px 10px;border-bottom:1px solid #eee">'+(m?fmtM(m.tOut):'-')+'</td>'
-      +'<td style="padding:5px 10px;border-bottom:1px solid #eee;color:'+(altas>0?'#E74C3C':'#27AE60')+';font-weight:700">'+(altas>0?altas+' ALTA':'OK')+'</td>'
+      +'<td style="padding:5px 10px;border-bottom:1px solid #eee;color:'+(altas>0?'#FF4455':'#00E676')+';font-weight:600">'+(altas>0?altas+' ALTA':'OK')+'</td>'
       +'<td style="padding:5px 10px;border-bottom:1px solid #eee;color:'+(sc?sc.col:'#888')+';font-weight:700">'+(sc?sc.clasificacion:'N/D')+'</td>'
       +'<td style="padding:5px 10px;border-bottom:1px solid #eee">'+p.createdAt+'</td></tr>';
   }).join('');
@@ -541,7 +541,7 @@ function genINF07Cierre(legajo, periodos, motivoCierre, tipoMotivo, analisisIA) 
   var lastAltaSigs = lastSigs.filter(function(s){return s.sev==='ALTA';});
   var rf = safeArr(legajo.redFlags);
 
-  var colorMotivo = tipoMotivo==='RIESGO_AML'?'#E74C3C':tipoMotivo==='SOLICITUD_CLIENTE'?'#3B6DAA':tipoMotivo==='INACTIVIDAD'?'#E67E22':'#888';
+  var colorMotivo = tipoMotivo==='RIESGO_AML'?'#FF4455':tipoMotivo==='SOLICITUD_CLIENTE'?'#3B6DAA':tipoMotivo==='INACTIVIDAD'?'#FF8C00':'#4A6A8A';
   var labelMotivo = tipoMotivo==='RIESGO_AML'?'Cierre por Riesgo AML':tipoMotivo==='SOLICITUD_CLIENTE'?'Solicitud del Cliente':tipoMotivo==='INACTIVIDAD'?'Inactividad prolongada':tipoMotivo==='INCUMPLIMIENTO'?'Incumplimiento documental':'Cierre administrativo';
 
   return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>INF-07 Cierre — '+empresa+'</title><style>'
@@ -576,7 +576,7 @@ function genINF07Cierre(legajo, periodos, motivoCierre, tipoMotivo, analisisIA) 
     + '<tr><td style="color:#555;font-weight:600">Fecha de alta en sistema</td><td>'+(legajo.createdAt||'N/D')+'</td></tr>'
     + '<tr><td style="color:#555;font-weight:600">Fecha de cierre</td><td><strong>'+fecha+'</strong></td></tr>'
     + '<tr><td style="color:#555;font-weight:600">Períodos AML analizados</td><td>'+(lPers.length>0?'<strong>'+lPers.length+'</strong>':lPers.length)+'</td></tr>'
-    + '<tr><td style="color:#555;font-weight:600">Señales ALTA acumuladas</td><td><strong style="color:'+(lastAltaSigs.length>0?'#E74C3C':'#27AE60')+'">'+lastAltaSigs.length+(lastAltaSigs.length>0?' — requiere evaluación ROS':' — sin alertas críticas')+'</strong></td></tr>'
+    + '<tr><td style="color:#555;font-weight:600">Señales ALTA acumuladas</td><td><strong style="color:'+(lastAltaSigs.length>0?'#FF4455':'#00E676')+'">'+lastAltaSigs.length+(lastAltaSigs.length>0?' — requiere evaluación ROS':' — sin alertas críticas')+'</strong></td></tr>'
     + '<tr><td style="color:#555;font-weight:600">Ejecutado por</td><td>Equipo Compliance — GOAT S.A. / Rebit</td></tr>'
     + '</tbody></table>'
     + (function(){
@@ -635,7 +635,7 @@ function genINF07Cierre(legajo, periodos, motivoCierre, tipoMotivo, analisisIA) 
         + '<div style="font-size:9pt">Vol. IN: <strong>'+fmtM(lastM.tIn)+'</strong></div>'
         + '<div style="font-size:9pt">Vol. OUT: <strong>'+fmtM(lastM.tOut)+'</strong></div>'
         + '<div style="font-size:9pt">Ops: <strong>'+lastM.totalTxns+'</strong></div>'
-        + '<div style="font-size:9pt">Señales ALTA: <strong style="color:'+(lastAltaSigs.length>0?'#E74C3C':'#27AE60')+'">'+lastAltaSigs.length+'</strong></div>'
+        + '<div style="font-size:9pt">Señales ALTA: <strong style="color:'+(lastAltaSigs.length>0?'#FF4455':'#00E676')+'">'+lastAltaSigs.length+'</strong></div>'
         + '</div></div>'
         + (lastSigs.length>0 ? '<table><thead><tr><th>Patrón</th><th>Severidad</th><th>Descripción</th></tr></thead><tbody>'+lastSigs.map(function(s){return '<tr><td><strong>'+s.pat+'</strong></td><td style="color:'+sevColor(s.sev)+';font-weight:700">'+s.sev+'</td><td>'+s.titulo+'</td></tr>';}).join('')+'</tbody></table>' : '<div style="background:#EBF9F0;border-left:4px solid #27AE60;padding:10px 14px;margin:8px 0">Sin señales detectadas en el último período.</div>')
       : '<div style="background:#EBF5FB;border-left:4px solid #2471A3;padding:10px 14px;margin:8px 0">Sin datos de análisis AML disponibles para el último período.</div>')
@@ -654,7 +654,7 @@ function genINF07Cierre(legajo, periodos, motivoCierre, tipoMotivo, analisisIA) 
     + '<tr><td style="color:#555;font-weight:600">Motivo principal</td><td><strong>'+labelMotivo+'</strong></td></tr>'
     + '<tr><td style="color:#555;font-weight:600">Fecha efectiva</td><td><strong>'+fecha+'</strong></td></tr>'
     + '<tr><td style="color:#555;font-weight:600">Períodos AML analizados</td><td>'+lPers.length+' períodos</td></tr>'
-    + '<tr><td style="color:#555;font-weight:600">Señales ALTA acumuladas</td><td style="color:'+(lastAltaSigs.length>0?'#E74C3C':'#27AE60')+';font-weight:700">'+lastAltaSigs.length+'</td></tr>'
+    + '<tr><td style="color:#555;font-weight:600">Señales ALTA acumuladas</td><td style="color:'+(lastAltaSigs.length>0?'#FF4455':'#00E676')+';font-weight:600">'+lastAltaSigs.length+'</td></tr>'
     + '<tr><td style="color:#555;font-weight:600">Reporte UIF / ROS</td><td>Evaluar según normativa UIF según criterio del Oficial de Cumplimiento</td></tr>'
     + '</tbody></table></div>'
 
@@ -2698,7 +2698,7 @@ function LegajosView(props) {
               ].map(function(stat,i){return(
                 <div key={i} style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,padding:'12px 14px',textAlign:'center',borderTop:'3px solid '+stat.col}}>
                   <div style={{fontSize:20}}>{stat.icon}</div>
-                  <div style={{fontSize:20,fontWeight:700,color:stat.col,margin:'4px 0',fontFamily:T.MONO}}>{stat.val}{stat.max?<span style={{fontSize:12,color:T.TEXT3,fontWeight:400}}>/{stat.max}</span>:''}</div>
+                  <div style={{fontSize:18,fontWeight:600,color:stat.col,margin:'4px 0',fontFamily:T.MONO}}>{stat.val}{stat.max?<span style={{fontSize:12,color:T.TEXT3,fontWeight:400}}>/{stat.max}</span>:''}</div>
                   <div style={{fontSize:11,color:T.TEXT2}}>{stat.label}</div>
                 </div>
               );})}
@@ -2735,7 +2735,7 @@ function LegajosView(props) {
                     ].map(function(r,i){return(
                       <tr key={i} style={{borderBottom:'1px solid #EBF9F0'}}>
                         <td style={{padding:'4px 8px 4px 0',color:T.TEXT2,fontWeight:600,width:'40%'}}>{r[0]}</td>
-                        <td style={{padding:'4px 0',color:r[1]==='—'?'#ccc':C.AO,fontWeight:r[1]==='—'?400:700}}>{r[1]}</td>
+                        <td style={{padding:'4px 0',color:r[1]==='—'?T.TEXT3:T.TEXT,fontWeight:r[1]==='—'?400:700}}>{r[1]}</td>
                       </tr>
                     );})}
                   </tbody>
@@ -3147,7 +3147,7 @@ function LegajosView(props) {
                   <button
                     onClick={ejecutarScreening}
                     disabled={screeningLoading || nombresArr.length===0}
-                    style={{background:screeningLoading||nombresArr.length===0?'#aaa':'#1A4A6B',color:'white',border:'none',borderRadius:4,padding:'9px 16px',cursor:screeningLoading||nombresArr.length===0?'not-allowed':'pointer',fontWeight:700,fontSize:13,flexShrink:0,marginLeft:12}}
+                    style={{background:screeningLoading||nombresArr.length===0?T.BG4:'#1A4A6B',color:'white',border:'none',borderRadius:4,padding:'9px 16px',cursor:screeningLoading||nombresArr.length===0?'not-allowed':'pointer',fontWeight:700,fontSize:13,flexShrink:0,marginLeft:12}}
                   >
                     {screeningLoading ? '⏳ Verificando...' : scr ? '🔄 Repetir Screening' : '🔍 Ejecutar Screening'}
                   </button>
@@ -3405,7 +3405,7 @@ function LegajosView(props) {
                         auditLog(currentUser,'generar_ros','legajo',sel.id,{razonSocial:sel.razonSocial,rosNum:'ROS-'+new Date().getFullYear()+'-'+String(num).padStart(3,'0'),periodos:rosSelPer.length});
                         setRosOpen(false);
                       }}
-                      style={{background:rosSelPer.length>0?'#7D3C98':'#ccc',color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rosSelPer.length>0?'pointer':'not-allowed',fontWeight:700,fontSize:13}}
+                      style={{background:rosSelPer.length>0?'#7D3C98':T.BG4,color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rosSelPer.length>0?'pointer':'not-allowed',fontWeight:700,fontSize:13}}
                     >📋 Generar ROS ({rosSelPer.length} período{rosSelPer.length!==1?'s':''})</button>
                   </div>
                 </div>
@@ -3444,8 +3444,8 @@ function LegajosView(props) {
                     {id:'INACTIVIDAD',label:'⏸ Inactividad prolongada',desc:'Sin operaciones por período extendido'},
                     {id:'SOLICITUD_CLIENTE',label:'👤 Solicitud del cliente',desc:'Cierre voluntario por el titular'}
                   ].map(function(t){return(
-                    <div key={t.id} onClick={function(){setCierreTipo(t.id);}} style={{border:'2px solid '+(cierreTipo===t.id?'#E74C3C':'#eee'),borderRadius:6,padding:'10px 12px',cursor:'pointer',background:cierreTipo===t.id?'#FDF2F2':'white'}}>
-                      <div style={{fontWeight:700,fontSize:12,color:cierreTipo===t.id?'#E74C3C':C.AO}}>{t.label}</div>
+                    <div key={t.id} onClick={function(){setCierreTipo(t.id);}} style={{border:'2px solid '+(cierreTipo===t.id?T.RED:T.BORDER),borderRadius:4,padding:'10px 12px',cursor:'pointer',background:cierreTipo===t.id?'rgba(255,68,85,0.1)':T.BG3}}>
+                      <div style={{fontWeight:600,fontSize:12,color:cierreTipo===t.id?T.RED:T.TEXT2}}>{t.label}</div>
                       <div style={{fontSize:10,color:T.TEXT2,marginTop:2}}>{t.desc}</div>
                     </div>
                   );})}
@@ -3489,7 +3489,7 @@ function LegajosView(props) {
                       setCierreLoading(false);
                     }}
                     disabled={cierreLoading}
-                    style={{background:cierreLoading?'#aaa':C.AC,color:'white',border:'none',borderRadius:4,padding:'6px 14px',cursor:cierreLoading?'not-allowed':'pointer',fontSize:11,fontWeight:700}}
+                    style={{background:cierreLoading?T.BG4:C.AC,color:'white',border:'none',borderRadius:4,padding:'6px 14px',cursor:cierreLoading?'not-allowed':'pointer',fontSize:11,fontWeight:700}}
                   >
                     {cierreLoading?'⏳ Analizando...':'🤖 Analizar con IA'}
                   </button>
@@ -3623,7 +3623,7 @@ function LegajosView(props) {
             <div style={{display:'flex',gap:8,alignItems:'center'}}>
               <span style={{fontSize:12,color:T.TEXT2}}>{selected.length} seleccionado(s)</span>
               <button onClick={selectAll} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 12px',cursor:'pointer',fontSize:12}}>Todos ({filteredLegs.length})</button>
-              <button onClick={deleteSelected} disabled={!selected.length} style={{background:selected.length?C.ROJO:'#ccc',color:'white',border:'none',borderRadius:4,padding:'6px 14px',cursor:selected.length?'pointer':'not-allowed',fontWeight:700,fontSize:12}}>🗑 Eliminar ({selected.length})</button>
+              <button onClick={deleteSelected} disabled={!selected.length} style={{background:selected.length?C.ROJO:T.BG4,color:'white',border:'none',borderRadius:4,padding:'6px 14px',cursor:selected.length?'pointer':'not-allowed',fontWeight:700,fontSize:12}}>🗑 Eliminar ({selected.length})</button>
               <button onClick={function(){setSelectMode(false);clearSel();}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'6px 12px',cursor:'pointer',fontSize:12}}>Cancelar</button>
             </div>
           ) : (
@@ -3941,9 +3941,9 @@ function AnalisisView(props) {
   var RFI_ESTADOS = [
     {id:'ENVIADO',    label:'Enviado',        color:T.AMBER, bg:'rgba(255,184,48,0.1)'},
     {id:'RESPONDIDO', label:'Respondido',     color:T.GREEN, bg:'rgba(0,230,118,0.1)'},
-    {id:'PARCIAL',    label:'Resp. parcial',  color:T.AMBER, bg:'#FEF0E7'},
+    {id:'PARCIAL',    label:'Resp. parcial',  color:T.AMBER, bg:'rgba(255,184,48,0.1)'},
     {id:'SIN_RESP',   label:'Sin respuesta',  color:T.RED, bg:'rgba(255,68,85,0.1)'},
-    {id:'CERRADO',    label:'Cerrado',        color:T.TEXT3, bg:'#F2F3F4'},
+    {id:'CERRADO',    label:'Cerrado',        color:T.TEXT3, bg:T.BG3},
   ];
   function getRfiEstado(id) { return RFI_ESTADOS.find(function(e){return e.id===id;}) || RFI_ESTADOS[0]; }
 
@@ -4153,7 +4153,7 @@ function AnalisisView(props) {
           </select>
         </div>
         {selLegajo && lP.length >= 2 && (
-          <div style={{display:'flex',gap:2,background:C.CEL,borderRadius:6,padding:3,flexShrink:0}}>
+          <div style={{display:'flex',gap:2,background:T.BG3,borderRadius:4,padding:3,flexShrink:0,border:'1px solid '+T.BORDER}}>
             <button onClick={function(){setTendencias(false);}} style={{padding:'6px 14px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:!tendencias?700:400,background:!tendencias?C.AO:'transparent',color:!tendencias?'white':C.AO,fontSize:12}}>🔍 Período individual</button>
             <button onClick={function(){setTendencias(true);setSelPeriodo(null);}} style={{padding:'6px 14px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:tendencias?700:400,background:tendencias?'#7D3C98':'transparent',color:tendencias?'white':C.AO,fontSize:12}}>📊 Tendencias ({lP.length} períodos)</button>
           </div>
@@ -4365,7 +4365,7 @@ function AnalisisView(props) {
                       {cpAnalysis.map(function(cp,i){
                         var alerta = cp.pctNuevas > 60;
                         return (
-                          <tr key={i} style={{background:alerta?'#FFF9F5':i%2===0?T.BG3:T.BG2}}>
+                          <tr key={i} style={{background:alerta?'rgba(255,68,85,0.06)':i%2===0?T.BG3:T.BG2}}>
                             <td style={{padding:'6px 10px',fontWeight:600}}>{cp.periodo}</td>
                             <td style={{padding:'6px 10px'}}>{cp.total}</td>
                             <td style={{padding:'6px 10px',color:cp.nuevas>0?C.NARANJA:'inherit',fontWeight:cp.nuevas>0?700:400}}>{cp.nuevas}</td>
@@ -4795,7 +4795,7 @@ function AnalisisView(props) {
                 {/* Preview de acciones a documentar */}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
                   {accionesSugeridas.slice(0,4).map(function(a,i){
-                    var col = a.urgencia==='ALTA'?'#E74C3C':a.urgencia==='MEDIA'?'#E67E22':'#27AE60';
+                    var col = a.urgencia==='ALTA'?T.RED:a.urgencia==='MEDIA'?T.AMBER:T.GREEN;
                     var bg = a.urgencia==='ALTA'?'rgba(255,68,85,0.1)':a.urgencia==='MEDIA'?'rgba(255,184,48,0.1)':'rgba(0,230,118,0.1)';
                     return (
                       <div key={i} style={{background:bg,border:'1px solid '+col,borderRadius:4,padding:'8px 10px',borderLeft:'3px solid '+col}}>
@@ -4833,7 +4833,7 @@ function AnalisisView(props) {
               <button
                 onClick={saveMemo}
                 disabled={!newMemo.trim()}
-                style={{background:newMemo.trim()?C.VERDE:'#ccc',color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:newMemo.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:13}}
+                style={{background:newMemo.trim()?C.VERDE:T.BG4,color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:newMemo.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:13}}
               >
                 💾 Guardar memo
               </button>
@@ -4921,7 +4921,7 @@ function AnalisisView(props) {
               </div>
               <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
                 <button onClick={function(){setRfiMode(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
-                <button onClick={crearRfi} disabled={!rfiForm.contenido.trim()} style={{background:rfiForm.contenido.trim()?'#1A4A6B':'#ccc',color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rfiForm.contenido.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:12}}>💾 Registrar RFI</button>
+                <button onClick={crearRfi} disabled={!rfiForm.contenido.trim()} style={{background:rfiForm.contenido.trim()?'#1A4A6B':T.BG4,color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rfiForm.contenido.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:12}}>💾 Registrar RFI</button>
               </div>
             </div>
           )}
@@ -4977,7 +4977,7 @@ function AnalisisView(props) {
                           var isResp = msg.tipo==='RESPUESTA';
                           var isNota = msg.tipo==='NOTA';
                           var isCierre = msg.tipo==='CIERRE';
-                          var msgColor = isEnvio?'#1A4A6B':isResp?'#1A6B3A':isCierre?'#7F8C8D':'#E67E22';
+                          var msgColor = isEnvio?'#1A4A6B':isResp?'#1A6B3A':isCierre?T.TEXT3:'#FF8C00';
                           var msgBg = isEnvio?'rgba(0,212,255,0.08)':isResp?'rgba(0,230,118,0.08)':isCierre?T.BG3:'rgba(255,184,48,0.08)';
                           var msgLabel = isEnvio?'📤 ENVÍO':'📥 RESPUESTA';
                           if (isNota) msgLabel = '📌 NOTA INTERNA';
@@ -5042,7 +5042,7 @@ function AnalisisView(props) {
                               <button
                                 onClick={function(){agregarIntercambio(rfi.id);}}
                                 disabled={!rfiResp.contenido.trim()}
-                                style={{background:rfiResp.contenido.trim()?'#1A4A6B':'#ccc',color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rfiResp.contenido.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:12}}
+                                style={{background:rfiResp.contenido.trim()?'#1A4A6B':T.BG4,color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rfiResp.contenido.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:12}}
                               >💾 Agregar al hilo</button>
                             </div>
                           </div>
@@ -5886,7 +5886,7 @@ function WikiView() {
   ];
 
   var H1 = {fontSize:22,fontWeight:600,color:T.TEXT,marginBottom:6,marginTop:0};
-  var H2 = {fontSize:15,fontWeight:700,color:T.CYAN,marginBottom:10,marginTop:24,paddingBottom:6,borderBottom:'2px solid '+C.CEL};
+  var H2 = {fontSize:15,fontWeight:700,color:T.CYAN,marginBottom:10,marginTop:24,paddingBottom:6,borderBottom:'1px solid '+T.BORDER2};
   var PP = {fontSize:13,color:T.TEXT,lineHeight:1.7,marginBottom:10};
 
   function renderContent() {
@@ -6363,7 +6363,7 @@ function UsuariosView(props) {
     if (res.ok) { cargarUsuarios(); auditLog(currentUser,u.activo?'desactivar_usuario':'activar_usuario','usuario',u.id,{email:u.email}); }
   }
 
-  var ROL_COL = { admin:'#E74C3C', oficial_cumplimiento:'#8E44AD', supervisor:'#2471A3', analista:'#27AE60', readonly:'#7F8C8D' };
+  var ROL_COL = { admin:T.RED, oficial_cumplimiento:'#A855F7', supervisor:T.CYAN, analista:T.GREEN, readonly:T.TEXT3 };
 
   return (
     <div style={{padding:22}}>
@@ -6477,7 +6477,7 @@ function UsuariosView(props) {
                         </button>
                         {!esSelf && (
                           <button onClick={function(){handleToggle(u);}}
-                            style={{background:u.activo?'rgba(255,184,48,0.1)':'rgba(0,230,118,0.1)',border:'1px solid '+(u.activo?T.AMBER:T.GREEN),borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:11,color:u.activo?'#E67E22':C.VERDE}}>
+                            style={{background:u.activo?'rgba(255,184,48,0.1)':'rgba(0,230,118,0.1)',border:'1px solid '+(u.activo?T.AMBER:T.GREEN),borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:11,color:u.activo?T.AMBER:T.GREEN}}>
                             {u.activo ? '⏸ Desactivar' : '▶ Activar'}
                           </button>
                         )}
@@ -6608,16 +6608,31 @@ export default function App() {
   function saveOaiKey(val) { var t=val.trim(); setOaiKey(t); setModuleKeys(null, t, null); }
   function saveProvider(val) { setProvider(val); setModuleKeys(null, null, val); }
 
+  // Debounced sync: acumula cambios y envía 1 solo POST cada 2 segundos
+  var syncTimerRef = useRef(null);
+  var syncPendingRef = useRef(null);
+  
   function syncToCloud(legs, pers, deletedLegajoIds, deletedPeriodoIds) {
-    setSyncStatus('saving');
-    serverSave({
+    // Acumular datos más recientes
+    var pending = syncPendingRef.current || { deletedLegajoIds: [], deletedPeriodoIds: [] };
+    syncPendingRef.current = {
       legajos: legs || legajos,
       periodos: pers || periodos,
-      deletedLegajoIds: deletedLegajoIds || [],
-      deletedPeriodoIds: deletedPeriodoIds || []
-    }).then(function(ok) {
-      setSyncStatus(ok ? 'ok' : 'error');
-    }).catch(function(){ setSyncStatus('error'); });
+      deletedLegajoIds: (pending.deletedLegajoIds || []).concat(deletedLegajoIds || []),
+      deletedPeriodoIds: (pending.deletedPeriodoIds || []).concat(deletedPeriodoIds || [])
+    };
+    setSyncStatus('saving');
+    
+    // Cancelar el timer anterior y crear uno nuevo
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(function() {
+      var data = syncPendingRef.current;
+      syncPendingRef.current = null;
+      if (!data) return;
+      serverSave(data).then(function(ok) {
+        setSyncStatus(ok ? 'ok' : 'error');
+      }).catch(function(){ setSyncStatus('error'); });
+    }, 2000); // 2 segundos de debounce
   }
 
   var activeKeyOk = provider==='openai' ? !!oaiKey.trim() : !!apiKey.trim();
