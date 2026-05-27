@@ -3371,7 +3371,7 @@ function LegajosView(props) {
                           <input type="checkbox" checked={checked} readOnly style={{cursor:'pointer'}}/>
                           <div style={{flex:1}}>
                             <div style={{fontWeight:600,fontSize:12,color:T.TEXT}}>{p.nombre}</div>
-                            <div style={{fontSize:11,color:T.TEXT2}}>{p.metricas?fmtM(p.metricas.tIn)+' IN · '+fmtM(p.metricas.tOut)+' OUT · '+(p.txns&&p.txns.length?p.txns.length.toLocaleString('es-AR'):0)+' txns':'Sin métricas calculadas'}</div>
+                            <div style={{fontSize:11,color:T.TEXT2}}>{p.metricas?fmtM(p.metricas.tIn)+' IN · '+fmtM(p.metricas.tOut)+' OUT · '+(p.metricas.totalTxns||0).toLocaleString('es-AR')+' txns':'Sin métricas calculadas'}</div>
                           </div>
                           {hasSigs && <span style={{background:T.RED,color:'white',borderRadius:8,padding:'2px 8px',fontSize:10,fontWeight:700}}>ALTA</span>}
                         </div>
@@ -6580,81 +6580,12 @@ export default function App() {
         setSyncStatus('ok');
         setLoading(false);
 
-        // ── Lazy loading automático de txns en background ──
-        // Identificar períodos sin txns en memoria (cargar de Supabase)
-        var sinTxns = cloudPers.filter(function(p){
-          return !p.txns || p.txns.length === 0;
-        });
-        
-        if (sinTxns.length > 0) {
-          console.log('[Rebit] Hidratando txns en background:', sinTxns.length, 'períodos');
-          setSyncStatus('loading');
-          (function hidratar() {
-            var allPers = cloudPers.slice();
-            var pendiente = sinTxns.slice();
-            var procesados = 0;
-            var total = pendiente.length;
-            var needsSave = false;
-            setHydration({total:total, loaded:0});
-            
-            function procesarSiguiente() {
-              if (pendiente.length === 0) {
-                setHydration({total:0, loaded:0});
-                console.log('[Rebit] Hidratación completa:', procesados, '/', total);
-                setLegajos(cloudLegs);
-                setPeriodos(allPers);
-                // Guardar solo si hubo cambios (períodos sin métricas recalculadas)
-                if (needsSave) {
-                  serverSave({ legajos: cloudLegs, periodos: allPers })
-                    .then(function(){ setSyncStatus('ok'); })
-                    .catch(function(){ setSyncStatus('ok'); });
-                } else {
-                  setSyncStatus('ok');
-                }
-                return;
-              }
-              
-              var p = pendiente.shift();
-              procesados++;
-              
-              serverLoadTxns(p.id).then(function(txns) {
-                if (txns && txns.length > 0) {
-                  var updatedP = Object.assign({}, p, { txns: txns });
-                  
-                  // Recalcular métricas solo si no existen
-                  if (!updatedP.metricas) {
-                    var leg = cloudLegs.find(function(l){ return l.id === p.legajoId; });
-                    if (leg) {
-                      var m = calcMetricas(txns, leg);
-                      var sigs = m ? detectPatrones(m, leg) : [];
-                      var sc = m ? calcScoring(m, sigs) : null;
-                      updatedP = Object.assign({}, updatedP, {
-                        metricas: m||null, scoring: sc||null,
-                        estadoPeriodo: updatedP.estadoPeriodo||'EN_REVISION',
-                        sigsResolucion: updatedP.sigsResolucion||{}
-                      });
-                      needsSave = true;
-                    }
-                  }
-                  
-                  var idx = allPers.findIndex(function(x){ return x.id === p.id; });
-                  if (idx >= 0) allPers[idx] = updatedP;
-                  
-                  // Actualizar UI progresivamente cada 3 períodos
-                  if (procesados % 3 === 0 || pendiente.length === 0) {
-                    setPeriodos(allPers.slice());
-                    setHydration({total:total, loaded:procesados});
-                    setSyncStatus('loading'); // mantener estado de loading
-                  }
-                }
-                setTimeout(procesarSiguiente, 200); // delay corto entre períodos
-              }).catch(function(e){
-                console.error('[Rebit] Error hidratando período', p.nombre, e);
-                setTimeout(procesarSiguiente, 200);
-              });
-            }
-            procesarSiguiente();
-          })();
+        // ── Solo recalcular métricas para períodos que no las tienen ──
+        // Las txns se cargan on-demand cuando el usuario selecciona un período
+        // Esto evita saturar Supabase con queries masivas al inicio
+        var sinMetricas = cloudPers.filter(function(p){ return !p.metricas; });
+        if (sinMetricas.length > 0) {
+          console.log('[Rebit] Períodos sin métricas:', sinMetricas.length, '— se calcularán al seleccionarlos');
         }
 
       } else {
