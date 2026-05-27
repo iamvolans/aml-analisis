@@ -1798,20 +1798,66 @@ async function fetchRetry(url, opts, maxRetries) {
 
 async function serverSave(data) {
   try {
-    var persWithoutTxns = (data.periodos||[]).map(function(p){
-      var c = Object.assign({}, p); delete c.txns; return c;
+    // Stripear txns de períodos (se guardan por separado)
+    var persClean = (data.periodos||[]).map(function(p){
+      var c = Object.assign({}, p);
+      delete c.txns;
+      return c;
     });
-    var payload = { legajos: data.legajos||[], periodos: persWithoutTxns,
-                    deletedLegajoIds: data.deletedLegajoIds||[],
-                    deletedPeriodoIds: data.deletedPeriodoIds||[] };
-    var gz = await gzipPayload(payload);
-    var r = await fetchRetry('/api/sync', { method: 'POST', headers: gz.headers, body: gz.body });
-    if (!r.ok) {
-      console.error('[Sync] Error guardando después de reintentos:', r._error || r.status);
-      return false;
+
+    // Stripear campos pesados de legajos (docsIA contiene respuestas completas de Claude)
+    var legsClean = (data.legajos||[]).map(function(l){
+      var c = Object.assign({}, l);
+      // Mantener solo metadata de docsIA, no el contenido completo
+      if (c.docsIA && c.docsIA.length > 0) {
+        c.docsIA = c.docsIA.map(function(d){
+          if (typeof d === 'string') return d; // Ya es solo nombre
+          return { name: d.name||d, type: d.type, size: d.size, processedAt: d.processedAt, fieldsFound: d.fieldsFound };
+        });
+      }
+      // Stripear campos pesados del screening y adverse media (guardar solo resultado, no prompts/raw)
+      if (c.screening && c.screening._raw) delete c.screening._raw;
+      if (c.adverseMedia && c.adverseMedia._raw) delete c.adverseMedia._raw;
+      // Limitar observaciones a 50 caracteres cada una para no inflar el payload
+      if (c.observaciones && c.observaciones.length > 20) {
+        c.observaciones = c.observaciones.slice(-20); // solo las últimas 20
+      }
+      return c;
+    });
+
+    var delLegs = data.deletedLegajoIds || [];
+    var delPers = data.deletedPeriodoIds || [];
+
+    // Enviar en chunks para no superar 4.5MB de Vercel
+    var CHUNK_LEGS = 5;
+    var CHUNK_PERS = 8;
+    var allOk = true;
+
+    // Deletions primero (payload chico)
+    if (delLegs.length || delPers.length) {
+      var gz0 = await gzipPayload({ legajos:[], periodos:[], deletedLegajoIds:delLegs, deletedPeriodoIds:delPers });
+      var r0 = await fetchRetry('/api/sync', { method:'POST', headers:gz0.headers, body:gz0.body });
+      if (!r0.ok) { console.warn('[Sync] Error borrando:', r0._error); allOk = false; }
     }
-    var res = await r.json();
-    return !res.error;
+
+    // Legajos en chunks de 5
+    for (var li = 0; li < legsClean.length; li += CHUNK_LEGS) {
+      var chunk = legsClean.slice(li, li + CHUNK_LEGS);
+      var gz1 = await gzipPayload({ legajos: chunk, periodos: [], deletedLegajoIds: [], deletedPeriodoIds: [] });
+      var r1 = await fetchRetry('/api/sync', { method:'POST', headers:gz1.headers, body:gz1.body });
+      if (!r1.ok) { console.warn('[Sync] Error legs chunk', li, r1._error); allOk = false; }
+    }
+
+    // Periodos en chunks de 8
+    for (var pi = 0; pi < persClean.length; pi += CHUNK_PERS) {
+      var chunk2 = persClean.slice(pi, pi + CHUNK_PERS);
+      var gz2 = await gzipPayload({ legajos: [], periodos: chunk2, deletedLegajoIds: [], deletedPeriodoIds: [] });
+      var r2 = await fetchRetry('/api/sync', { method:'POST', headers:gz2.headers, body:gz2.body });
+      if (!r2.ok) { console.warn('[Sync] Error pers chunk', pi, r2._error); allOk = false; }
+    }
+
+    if (!allOk) console.warn('[Sync] Sync parcial — algunos chunks fallaron');
+    return allOk;
   } catch(e) { console.warn('[Sync] Error guardando:', e.message); return false; }
 }
 
