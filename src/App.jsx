@@ -1768,9 +1768,36 @@ async function gzipPayload(obj) {
   }
 }
 
+// Helper: fetch con retry automático (para 502/503/504/522)
+async function fetchRetry(url, opts, maxRetries) {
+  maxRetries = maxRetries || 3;
+  for (var attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      var r = await fetch(url, opts);
+      if (r.ok) return r;
+      // Reintentar solo en errores de servidor transitorios
+      if (r.status >= 500 && attempt < maxRetries) {
+        var wait = Math.min(1000 * Math.pow(2, attempt), 8000); // 1s, 2s, 4s, 8s
+        console.warn('[Sync] HTTP ' + r.status + ' — reintentando en ' + (wait/1000) + 's (' + (attempt+1) + '/' + maxRetries + ')');
+        await new Promise(function(res){ setTimeout(res, wait); });
+        continue;
+      }
+      // Error no recuperable o último intento
+      var errText = '';
+      try { var ct = r.headers.get('content-type')||''; errText = ct.includes('json') ? (await r.json()).error||'' : 'HTTP '+r.status; } catch(e2) { errText = 'HTTP '+r.status; }
+      return { ok: false, status: r.status, _error: errText, json: function(){ return Promise.resolve({error: errText}); } };
+    } catch(e) {
+      if (attempt < maxRetries) {
+        var w = Math.min(1000 * Math.pow(2, attempt), 8000);
+        console.warn('[Sync] Red caída — reintentando en ' + (w/1000) + 's (' + (attempt+1) + '/' + maxRetries + ')');
+        await new Promise(function(res){ setTimeout(res, w); });
+      } else { throw e; }
+    }
+  }
+}
+
 async function serverSave(data) {
   try {
-    // Limpiar txns antes de enviar — se guardan por separado en /api/sync?action=txns
     var persWithoutTxns = (data.periodos||[]).map(function(p){
       var c = Object.assign({}, p); delete c.txns; return c;
     });
@@ -1778,7 +1805,11 @@ async function serverSave(data) {
                     deletedLegajoIds: data.deletedLegajoIds||[],
                     deletedPeriodoIds: data.deletedPeriodoIds||[] };
     var gz = await gzipPayload(payload);
-    var r = await fetch('/api/sync', { method: 'POST', headers: gz.headers, body: gz.body });
+    var r = await fetchRetry('/api/sync', { method: 'POST', headers: gz.headers, body: gz.body });
+    if (!r.ok) {
+      console.error('[Sync] Error guardando después de reintentos:', r._error || r.status);
+      return false;
+    }
     var res = await r.json();
     return !res.error;
   } catch(e) { console.warn('[Sync] Error guardando:', e.message); return false; }
@@ -1787,25 +1818,24 @@ async function serverSave(data) {
 async function serverSaveTxns(periodoId, txns) {
   try {
     var gz = await gzipPayload({ periodo_id: periodoId, txns: txns });
-    var r = await fetch('/api/sync?action=txns', { method: 'POST', headers: gz.headers, body: gz.body });
+    var r = await fetchRetry('/api/sync?action=txns', { method: 'POST', headers: gz.headers, body: gz.body });
     if (!r.ok) {
-      var err = await r.json().catch(function(){return {};});
-      throw new Error(err.error || 'HTTP ' + r.status);
+      throw new Error(r._error || 'HTTP ' + r.status);
     }
     console.log('[Sync] Txns guardadas OK — período:', periodoId, '— cantidad:', (txns||[]).length);
     return true;
   } catch(e) {
     console.error('[Sync] Error guardando txns:', e.message);
-    throw e; // Re-throw para que el caller pueda manejar
+    throw e;
   }
 }
 
 async function serverLoadTxns(periodoId) {
   try {
-    var r = await fetch('/api/sync?action=txns&id=' + periodoId,
-      { headers: { 'x-app-token': APP_TOKEN } });
+    var r = await fetchRetry('/api/sync?action=txns&id=' + periodoId,
+      { headers: { 'x-app-token': APP_TOKEN } }, 2);
     if (!r.ok) {
-      console.error('[Sync] Error cargando txns HTTP', r.status, 'período:', periodoId);
+      console.error('[Sync] Error cargando txns:', r._error || r.status, '— período:', periodoId);
       return null;
     }
     var res = await r.json();
@@ -1817,7 +1847,7 @@ async function serverLoadTxns(periodoId) {
     }
     return txns;
   } catch(e) {
-    console.error('[Sync] Error cargando txns:', e.message, 'período:', periodoId);
+    console.error('[Sync] Error cargando txns:', e.message, '— período:', periodoId);
     return null;
   }
 }
@@ -1845,7 +1875,7 @@ async function serverLoadKV(k) {
 
 async function serverLoad() {
   try {
-    var r = await fetch('/api/sync', { headers: { 'x-app-token': APP_TOKEN } });
+    var r = await fetchRetry('/api/sync', { headers: { 'x-app-token': APP_TOKEN } }, 3);
     if (!r.ok) return null;
     var data = await r.json();
     if (!data || data.error) return null;
