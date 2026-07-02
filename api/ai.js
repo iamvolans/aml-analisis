@@ -65,7 +65,7 @@ export default async function handler(req, res) {
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) return res.status(503).json({ error: 'Anthropic no configurado en el servidor' });
 
-      const body = { model: 'claude-sonnet-4-20250514', max_tokens, messages };
+      const body = { model: 'claude-sonnet-4-6', max_tokens, messages };
       if (system) body.system = system;
       if (useWebSearch) {
         body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
