@@ -7,6 +7,7 @@ export const config = {
   api: {
     bodyParser: false,
   },
+  maxDuration: 60, // Vercel Pro permite hasta 60s — necesario para extracción IA de PDFs
 };
 
 async function getRawBody(req) {
@@ -46,6 +47,15 @@ export default async function handler(req, res) {
   const { provider, messages, max_tokens = 8000, useWebSearch = false, system } = parsed;
   if (!messages) return res.status(400).json({ error: 'Faltan parámetros' });
 
+  // Truncar mensajes muy largos para evitar timeouts (máx 120K chars por mensaje)
+  const MAX_CHARS = 120000;
+  const trimmedMessages = messages.map(msg => {
+    if (typeof msg.content === 'string' && msg.content.length > MAX_CHARS) {
+      return { ...msg, content: msg.content.slice(0, MAX_CHARS) + '\n\n[... contenido truncado por límite de procesamiento ...]' };
+    }
+    return msg;
+  });
+
   try {
     if (provider === 'openai') {
       const apiKey = process.env.OPENAI_API_KEY;
@@ -54,7 +64,7 @@ export default async function handler(req, res) {
       const r = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: 'gpt-4o-2024-11-20', max_tokens, messages })
+        body: JSON.stringify({ model: 'gpt-4o-2024-11-20', max_tokens, messages: trimmedMessages })
       });
       const data = await r.json();
       if (data.error) return res.status(400).json({ error: data.error.message });
@@ -65,23 +75,34 @@ export default async function handler(req, res) {
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) return res.status(503).json({ error: 'Anthropic no configurado en el servidor' });
 
-      const body = { model: 'claude-sonnet-4-6', max_tokens, messages };
+      const body = { model: 'claude-sonnet-4-6', max_tokens, messages: trimmedMessages };
       if (system) body.system = system;
       if (useWebSearch) {
         body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
         body.max_tokens = Math.max(max_tokens, 4000);
       }
 
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          ...(useWebSearch ? { 'anthropic-beta': 'web-search-2025-03-05' } : {})
-        },
-        body: JSON.stringify(body)
-      });
+      // AbortController para cortar si Anthropic no responde en 55s (deja 5s de margen)
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 55000);
+
+      let r;
+      try {
+        r = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            ...(useWebSearch ? { 'anthropic-beta': 'web-search-2025-03-05' } : {})
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+
       const data = await r.json();
       if (data.error) return res.status(400).json({ error: data.error.message });
       const text = (data.content || [])
@@ -91,6 +112,9 @@ export default async function handler(req, res) {
       return res.json({ text });
     }
   } catch (err) {
+    if (err.name === 'AbortError') {
+      return res.status(504).json({ error: 'Timeout: el modelo tardó demasiado. Intentá con menos documentos o usá la tab Datos para cargar manualmente.' });
+    }
     return res.status(500).json({ error: 'Error del servidor: ' + err.message });
   }
 }
