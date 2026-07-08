@@ -1065,10 +1065,14 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
   contentBlocks.push({ type:'text', text:prompt });
 
   // Siempre usar el proxy del servidor para evitar CORS en todos los browsers
-  var DOC_BLOCKS_PER_BATCH = 1; // 1 doc por lote para evitar 413 en Vercel (límite 4.5MB)
-
   // Separar los bloques de documentos del prompt
-  var docBlocks = contentBlocks.filter(function(b){ return b.type === 'document' || b.type === 'image'; });
+  // Incluye _isDoc (texto extraído de PDF) además de document/image binarios
+  var docBlocks = contentBlocks.filter(function(b){
+    return b.type === 'document' || b.type === 'image' || (b.type === 'text' && b._isDoc === true);
+  });
+  // Tamaño de lote: si todos son texto extraído → 5 por lote (rápido); si hay binarios → 1
+  var tienesBinarios = docBlocks.some(function(b){ return b.type === 'document' || b.type === 'image'; });
+  var DOC_BLOCKS_PER_BATCH = tienesBinarios ? 1 : 5;
 
   // Filtrar documentos que superen 3.5MB de tamaño (para dejar margen al prompt y compresión)
   var MAX_DOC_BYTES = 3.5 * 1024 * 1024;
@@ -1091,7 +1095,12 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
 
   // Si hay pocos documentos, enviar todo junto
   if (docBlocks.length <= DOC_BLOCKS_PER_BATCH) {
-    return await callProxyOrDirect('claude', [{ role:'user', content:contentBlocks }], 8000);
+    // Limpiar _isDoc de todos los bloques antes de enviar
+    var contentClean = contentBlocks.map(function(b){
+      if (b._isDoc) return { type: 'text', text: b.text };
+      return b;
+    });
+    return await callProxyOrDirect('claude', [{ role:'user', content:contentClean }], 8000);
   }
 
   // Prompt especial para análisis por lotes — CRÍTICO para evitar falsos positivos
@@ -1114,12 +1123,17 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
   for (var bStart = 0; bStart < docBlocks.length; bStart += DOC_BLOCKS_PER_BATCH) {
     var batchNum = Math.floor(bStart / DOC_BLOCKS_PER_BATCH) + 1;
     var batchDocs = docBlocks.slice(bStart, bStart + DOC_BLOCKS_PER_BATCH);
-    var batchBlocks = batchDocs.concat([batchPromptBlock]);
+    // Limpiar _isDoc antes de enviar a la API (solo metadata interna)
+    var batchDocsClean = batchDocs.map(function(b){
+      if (b._isDoc) return { type: 'text', text: b.text };
+      return b;
+    });
+    var batchBlocks = batchDocsClean.concat([batchPromptBlock]);
     console.log('[Rebit IA] Lote ' + batchNum + ' de ' + totalBatches);
     var batchResult = await callProxyOrDirect('claude', [{ role:'user', content:batchBlocks }], 6000);
     allResults.push(batchResult);
     if (bStart + DOC_BLOCKS_PER_BATCH < docBlocks.length) {
-      await sleep(8000);
+      await sleep(tienesBinarios ? 8000 : 1000); // texto: 1s; binarios: 8s
     }
   }
 
@@ -2585,6 +2599,43 @@ function LegajosView(props) {
     if (selId === legajo.id) setSelId(legajo.id);
   }
 
+  // ── PDF.js: extraer texto del PDF en el browser (evita enviar binarios pesados a Claude)
+  async function loadPDFJS() {
+    if (window.pdfjsLib) return window.pdfjsLib;
+    await new Promise(function(resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    return window.pdfjsLib;
+  }
+
+  async function pdfFileToText(file) {
+    try {
+      var lib = await loadPDFJS();
+      if (!lib) return null;
+      var buf = await file.arrayBuffer();
+      var pdf = await lib.getDocument({ data: buf }).promise;
+      var pages = [];
+      var maxPg = Math.min(pdf.numPages, 15);
+      for (var p = 1; p <= maxPg; p++) {
+        var pg = await pdf.getPage(p);
+        var ct = await pg.getTextContent();
+        pages.push(ct.items.map(function(i){ return i.str; }).join(' '));
+      }
+      var txt = pages.join('\n\n').replace(/\s+/g, ' ').trim();
+      return txt.length > 80 ? txt.slice(0, 6000) : null; // null = PDF escaneado sin texto
+    } catch(e) {
+      console.warn('[Rebit IA] PDF.js error en ' + file.name + ':', e.message);
+      return null;
+    }
+  }
+
   async function handleUpload(e) {
     var files = Array.from(e.target.files).filter(function(f){
       return f.type==='application/pdf' || f.type.startsWith('image/');
@@ -2611,10 +2662,21 @@ function LegajosView(props) {
         var f = files[i];
         setUploadMsg('Preparando doc ' + (i+1) + ' de ' + files.length + ': ' + f.name);
         setUploadPct(15 + Math.round((i / files.length) * 35));
-        var b64 = await fileToBase64(f);
         if (f.type === 'application/pdf') {
-          contentBlocks.push({ type:'document', source:{ type:'base64', media_type:'application/pdf', data:b64 }, title:f.name });
+          // Primero intentar extraer texto con PDF.js (rápido: ~5KB en vez de 3.5MB)
+          var extractedTxt = await pdfFileToText(f);
+          if (extractedTxt && extractedTxt.length > 80) {
+            // PDF con texto seleccionable: enviar como texto (Claude responde en 3-5s)
+            contentBlocks.push({ type:'text', text:'=== ' + f.name + ' ===\n' + extractedTxt, _isDoc: true });
+            console.log('[Rebit IA] PDF texto OK: ' + f.name + ' (' + extractedTxt.length + ' chars)');
+          } else {
+            // PDF escaneado (imagen): enviar como documento base64 (más lento pero necesario)
+            var b64 = await fileToBase64(f);
+            contentBlocks.push({ type:'document', source:{ type:'base64', media_type:'application/pdf', data:b64 }, title:f.name });
+            console.log('[Rebit IA] PDF escaneado, enviando binario: ' + f.name);
+          }
         } else if (f.type.startsWith('image/')) {
+          var b64 = await fileToBase64(f);
           contentBlocks.push({ type:'image', source:{ type:'base64', media_type:f.type, data:b64 } });
         }
         contentBlocks.push({ type:'text', text:'[Doc ' + (i+1) + ' de ' + files.length + ': ' + f.name + ']' });
