@@ -1111,7 +1111,8 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
     + 'Este análisis se divide en ' + totalBatches + ' lotes. Este mensaje contiene SOLO ALGUNOS de los documentos del legajo.\n'
     + 'REGLAS OBLIGATORIAS para análisis en lote:\n'
     + '1. CHECKLIST: Marca "OK" únicamente para documentos que PUEDAS VER EN ESTE LOTE. Para todo lo demás escribe "Pendiente" (NUNCA "Bloqueante" por documentos que simplemente no están en este lote).\n'
-    + '2. RED FLAGS: Reportá SOLO problemas reales encontrados en los documentos de este lote (inconsistencias, datos incorrectos, vencimientos, irregularidades). NUNCA generes una red flag por "falta de documentación" — eso es información de otro lote.\n'
+    + '2. RED FLAGS: Reportá SOLO problemas REALES en los docs de ESTE lote: inconsistencias, vencimientos, irregularidades visibles. PROHIBIDO generar flags por: datos ausentes del lote (\"beneficiario final no identificado en este lote\", \"CUIT no identificado en este lote\", \"razón social no surge de este lote\"). Si un dato no está en este lote, dejarlo en blanco.\n'\
+    + '2b. ILEGIBILIDAD: Solo reportar si el documento está físicamente deteriorado en este lote. Si simplemente no está, NO generar red flag.\n'
     + '3. DATOS: Completá solo los campos que puedas inferir de los documentos presentes. Dejá en blanco los que no puedas determinar.\n'
     + '4. SCORING KYB: Evaluá solo los factores que puedas determinar con los docs disponibles. Si no tenés info suficiente, poné 0.\n'
     + '══════════════════════════════════════════════════════════';
@@ -1179,8 +1180,28 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
           if (!v || v.length < 10) return;
           // Filtrar red flags genéricas sobre "falta documentación" que son artefactos del lote
           var lower = v.toLowerCase();
+          // ── Artefactos de lote: flags generados porque el dato no estaba en ESE lote
+          var esArtefactoLote =
+            lower.indexOf('en este lote') >= 0
+            || lower.indexOf('en este batch') >= 0
+            || lower.indexOf('no surge de este lote') >= 0
+            || lower.indexOf('no surge de los documentos') >= 0
+            || lower.indexOf('no identificado en este lote') >= 0
+            || lower.indexOf('no identificable en el documento presentado') >= 0
+            || lower.indexOf('no disponible en este lote') >= 0
+            || lower.indexOf('en los documentos presentes en este lote') >= 0
+            || lower.indexOf('presentes en este lote') >= 0
+            || lower.indexOf('no se cuenta con este dato en el lote') >= 0
+            || (lower.indexOf('cuit') >= 0 && lower.indexOf('no identificado en este') >= 0)
+            || (lower.indexOf('razón social') >= 0 && lower.indexOf('no identificable') >= 0)
+            || (lower.indexOf('razón social') >= 0 && lower.indexOf('no identificado') >= 0)
+            || (lower.indexOf('tipo societario') >= 0 && lower.indexOf('no determinado') >= 0)
+            || (lower.indexOf('razón social de la empresa no') >= 0)
+            || (lower.indexOf('razón social no surge') >= 0);
+
+          // ── Red flags genéricas por falta de documentación (no procesables)
           var esFaltaDoc = lower.indexOf('falta documentaci') >= 0
-            || lower.indexOf('documentaci') >= 0 && lower.indexOf('insuficiente') >= 0
+            || (lower.indexOf('documentaci') >= 0 && lower.indexOf('insuficiente') >= 0)
             || lower.indexOf('solo se presenta') >= 0
             || lower.indexOf('solo se cuenta') >= 0
             || lower.indexOf('solo se adjunta') >= 0
@@ -1201,10 +1222,24 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
             || (lower.indexOf('no se puede') >= 0 && lower.indexOf('completar') >= 0)
             || (lower.indexOf('imposible') >= 0 && lower.indexOf('determinar') >= 0)
             || (lower.indexOf('imposible') >= 0 && lower.indexOf('evaluar') >= 0);
-          if (esFaltaDoc) return; // Descartar artefacto de lote
-          // Deduplicar por similitud
+          
+          var esDescartable = esArtefactoLote || esFaltaDoc;
+          if (esDescartable) return; // Descartar artefacto de lote
+          // Deduplicar por similitud — 80 chars + normalización semántica por tópico
+          var vNorm = v.toLowerCase().replace(/[🚩⚠️•\-]/g, '').replace(/\s+/g, ' ').trim();
+          var TEMAS_UNICOS = ['beneficiario final', 'cuit de la sociedad', 'razón social', 'tipo societario'];
           var isDuplicate = merged.redFlags.some(function(existing) {
             if (existing === v) return true;
+            var eNorm = existing.toLowerCase().replace(/[🚩⚠️•\-]/g, '').replace(/\s+/g, ' ').trim();
+            // Comparar primeros 80 chars normalizados
+            if (vNorm.slice(0, 80) === eNorm.slice(0, 80)) return true;
+            // Si comparten tópico y tienen contenido muy similar (>70 chars en común al inicio)
+            for (var ti = 0; ti < TEMAS_UNICOS.length; ti++) {
+              if (vNorm.indexOf(TEMAS_UNICOS[ti]) >= 0 && eNorm.indexOf(TEMAS_UNICOS[ti]) >= 0) {
+                if (vNorm.slice(0, 60) === eNorm.slice(0, 60)) return true;
+              }
+            }
+            return false;
             var shortA = v.slice(0, 40).toLowerCase();
             var shortB = existing.slice(0, 40).toLowerCase();
             return shortA === shortB;
@@ -1229,6 +1264,51 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
       }
     });
   });
+  // ─── POST-PROCESO: limpieza final de red flags ─────────────────────────────
+  if (merged.redFlags && merged.redFlags.length > 0) {
+    // 1. Segunda pasada de artefactos de lote (por si alguno escapó)
+    var FRASES_LOTE = [
+      'en este lote', 'en este batch', 'no surge de este lote',
+      'no identificado en este lote', 'no identificable en el documento presentado',
+      'presentes en este lote', 'no surge de los documentos presentes',
+      'cuit de la sociedad no identificado', 'razón social de la empresa no identificable',
+      'razón social no identificable', 'tipo societario no determinado con certeza',
+      'capital social y distribución accionaria parcialmente ilegibles',
+      'razón social no surge del'
+    ];
+    merged.redFlags = merged.redFlags.filter(function(flag) {
+      var fl = (flag || '').toLowerCase();
+      return !FRASES_LOTE.some(function(f){ return fl.indexOf(f) >= 0; });
+    });
+
+    // 2. Cap por tópico: máximo 2 red flags por tópico principal
+    var TOPICOS = [
+      'beneficiario final', 'cuit', 'razón social',
+      'tipo societario', 'actividad', 'cash management', 'capital social'
+    ];
+    var conteoTopicos = {};
+    merged.redFlags = merged.redFlags.filter(function(flag) {
+      var fl = (flag || '').toLowerCase();
+      for (var i = 0; i < TOPICOS.length; i++) {
+        var t = TOPICOS[i];
+        if (fl.indexOf(t) >= 0) {
+          conteoTopicos[t] = (conteoTopicos[t] || 0) + 1;
+          if (conteoTopicos[t] > 2) return false; // máximo 2 por tópico
+        }
+      }
+      return true;
+    });
+
+    // 3. Dedup final por primeros 70 chars normalizados
+    var vistosPost = [];
+    merged.redFlags = merged.redFlags.filter(function(flag) {
+      var key = (flag || '').toLowerCase().replace(/[🚩⚠️•\s]+/g, ' ').trim().slice(0, 70);
+      if (vistosPost.indexOf(key) >= 0) return false;
+      vistosPost.push(key);
+      return true;
+    });
+  }
+
   return merged;
 }
 
