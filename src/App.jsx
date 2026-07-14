@@ -1118,7 +1118,7 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
     + 'Este análisis se divide en ' + totalBatches + ' lotes. Este mensaje contiene SOLO ALGUNOS de los documentos del legajo.\n'
     + 'REGLAS OBLIGATORIAS para análisis en lote:\n'
     + '1. CHECKLIST: Marca "OK" únicamente para documentos que PUEDAS VER EN ESTE LOTE. Para todo lo demás escribe "Pendiente" (NUNCA "Bloqueante" por documentos que simplemente no están en este lote).\n'
-    + '2. RED FLAGS: Reportá SOLO problemas REALES en los docs de ESTE lote: inconsistencias, vencimientos, irregularidades visibles. PROHIBIDO generar flags por: datos ausentes del lote (\"beneficiario final no identificado en este lote\", \"CUIT no identificado en este lote\", \"razón social no surge de este lote\"). Si un dato no está en este lote, dejarlo en blanco.\n'\
+    + '2. RED FLAGS: Reportá SOLO problemas REALES en los docs de ESTE lote: inconsistencias, vencimientos, irregularidades visibles. PROHIBIDO generar flags por: datos ausentes del lote (\"beneficiario final no identificado en este lote\", \"CUIT no identificado en este lote\", \"razón social no surge de este lote\"). Si un dato no está en este lote, dejarlo en blanco.\n'
     + '2b. ILEGIBILIDAD: Solo reportar si el documento está físicamente deteriorado en este lote. Si simplemente no está, NO generar red flag.\n'
     + '3. DATOS: Completá solo los campos que puedas inferir de los documentos presentes. Dejá en blanco los que no puedas determinar.\n'
     + '4. SCORING KYB: Evaluá solo los factores que puedas determinar con los docs disponibles. Si no tenés info suficiente, poné 0.\n'
@@ -1126,23 +1126,78 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
 
   var batchPromptBlock = { type: 'text', text: batchPromptText };
 
-  // Analizar en lotes
+  // ── Analizar en lotes — PROCESO RESILIENTE ──────────────────────────
+  // Cada lote es independiente: si falla tras reintentos, se divide en
+  // sub-lotes de 1 documento. Si un documento individual falla, se omite
+  // y el proceso CONTINÚA con el resto. Nunca se pierde todo el trabajo.
   var allResults = [];
+  var docsFallidos = [];
+
+  function nombreDeBloque(b) {
+    if (b.title) return b.title;
+    if (b._isDoc && b.text) {
+      var m = b.text.match(/^=== (.+?) ===/);
+      if (m) return m[1];
+    }
+    return b.type === 'image' ? 'imagen' : 'documento';
+  }
+
+  async function procesarLote(docs, etiqueta) {
+    var docsClean = docs.map(function(b){
+      if (b._isDoc) return { type: 'text', text: b.text };
+      var c = Object.assign({}, b); delete c._fromPDF; delete c.title;
+      return c;
+    });
+    var blocks = docsClean.concat([batchPromptBlock]);
+    console.log('[Rebit IA] ' + etiqueta);
+    return await callProxyOrDirect('claude', [{ role:'user', content:blocks }], 6000);
+  }
+
   for (var bStart = 0; bStart < docBlocks.length; bStart += DOC_BLOCKS_PER_BATCH) {
     var batchNum = Math.floor(bStart / DOC_BLOCKS_PER_BATCH) + 1;
     var batchDocs = docBlocks.slice(bStart, bStart + DOC_BLOCKS_PER_BATCH);
-    // Limpiar _isDoc antes de enviar a la API (solo metadata interna)
-    var batchDocsClean = batchDocs.map(function(b){
-      if (b._isDoc) return { type: 'text', text: b.text };
-      return b;
-    });
-    var batchBlocks = batchDocsClean.concat([batchPromptBlock]);
-    console.log('[Rebit IA] Lote ' + batchNum + ' de ' + totalBatches);
-    var batchResult = await callProxyOrDirect('claude', [{ role:'user', content:batchBlocks }], 6000);
-    allResults.push(batchResult);
+
+    try {
+      var batchResult = await procesarLote(batchDocs, 'Lote ' + batchNum + ' de ' + totalBatches);
+      allResults.push(batchResult);
+    } catch(loteErr) {
+      var esBatchFail = loteErr.message && (loteErr.message.indexOf('BATCH_FAILED:') === 0 || loteErr.message.indexOf('SERVER_TIMEOUT:') === 0);
+      if (esBatchFail && batchDocs.length > 1) {
+        // División automática: procesar los documentos del lote de a 1
+        console.warn('[Rebit IA] Lote ' + batchNum + ' falló — dividiendo en ' + batchDocs.length + ' sub-lotes individuales...');
+        for (var sd = 0; sd < batchDocs.length; sd++) {
+          var docIndividual = [batchDocs[sd]];
+          var nombreDoc = nombreDeBloque(batchDocs[sd]);
+          try {
+            var subResult = await procesarLote(docIndividual, 'Sub-lote ' + (sd+1) + '/' + batchDocs.length + ' del lote ' + batchNum + ' (' + nombreDoc + ')');
+            allResults.push(subResult);
+          } catch(subErr) {
+            console.error('[Rebit IA] Documento omitido tras reintentos: ' + nombreDoc + ' — ' + subErr.message);
+            docsFallidos.push(nombreDoc);
+          }
+          if (sd < batchDocs.length - 1) await sleep(1500);
+        }
+      } else if (esBatchFail) {
+        // Lote de 1 documento que falló definitivamente → omitir y seguir
+        var nombreUnico = nombreDeBloque(batchDocs[0]);
+        console.error('[Rebit IA] Documento omitido tras reintentos: ' + nombreUnico);
+        docsFallidos.push(nombreUnico);
+      } else {
+        // Error no reintentable (API key, 401, 413 individual) → propagar
+        throw loteErr;
+      }
+    }
+
     if (bStart + DOC_BLOCKS_PER_BATCH < docBlocks.length) {
       await sleep(SLEEP_MS); // PDF: 6s; imagen: 2s; texto: 800ms
     }
+  }
+
+  // Si TODO falló, informar con claridad
+  if (allResults.length === 0) {
+    throw new Error('No se pudo procesar ningún documento después de todos los reintentos.\n'
+      + 'Documentos intentados: ' + docsFallidos.join(', ') + '\n'
+      + 'Verificá el estado de las funciones de Vercel o intentá más tarde.');
   }
 
   // ── MERGE INTELIGENTE ─────────────────────────────────────────────────────
@@ -1316,6 +1371,11 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
     });
   }
 
+  // Adjuntar información de documentos omitidos (para el resumen en la UI)
+  if (typeof docsFallidos !== 'undefined' && docsFallidos.length > 0) {
+    merged._docsFallidos = docsFallidos;
+  }
+
   return merged;
 }
 
@@ -1345,12 +1405,24 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
         proxyBody = payload;
         proxyHeaders = { 'Content-Type': 'application/json', 'x-app-token': '123aml2026' };
       }
-      proxyResp = await fetch('/api/ai', {
-        method: 'POST',
-        headers: proxyHeaders,
-        body: proxyBody
-      });
+      // Timeout preventivo del cliente: abortar a los 50s sin esperar el 504 de Vercel
+      var abortCtrl = new AbortController();
+      var abortTimer = setTimeout(function(){ abortCtrl.abort(); }, 50000);
+      try {
+        proxyResp = await fetch('/api/ai', {
+          method: 'POST',
+          headers: proxyHeaders,
+          body: proxyBody,
+          signal: abortCtrl.signal
+        });
+      } finally {
+        clearTimeout(abortTimer);
+      }
     } catch(networkErr) {
+      // Timeout del cliente (50s) → error reintentable con lote más chico
+      if (networkErr.name === 'AbortError') {
+        throw new Error('SERVER_TIMEOUT:El lote tardó más de 50 segundos');
+      }
       // fetch() lanzó error de red real (sin conexión, DNS, etc.)
       if (!isLocalhost) {
         throw new Error('Error de red al contactar el servidor proxy.\n'
@@ -1376,9 +1448,13 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
       if (proxyResp.status === 413) {
         throw new Error('El documento es demasiado grande (HTTP 413).\nIntentá con documentos más pequeños o de a uno por vez.');
       }
-      if (proxyResp.status === 503 || proxyErrMsg.indexOf('no configurado') >= 0) {
+      if (proxyErrMsg.indexOf('no configurado') >= 0) {
         throw new Error('ANTHROPIC_API_KEY no está configurada en el servidor.\n'
           + 'Vercel → Settings → Environment Variables → agregar ANTHROPIC_API_KEY');
+      }
+      // Errores de servidor transitorios → reintentables (504 timeout, 502/503 gateway, 500)
+      if (proxyResp.status === 504 || proxyResp.status === 502 || proxyResp.status === 503 || proxyResp.status === 500) {
+        throw new Error('SERVER_TIMEOUT:HTTP ' + proxyResp.status + ' — ' + proxyErrMsg);
       }
       if (!isLocalhost) {
         throw new Error('Error del servidor proxy (' + proxyResp.status + '): ' + proxyErrMsg);
@@ -1411,7 +1487,7 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
         directResp = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-          body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: maxTokens || 8000, messages: messages })
+          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: maxTokens || 8000, messages: messages })
         });
         var dClaude = await directResp.json();
         if (dClaude.error) {
@@ -1432,13 +1508,25 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
     }
   }
 
-  // Ejecutar con retry automático ante rate limit
+  // Ejecutar con retry automático ante rate limit y errores de servidor transitorios
+  var TIMEOUT_RETRY_DELAYS = [4000, 8000]; // reintentos rápidos para 504/timeout
   var lastErr;
   for (var attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       return await doCall();
     } catch(err) {
       lastErr = err;
+      // SERVER_TIMEOUT: reintentar hasta 2 veces con delay corto
+      if (err.message && err.message.indexOf('SERVER_TIMEOUT:') === 0) {
+        if (attempt < 2) {
+          var waitT = TIMEOUT_RETRY_DELAYS[attempt] || 8000;
+          console.warn('[Rebit IA] Timeout del servidor. Reintentando en ' + (waitT/1000) + 's (intento ' + (attempt+1) + '/2)...');
+          await sleep(waitT);
+          continue;
+        }
+        // Agotados: propagar como BATCH_FAILED para que el caller divida el lote
+        throw new Error('BATCH_FAILED:' + err.message.slice('SERVER_TIMEOUT:'.length));
+      }
       if (err.message && err.message.indexOf('RATE_LIMIT:') === 0) {
         if (attempt < MAX_RETRIES) {
           var waitMs = RETRY_DELAYS[attempt];
@@ -2823,6 +2911,15 @@ function LegajosView(props) {
       }
 
       setUploadPct(90);
+      // Informar documentos omitidos si los hubo (proceso resiliente)
+      if (extracted && extracted._docsFallidos && extracted._docsFallidos.length > 0) {
+        var omitidos = extracted._docsFallidos;
+        alert('⚠ Extracción completada parcialmente.\n\n'
+          + (files.length - omitidos.length) + ' de ' + files.length + ' documentos procesados correctamente.\n\n'
+          + 'Documentos omitidos por timeout (podés reintentarlos subiéndolos solos):\n• '
+          + omitidos.join('\n• '));
+        delete extracted._docsFallidos;
+      }
       setUploadMsg('Completando campos del legajo...');
 
       var docNames = files.map(function(f){return f.name;});
