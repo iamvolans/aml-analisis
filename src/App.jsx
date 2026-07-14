@@ -1070,9 +1070,16 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
   var docBlocks = contentBlocks.filter(function(b){
     return b.type === 'document' || b.type === 'image' || (b.type === 'text' && b._isDoc === true);
   });
-  // Tamaño de lote: si todos son texto extraído → 5 por lote (rápido); si hay binarios → 1
-  var tienesBinarios = docBlocks.some(function(b){ return b.type === 'document' || b.type === 'image'; });
-  var DOC_BLOCKS_PER_BATCH = tienesBinarios ? 1 : 5;
+  // Batch size según tipo de contenido:
+  // - PDF binario (type=document): 1 por lote (lento, pesado)
+  // - Imágenes JPEG de PDF escaneado: 3 documentos-equivalentes por lote (liviano)
+  // - Texto extraído (_isDoc): 5 por lote (rapidísimo)
+  var tienePDFBinario = docBlocks.some(function(b){ return b.type === 'document'; });
+  var tieneImagenes   = docBlocks.some(function(b){ return b.type === 'image'; });
+  var tienesBinarios  = tienePDFBinario; // solo PDF binario reduce el batch
+  var DOC_BLOCKS_PER_BATCH = tienePDFBinario ? 1 : (tieneImagenes ? 3 : 5);
+  // Sleep entre lotes según tipo
+  var SLEEP_MS = tienePDFBinario ? 6000 : (tieneImagenes ? 2000 : 800);
 
   // Filtrar documentos que superen 3.5MB de tamaño (para dejar margen al prompt y compresión)
   var MAX_DOC_BYTES = 3.5 * 1024 * 1024;
@@ -1134,7 +1141,7 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
     var batchResult = await callProxyOrDirect('claude', [{ role:'user', content:batchBlocks }], 6000);
     allResults.push(batchResult);
     if (bStart + DOC_BLOCKS_PER_BATCH < docBlocks.length) {
-      await sleep(tienesBinarios ? 8000 : 1000); // texto: 1s; binarios: 8s
+      await sleep(SLEEP_MS); // PDF: 6s; imagen: 2s; texto: 800ms
     }
   }
 
@@ -2716,6 +2723,36 @@ function LegajosView(props) {
     }
   }
 
+  // PDF escaneado → imágenes JPEG comprimidas (de ~3MB a ~300KB por página)
+  async function pdfToImages(file) {
+    try {
+      var lib = await loadPDFJS();
+      if (!lib) return null;
+      var buf = await file.arrayBuffer();
+      var pdf = await lib.getDocument({ data: buf }).promise;
+      var images = [];
+      var maxPags = Math.min(pdf.numPages, 4); // máx 4 páginas por doc
+      for (var p = 1; p <= maxPags; p++) {
+        var page = await pdf.getPage(p);
+        var vp = page.getViewport({ scale: 1.0 });
+        var targetW = Math.min(vp.width, 1000); // reducir resolución
+        var scale = targetW / vp.width;
+        var scaledVp = page.getViewport({ scale: scale });
+        var canvas = document.createElement('canvas');
+        canvas.width = scaledVp.width;
+        canvas.height = scaledVp.height;
+        var ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport: scaledVp }).promise;
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.65); // JPEG 65% ~200-400KB
+        images.push(dataUrl.split(',')[1]);
+      }
+      return images.length > 0 ? images : null;
+    } catch(e) {
+      console.warn('[Rebit IA] PDF→imagen error en ' + file.name + ':', e.message);
+      return null;
+    }
+  }
+
   async function handleUpload(e) {
     var files = Array.from(e.target.files).filter(function(f){
       return f.type==='application/pdf' || f.type.startsWith('image/');
@@ -2750,10 +2787,19 @@ function LegajosView(props) {
             contentBlocks.push({ type:'text', text:'=== ' + f.name + ' ===\n' + extractedTxt, _isDoc: true });
             console.log('[Rebit IA] PDF texto OK: ' + f.name + ' (' + extractedTxt.length + ' chars)');
           } else {
-            // PDF escaneado (imagen): enviar como documento base64 (más lento pero necesario)
-            var b64 = await fileToBase64(f);
-            contentBlocks.push({ type:'document', source:{ type:'base64', media_type:'application/pdf', data:b64 }, title:f.name });
-            console.log('[Rebit IA] PDF escaneado, enviando binario: ' + f.name);
+            // PDF escaneado: renderizar páginas como imágenes JPEG (mucho más liviano que binario)
+            var pdfImgs = await pdfToImages(f);
+            if (pdfImgs && pdfImgs.length > 0) {
+              pdfImgs.forEach(function(imgB64) {
+                contentBlocks.push({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:imgB64 }, _fromPDF: true });
+              });
+              console.log('[Rebit IA] PDF→' + pdfImgs.length + ' imágenes JPEG: ' + f.name);
+            } else {
+              // Último recurso: binario (puede fallar si es muy grande)
+              var b64 = await fileToBase64(f);
+              contentBlocks.push({ type:'document', source:{ type:'base64', media_type:'application/pdf', data:b64 }, title:f.name });
+              console.log('[Rebit IA] PDF binario fallback: ' + f.name);
+            }
           }
         } else if (f.type.startsWith('image/')) {
           var b64 = await fileToBase64(f);
