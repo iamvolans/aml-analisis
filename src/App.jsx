@@ -1971,6 +1971,12 @@ function calcScoring(m, sigs) {
 // ─── CLOUD SYNC via Vercel API proxy ─────────────────────────────────────────
 var APP_TOKEN = '123aml2026'; // mismo que contraseña de login
 
+// Token de sesión del usuario (JWT de Supabase Auth) — se setea al hacer login.
+// Habilita las acciones con RBAC server-side (usuarios, roles, audit log).
+// Solo en memoria: nunca se persiste en localStorage.
+var _USER_TOKEN = '';
+function setUserToken(t) { _USER_TOKEN = t || ''; }
+
 // Almacén de API keys en memoria — se populan desde Vercel env vars al iniciar.
 // Nunca se guardan en localStorage.
 var _KEYS = { anthropic: '', openai: '', provider: 'claude' };
@@ -2142,6 +2148,18 @@ async function serverLoadKV(k) {
   } catch(e) { return null; }
 }
 
+// Trae todos los KV cuya clave empieza con un prefijo (ej: 'rfi_') en UNA sola
+// query — usado por Dashboard y Alertas para agregar RFIs de todos los legajos.
+async function serverLoadKVPrefix(prefix) {
+  try {
+    var r = await fetchRetry('/api/sync?action=kv_prefix&p=' + encodeURIComponent(prefix),
+      { headers: { 'x-app-token': APP_TOKEN } }, 2);
+    if (!r.ok) return [];
+    var d = await r.json();
+    return (d && d.items) || [];
+  } catch(e) { return []; }
+}
+
 async function serverLoad() {
   try {
     var r = await fetchRetry('/api/sync', { headers: { 'x-app-token': APP_TOKEN } }, 3);
@@ -2221,6 +2239,29 @@ function DashboardView(props) {
   var legajos = props.legajos, periodos = props.periodos, setLegajos = props.setLegajos || function(){};
   var dashTabState = useState('operacional'); var dashTab=dashTabState[0]; var setDashTab=dashTabState[1];
 
+  // RFIs de TODOS los legajos — cargados desde Supabase KV (claves 'rfi_<legajoId>')
+  // en una sola query. Antes había un loop muerto heredado de localStorage que
+  // dejaba todosRfis siempre vacío (los vencimientos nunca alertaban).
+  var rfisKVState = useState([]); var rfisKV=rfisKVState[0]; var setRfisKV=rfisKVState[1];
+  useEffect(function() {
+    if (!legajos.length) { setRfisKV([]); return; }
+    var cancelado = false;
+    serverLoadKVPrefix('rfi_').then(function(items) {
+      if (cancelado) return;
+      var acc = [];
+      (items || []).forEach(function(it) {
+        var legId = (it.k || '').slice(4); // quita el prefijo 'rfi_'
+        var leg = legajos.find(function(l){ return l.id === legId; });
+        var arr = Array.isArray(it.v) ? it.v : [];
+        arr.forEach(function(rfi) {
+          acc.push(Object.assign({}, rfi, { legajoNombre: (leg && leg.razonSocial) || 'N/D', legajoId: legId }));
+        });
+      });
+      setRfisKV(acc);
+    });
+    return function() { cancelado = true; };
+  }, [legajos.length]);
+
   // ── DATOS COMUNES ────────────────────────────────────────────────────────────
   var hoy = new Date();
   var total = legajos.length;
@@ -2298,14 +2339,8 @@ function DashboardView(props) {
   });
 
   // ── DATOS EJECUTIVO ──────────────────────────────────────────────────────────
-  // RFIs de todos los legajos (desde localStorage)
-  var todosRfis = [];
-  legajos.forEach(function(l){
-    try {
-      var r = [];
-      r.forEach(function(rfi){ todosRfis.push(Object.assign({},rfi,{legajoNombre:l.razonSocial,legajoId:l.id})); });
-    } catch(e){}
-  });
+  // RFIs de todos los legajos (desde Supabase KV — ver efecto rfisKV arriba)
+  var todosRfis = rfisKV;
   var rfisAbiertos = todosRfis.filter(function(r){return r.estado==='ENVIADO'||r.estado==='PARCIAL';});
   var rfisVencidos = rfisAbiertos.filter(function(r){
     var f = parseFechaAR(r.createdAt);
@@ -5581,6 +5616,29 @@ function AlertasView(props) {
   var tabState = useState('senales'); var tab=tabState[0]; var setTab=tabState[1];
   var justState = useState({}); var justMap=justState[0]; var setJustMap=justState[1]; // {key: texto}
 
+  // RFIs de TODOS los legajos — cargados desde Supabase KV ('rfi_<legajoId>') en
+  // una sola query. Reemplaza el loop muerto de localStorage que dejaba la
+  // pestaña de RFIs vencidos siempre en cero.
+  var rfisKVState = useState([]); var rfisKV=rfisKVState[0]; var setRfisKV=rfisKVState[1];
+  useEffect(function() {
+    if (!legajos.length) { setRfisKV([]); return; }
+    var cancelado = false;
+    serverLoadKVPrefix('rfi_').then(function(items) {
+      if (cancelado) return;
+      var acc = [];
+      (items || []).forEach(function(it) {
+        var legId = (it.k || '').slice(4); // quita el prefijo 'rfi_'
+        var leg = legajos.find(function(l){ return l.id === legId; });
+        var arr = Array.isArray(it.v) ? it.v : [];
+        arr.forEach(function(rfi) {
+          acc.push(Object.assign({}, rfi, { legajoNombre: (leg && leg.razonSocial) || 'N/D', legajoId: legId, leg: leg }));
+        });
+      });
+      setRfisKV(acc);
+    });
+    return function() { cancelado = true; };
+  }, [legajos.length]);
+
   var hoy = new Date(); hoy.setHours(0,0,0,0);
 
   // ── 1. SEÑALES ACTIVAS — desde metricas guardadas (no requiere txns en memoria) ──
@@ -5610,13 +5668,8 @@ function AlertasView(props) {
   });
 
   // ── 2. RFIs VENCIDOS ─────────────────────────────────────────────────────────
-  var todosRfis = [];
-  legajos.forEach(function(l){
-    try {
-      var r = [];
-      r.forEach(function(rfi){ todosRfis.push(Object.assign({},rfi,{legajoNombre:l.razonSocial,legajoId:l.id,leg:l})); });
-    } catch(e){}
-  });
+  // (desde Supabase KV — ver efecto rfisKV arriba)
+  var todosRfis = rfisKV;
   var rfisVencidos = todosRfis.filter(function(r){
     if (r.estado==='CERRADO'||r.estado==='RESPONDIDO') return false;
     var f = parseFechaAR(r.createdAt);
@@ -5943,14 +5996,14 @@ async function serverLogin(email, password) {
 }
 
 async function serverGetUsuarios() {
-  var r = await fetch('/api/auth?action=usuarios', { headers: { 'x-app-token': APP_TOKEN } });
+  var r = await fetch('/api/auth?action=usuarios', { headers: { 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN } });
   return r.json();
 }
 
 async function serverCrearUsuario(email, password, nombre, rol) {
   var r = await fetch('/api/auth?action=crear', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN },
     body: JSON.stringify({ email: email, password: password, nombre: nombre, rol: rol })
   });
   return r.json();
@@ -5959,7 +6012,7 @@ async function serverCrearUsuario(email, password, nombre, rol) {
 async function serverCambiarPassword(userId, password) {
   var r = await fetch('/api/auth?action=password', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN },
     body: JSON.stringify({ userId: userId, password: password })
   });
   return r.json();
@@ -5968,7 +6021,7 @@ async function serverCambiarPassword(userId, password) {
 async function serverCambiarRol(userId, rol) {
   var r = await fetch('/api/auth?action=rol', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN },
     body: JSON.stringify({ userId: userId, rol: rol })
   });
   return r.json();
@@ -5977,7 +6030,7 @@ async function serverCambiarRol(userId, rol) {
 async function serverToggleActivo(userId, activo) {
   var r = await fetch('/api/auth?action=toggle', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN },
     body: JSON.stringify({ userId: userId, activo: activo })
   });
   return r.json();
@@ -5988,7 +6041,7 @@ async function auditLog(usuario, accion, entidad, entidadId, detalle) {
   try {
     await fetch('/api/auth?action=audit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN },
       body: JSON.stringify({
         usuario_id: usuario.id,
         usuario_nombre: usuario.nombre || usuario.email,
@@ -6029,7 +6082,7 @@ function LoginScreen(props) {
     try {
       var res = await serverLogin(email.trim(), pass);
       if (res.ok && res.usuario) {
-        props.onLogin(res.usuario);
+        props.onLogin(Object.assign({}, res.usuario, { token: res.token || '' }));
       } else {
         setErr(res.error || 'Email o contraseña incorrectos.');
       }
@@ -6867,12 +6920,14 @@ function UsuariosView(props) {
 
   async function handleRol(userId, rol) {
     var res = await serverCambiarRol(userId, rol);
-    if (res.ok) { cargarUsuarios(); auditLog(currentUser,'cambio_rol','usuario',userId,{rol:rol}); }
+    if (res.ok) { setErr(''); cargarUsuarios(); auditLog(currentUser,'cambio_rol','usuario',userId,{rol:rol}); }
+    else setErr(res.error||'Error al cambiar rol.');
   }
 
   async function handleToggle(u) {
     var res = await serverToggleActivo(u.id, !u.activo);
-    if (res.ok) { cargarUsuarios(); auditLog(currentUser,u.activo?'desactivar_usuario':'activar_usuario','usuario',u.id,{email:u.email}); }
+    if (res.ok) { setErr(''); cargarUsuarios(); auditLog(currentUser,u.activo?'desactivar_usuario':'activar_usuario','usuario',u.id,{email:u.email}); }
+    else setErr(res.error||'Error al actualizar usuario.');
   }
 
   var ROL_COL = { admin:T.RED, oficial_cumplimiento:'#A855F7', supervisor:T.CYAN, analista:T.GREEN, readonly:T.TEXT3 };
@@ -7028,6 +7083,9 @@ export default function App() {
   var showKeyState = useState(false); var showKey=showKeyState[0]; var setShowKey=showKeyState[1];
   var showOaiKeyState = useState(false); var showOaiKey=showOaiKeyState[0]; var setShowOaiKey=showOaiKeyState[1];
   var configOpenState = useState(false); var configOpen=configOpenState[0]; var setConfigOpen=configOpenState[1];
+  // Flags de configuración del servidor: las keys NUNCA llegan al browser —
+  // /api/config solo informa si están configuradas. Toda llamada IA va por /api/ai.
+  var srvKeysState = useState({anthropic:false, openai:false}); var serverKeys=srvKeysState[0]; var setServerKeys=srvKeysState[1];
 
   var syncStatusState = useState('idle'); var syncStatus=syncStatusState[0]; var setSyncStatus=syncStatusState[1];
   var hydrationState = useState({total:0,loaded:0}); var hydration=hydrationState[0]; var setHydration=hydrationState[1];
@@ -7036,7 +7094,7 @@ export default function App() {
   var auditItemsState = useState([]); var auditItems=auditItemsState[0]; var setAuditItems=auditItemsState[1];
   var auditLoadedState = useState(false); var auditLoaded=auditLoadedState[0]; var setAuditLoaded=auditLoadedState[1];
   function cargarAudit() {
-    fetch('/api/auth?action=audit_log&limit=20', {headers:{'x-app-token':APP_TOKEN}})
+    fetch('/api/auth?action=audit_log&limit=20', {headers:{'x-app-token':APP_TOKEN,'x-user-token':_USER_TOKEN}})
       .then(function(r){return r.json();})
       .then(function(d){ setAuditItems(d.logs||[]); setAuditLoaded(true); })
       .catch(function(){ setAuditLoaded(true); });
@@ -7072,11 +7130,12 @@ export default function App() {
     document.head.appendChild(styleEl);
     setSyncStatus('loading');
 
-    // 1. Config del servidor — API keys desde variables de entorno Vercel
+    // 1. Config del servidor — solo flags: las API keys quedan en el servidor
+    //    (llegaban en texto plano al browser; ahora todas las llamadas IA van
+    //    por el proxy /api/ai que usa las env vars de Vercel)
     fetchServerConfig().then(function(cfg) {
       if (cfg) {
-        if (cfg.anthropicKey) { setApiKey(cfg.anthropicKey); setModuleKeys(cfg.anthropicKey, null, null); }
-        if (cfg.openaiKey) { setOaiKey(cfg.openaiKey); setModuleKeys(null, cfg.openaiKey, null); }
+        setServerKeys({ anthropic: !!cfg.hasAnthropicKey, openai: !!cfg.hasOpenaiKey });
         if (cfg.defaultProvider) { setProvider(cfg.defaultProvider); setModuleKeys(null, null, cfg.defaultProvider); }
       }
     }).catch(function(){});
@@ -7112,7 +7171,7 @@ export default function App() {
 
     // Verificar si hay API keys configuradas en servidor
     fetchServerConfig().then(function(cfg){
-      if (!cfg || (!cfg.anthropicKey && !cfg.openaiKey)) setConfigOpen(true);
+      if (!cfg || (!cfg.hasAnthropicKey && !cfg.hasOpenaiKey)) setConfigOpen(true);
     }).catch(function(){});
   }, []);
 
@@ -7147,7 +7206,7 @@ export default function App() {
     }, 2000); // 2 segundos de debounce
   }
 
-  var activeKeyOk = provider==='openai' ? !!oaiKey.trim() : !!apiKey.trim();
+  var activeKeyOk = provider==='openai' ? (serverKeys.openai || !!oaiKey.trim()) : (serverKeys.anthropic || !!apiKey.trim());
 
   function handleAnalizar(leg, per) { setAnalTarget({leg:leg,per:per}); setView('analisis'); }
 
@@ -7210,7 +7269,7 @@ export default function App() {
     NAV.push(['usuarios','👥','Usuarios']);
   }
 
-  if (!isAuth) return <LoginScreen onLogin={function(usuario){setCurrentUser(usuario);}} />;
+  if (!isAuth) return <LoginScreen onLogin={function(usuario){setUserToken(usuario && usuario.token); setCurrentUser(usuario);}} />;
 
   if (loading) return (
     <div style={{minHeight:'100vh',background:T.BG,display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',fontFamily:T.MONO}}>
@@ -7237,8 +7296,8 @@ export default function App() {
           </div>
 
           {/* BANNER: keys del servidor */}
-          {apiKey && apiKey.length > 10 && <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:3,padding:'10px 14px',marginBottom:16,fontSize:11,color:T.GREEN,fontFamily:T.MONO}}>
-            ✅ <strong>Configuración cargada desde el servidor.</strong> En otros dispositivos las claves se cargan automáticamente al ingresar — no necesitás re-ingresar nada.
+          {(serverKeys.anthropic || serverKeys.openai) && <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:3,padding:'10px 14px',marginBottom:16,fontSize:11,color:T.GREEN,fontFamily:T.MONO}}>
+            ✅ <strong>API keys configuradas en el servidor</strong> ({serverKeys.anthropic ? 'Anthropic' : ''}{serverKeys.anthropic && serverKeys.openai ? ' + ' : ''}{serverKeys.openai ? 'OpenAI' : ''}). Por seguridad nunca se envían al navegador — todas las llamadas IA pasan por el proxy del servidor.
           </div>}
 
           {/* SELECTOR DE PROVEEDOR */}
@@ -7288,8 +7347,8 @@ export default function App() {
           </div>
 
           <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:4,padding:'10px 12px',fontSize:11,color:T.TEXT2,lineHeight:1.6}}>
-            🔒 Las keys se cargan desde las variables de entorno del servidor (Vercel). Nunca se almacenan en el browser.<br/>
-            💡 Podés configurar ambas keys y cambiar de proveedor en cualquier momento.
+            🔒 Las keys viven únicamente en el servidor (variables de entorno de Vercel) y <strong>nunca se envían al navegador</strong>.<br/>
+            💡 Los campos de arriba son solo para desarrollo local (fallback directo en localhost) — en producción dejalos vacíos.
           </div>
 
           {activeKeyOk && <button onClick={function(){setConfigOpen(false);}}

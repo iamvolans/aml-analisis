@@ -106,6 +106,18 @@ export default async function handler(req, res) {
       return res.json({ v: rows?.[0]?.v ?? null });
     }
 
+    // ── GET /api/sync?action=kv_prefix&p=rfi_ ────────────────────────────────
+    // Trae todos los registros KV cuya clave empieza con el prefijo, en UNA sola
+    // query (evita N queries por legajo — lección: no saturar Supabase).
+    if (req.method === 'GET' && action === 'kv_prefix') {
+      const qP = url.searchParams.get('p');
+      if (!qP) return res.status(400).json({ error: 'Falta p' });
+      // Escapar _ y % — en SQL LIKE son comodines y el prefijo 'rfi_' contiene _
+      const esc = qP.replace(/([_%])/g, '\\$1');
+      const rows = await sb('kv', 'GET', null, `?k=like.${encodeURIComponent(esc + '*')}&select=k,v`);
+      return res.json({ items: rows || [] });
+    }
+
     // ── Parsear body (con soporte gzip) ───────────────────────────────────────
     let body;
     try {

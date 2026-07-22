@@ -1,5 +1,7 @@
-// api/config.js — Sirve configuración segura desde variables de entorno de Vercel
-// El cliente nunca necesita ingresar keys manualmente en ningún dispositivo
+// api/config.js — Sirve configuración NO sensible desde variables de entorno de Vercel
+// SEGURIDAD: las API keys NUNCA se envían al navegador. El cliente solo necesita
+// saber si están configuradas (flags booleanos) — todas las llamadas a IA pasan
+// por el proxy /api/ai, que usa las keys del lado del servidor.
 export default function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-app-token');
@@ -13,9 +15,9 @@ export default function handler(req, res) {
   }
 
   res.json({
-    anthropicKey: process.env.ANTHROPIC_API_KEY || '',
-    openaiKey: process.env.OPENAI_API_KEY || '',
     defaultProvider: process.env.AI_PROVIDER || 'claude',
-    hasSyncConfig: !!(process.env.JSONBIN_MASTER_KEY && process.env.JSONBIN_BIN_ID)
+    hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+    hasOpenaiKey: !!process.env.OPENAI_API_KEY,
+    hasSyncConfig: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
   });
 }
