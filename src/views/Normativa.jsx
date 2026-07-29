@@ -1,6 +1,6 @@
 import { Card } from "../components/ui";
 import { SCREENING } from "../lib/constants";
-import { C, T } from "../lib/theme";
+import { T } from "../lib/theme";
 
 function NormativaView() {
   var normas = [
@@ -21,7 +21,7 @@ function NormativaView() {
       <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700,}}>Normativa Aplicable</h2>
       <Card title="Marco regulatorio AML/CFT — Argentina">
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-          <thead><tr>{['Normativa','Descripcion','Articulo / Alcance'].map(function(h,i){return <th key={i} style={{background:C.AO,color:'white',padding:'7px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
+          <thead><tr>{['Normativa','Descripcion','Articulo / Alcance'].map(function(h,i){return <th key={i} style={{background:T.BG3,color:T.TEXT3,padding:'9px 10px',textAlign:'left',fontSize:10,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS,borderBottom:'1px solid '+T.BORDER2}}>{h}</th>;})}</tr></thead>
           <tbody>{normas.map(function(n,i){return(
             <tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
               <td style={{padding:'6px 10px',fontWeight:600,color:T.CYAN,whiteSpace:'nowrap'}}>{n.cod}</td>
@@ -33,7 +33,7 @@ function NormativaView() {
       </Card>
       <Card title="Fuentes de screening — 13 fuentes">
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-          <thead><tr>{['#','Fuente','Jurisdiccion'].map(function(h,i){return <th key={i} style={{background:C.AO,color:'white',padding:'7px 10px',textAlign:'left'}}>{h}</th>;})}</tr></thead>
+          <thead><tr>{['#','Fuente','Jurisdiccion'].map(function(h,i){return <th key={i} style={{background:T.BG3,color:T.TEXT3,padding:'9px 10px',textAlign:'left',fontSize:10,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS,borderBottom:'1px solid '+T.BORDER2}}>{h}</th>;})}</tr></thead>
           <tbody>{SCREENING.map(function(s,i){return(
             <tr key={i} style={{background:i%2===0?T.BG3:T.BG2}}>
               <td style={{padding:'6px 10px',fontWeight:600,color:T.CYAN}}>{i+1}</td>

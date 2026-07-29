@@ -117,75 +117,70 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
 4. Verificación en producción con checklist de smoke test.
 5. Este documento se actualiza marcando la tanda como ✅.
 
-## Estado (actualizado 29/07/2026 · cierre T2c)
+## Estado (actualizado 29/07/2026 · cierre T2 completa)
 
 - [x] T0 — Modularización + tokens ✅ (22 módulos, v3.0; App.jsx 7.480→432 líneas)
-- [x] T1 — Design system fintech ✅
-  - T1a: paleta fintech vía tokens, Inter, sidebar v3 con lucide (v3.1.0)
-  - T1b: Toast + ConfirmDialog (20 alerts + 10 confirms convertidos), Command Palette ⌘K (v3.2.0)
-- [~] T2 — Rediseño de vistas — EN CURSO
-  - [x] T2a: Dashboard con StatCards + charts oscuros app-wide (chartGrid/chartAxis/chartTooltip en ui.jsx) (v3.3.0)
-  - [x] T2b — Legajos ✅
-    - v3.4.0: drawer lateral 780px (Esc/backdrop) + timeline vertical en Historial
-    - v3.5.0: tabla profesional con orden por header (7 columnas), filtros persistentes en
-      sessionStorage, drawer como overlay real sobre la lista, fix menú ⋯ (texto invisible
-      por `C.AO` sobre fondo oscuro)
-  - [x] T2c — Análisis: layout de dos paneles ✅ (v3.6.0)
-    - Panel izquierdo sticky 296px: selector de legajo, ficha compacta, lista de períodos
-      con estado + señales ALTA, toggle Tendencias
-    - Panel derecho: barra del período activo (recargar/eliminar) + tabs + contenido
-    - Gráficos de evolución: ComposedChart de doble eje (volumen IN/OUT + operaciones;
-      score + señales ALTA con líneas de umbral 3 y 4), leyendas y ejes tokenizados
-    - Fix crítico: `Pill` se usaba sin importar → pantalla en blanco al entrar a Análisis
-    - Barrido de contraste: `C.AO`, `C.AM`, `#1A4A6B`, `#1A6B3A` usados como color de texto
-      sobre fondo oscuro; `index.html` limpio del CSS de modo claro heredado
-  - [ ] **T2d — PRÓXIMA: Alertas + vistas restantes** (spec abajo)
-- [ ] T3 — Case management + SLA
+- [x] T1 — Design system fintech ✅ (v3.1.0 tokens+sidebar, v3.2.0 Toast/Confirm/⌘K)
+- [x] **T2 — Rediseño de vistas ✅ COMPLETA**
+  - T2a (v3.3.0): Dashboard con StatCards + charts oscuros app-wide
+  - T2b (v3.4.0 / v3.5.0): Legajos — drawer lateral + timeline; tabla profesional con
+    orden por header, filtros persistentes en sessionStorage, drawer sobre la lista
+  - T2c (v3.6.0): Análisis — layout de dos paneles (selector sticky | contenido),
+    gráficos de evolución con ComposedChart de doble eje y umbrales de riesgo
+  - T2d (v3.7.0): Alertas — tres tablas ordenables (Señales / RFIs / Sin analizar),
+    filtros persistentes, drawer de detalle de señal con acción sugerida y resolución.
+    Primitivas compartidas nuevas en `components/ui.jsx`: `SortTh`, `TableCard`,
+    `Drawer`, `EmptyState`, `TH`, `TD`. Barrido final de contraste en Patrones,
+    Normativa, Wiki, Usuarios y Dashboard; paleta legacy `C` reducida a los semánticos.
+- [ ] **T3 — PRÓXIMA: Case management + SLA**
 - [ ] T4 — Calendario regulatorio
 - [ ] T5 — Screening periódico
 - [ ] T6 — Comportamiento + grafo
 - [ ] T7 — Reportería + documental
 - [ ] T8 — Hardening final
 
-## Spec T2d — Alertas + vistas restantes (PRÓXIMA)
-
-1. **Alertas** (`src/views/Alertas.jsx`, 340 líneas): tabla profesional con orden por columna,
-   filtros por severidad / estado / legajo persistentes en sesión, y drawer de detalle de señal
-   reutilizando el patrón ya validado en Legajos.
-2. **Barrido final de contraste** en Patrones, Normativa, Wiki, Usuarios y Login. Es el mismo
-   bug que apareció en T2b y T2c: colores de la paleta legacy `C` (pensada para fondo claro)
-   usados como color de texto sobre fondo oscuro. Revisar `C.AO`, `C.AM`, `C.CEL` y hexes sueltos.
-3. Al cerrar T2d, `C` debería quedar reducida a los semánticos (VERDE/AMARILLO/NARANJA/ROJO)
-   o eliminarse en favor de `T`.
-
 ## Método de verificación por tanda
 
 - Build Vite OK.
 - **Chequeo de identificadores**: el build de Vite NO detecta variables no declaradas. Un
   componente JSX usado sin importar compila limpio y crashea en runtime (pasó con `Pill` en T2c).
-  Antes de entregar, verificar componentes usados vs. importados/declarados en cada archivo tocado.
+  Antes de entregar, verificar componentes usados vs. importados/declarados, y que no queden
+  claves inexistentes de la paleta (`C.AMARI` era `undefined` y pasaba silenciosamente).
 - Smoke test en producción de la vista tocada.
+
+## Deuda técnica registrada
+
+1. **Conteo de señales ALTA no uniforme.** Análisis y Alertas usan `p.metricas`; Dashboard usa
+   el fallback `p.scoring.senales`; la columna ALTA de Legajos exige txns en memoria y
+   subreporta. Unificar en un helper de `lib/aml.js` — candidato natural a resolverse en T3,
+   que necesita un criterio único de "alerta activa" para generar casos.
+2. **Legajos.jsx no usa las primitivas compartidas** (`SortTh`/`TableCard`): tiene su propia
+   implementación equivalente. Migración mecánica, sin beneficio visible; se dejó para T8 para
+   no re-verificar una vista ya validada en producción.
+3. **Bundle 1.29MB** sin code-splitting (ítem de T8).
+4. **3 vulnerabilidades npm** (1 moderada, 2 altas) de las deps transitivas de Vite 4 / esbuild.
+   `npm audit fix --force` sube Vite a 5+ y Recharts a 3 y rompe los charts. Tratar en T8.
 
 ## Notas técnicas acumuladas
 
-**Legajos.jsx** — la lista es una `<table>` con `thSort(k,label,extra)`; el detalle es
-`renderDrawer()` (sin `return` temprano, la tabla queda viva detrás). `stats[legajoId]` se
-precalcula recorriendo `periodos` una vez → {periodos, alta, ultLabel, ultTs}. Filtros y orden
-en `sessionStorage` bajo `rebit_legajos_filtros_v3`.
+**Legajos.jsx** — lista en `<table>` con `thSort(k,label,extra)` local; detalle en
+`renderDrawer()` (sin `return` temprano). `stats[legajoId]` precalculado recorriendo `periodos`
+una vez. Filtros en `sessionStorage` → `rebit_legajos_filtros_v3`.
 
-**Analisis.jsx** — `ESTADOS_PERIODO` y `getEstadoPeriodo()` viven en scope de módulo (los usan
-el panel lateral y el header de contenido). Helpers: `altaActivas(p)` cuenta señales ALTA no
-resueltas desde `p.metricas` (no depende de txns hidratadas) y `txnsDe(p)`.
+**Analisis.jsx** — `ESTADOS_PERIODO` y `getEstadoPeriodo()` en scope de módulo. Helpers
+`altaActivas(p)` (desde `p.metricas`, sin depender de txns) y `txnsDe(p)`.
 
-**Pendiente transversal** — el conteo de señales ALTA no es uniforme: Análisis usa `p.metricas`,
-Dashboard usa el fallback `p.scoring.senales`, y la columna ALTA de Legajos todavía exige txns
-en memoria (subreporta). Unificar en un helper compartido de `lib/aml.js`.
+**Alertas.jsx** — filtros en `rebit_alertas_filtros_v3`, con orden independiente por pestaña
+(`sortMap[tab]`). El drawer de señal muestra `s.tip` como acción sugerida.
 
-**App.jsx** — keyframes `pulse`, `fadeIn` y `drawerIn` en el CSS global derivado de tokens.
+**components/ui.jsx** — Card, StatCard, Pill, Badge, SevBadge, ReportModal, chartGrid/Axis/Tooltip,
+TH, TD, SortTh, TableCard, Drawer, EmptyState.
+
+**App.jsx** — keyframes `pulse`, `fadeIn`, `drawerIn` en el CSS global derivado de tokens.
 
 **theme.js** es la fuente única de diseño; la paleta de los informes PDF está bloqueada e
-independiente.
+independiente. `C` quedó reducida a AC + los cuatro semánticos.
 
 **Entrega** — zip de `src/` completa + `rm -rf src && unzip` + comandos git. Frann no edita código.
-Ojo con los nombres de archivo repetidos en `~/Downloads`: si ya existe uno con el mismo nombre,
-el navegador guarda el nuevo como `archivo-1.ext` y el `cp` termina copiando el viejo.
+Ojo con nombres repetidos en `~/Downloads`: si ya existe uno igual, el navegador guarda el nuevo
+como `archivo-1.ext` y el `cp` termina copiando el viejo. Por eso los entregables van versionados.

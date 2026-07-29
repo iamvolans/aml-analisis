@@ -31,11 +31,11 @@ function WikiStepList({steps}) {
         var ok = done.indexOf(i)>=0;
         return (
           <div key={i} style={{display:'flex',gap:12,marginBottom:8,alignItems:'flex-start'}}>
-            <div onClick={()=>toggle(i)} style={{width:28,height:28,borderRadius:'50%',flexShrink:0,marginTop:2,background:ok?C.VERDE:C.AM,color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,cursor:'pointer',transition:'background 0.2s'}}>
+            <div onClick={()=>toggle(i)} style={{width:28,height:28,borderRadius:'50%',flexShrink:0,marginTop:2,background:ok?T.GREEN:T.BORDER3,color:ok?'#08130D':T.TEXT,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,cursor:'pointer',transition:'background 0.2s'}}>
               {ok ? '✓' : i+1}
             </div>
             <div style={{flex:1,background:ok?'rgba(0,230,118,0.08)':T.BG2,border:'1px solid '+(ok?'rgba(0,230,118,0.25)':T.BORDER),borderRadius:8,padding:'9px 13px',transition:'all 0.2s'}}>
-              <div style={{fontSize:13,fontWeight:600,color:ok?C.VERDE:C.AO,marginBottom:2,textDecoration:ok?'line-through':'none'}}>{step[0]}</div>
+              <div style={{fontSize:13,fontWeight:600,color:ok?T.GREEN:T.TEXT,marginBottom:2,textDecoration:ok?'line-through':'none'}}>{step[0]}</div>
               <div style={{fontSize:12.5,color:T.TEXT2,lineHeight:1.6}}>{step[1]}</div>
             </div>
           </div>
@@ -56,7 +56,7 @@ function WikiTbl({headers, rows}) {
   return (
     <div style={{overflowX:'auto',marginBottom:16}}>
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:12.5}}>
-        <thead><tr>{headers.map((h,i)=><th key={i} style={{background:C.AO,color:'white',padding:'8px 12px',textAlign:'left',fontSize:11,fontWeight:700,letterSpacing:'0.03em'}}>{h}</th>)}</tr></thead>
+        <thead><tr>{headers.map((h,i)=><th key={i} style={{background:T.BG3,color:T.TEXT3,padding:'9px 12px',textAlign:'left',fontSize:10,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS,borderBottom:'1px solid '+T.BORDER2}}>{h}</th>)}</tr></thead>
         <tbody>
           {rows.map((row,ri)=>(
             <tr key={ri} style={{background:ri%2===0?T.BG3:T.BG2}}>
@@ -76,7 +76,7 @@ function WikiFlow({title, nodes, vertical}) {
       <div style={{display:'flex',flexDirection:vertical?'column':'row',alignItems:'center',gap:0,background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:10,padding:'14px 12px',flexWrap:vertical?'nowrap':'wrap'}}>
         {nodes.map((node,i)=>(
           <div key={i} style={{display:'flex',flexDirection:vertical?'column':'row',alignItems:'center',flex:vertical?'none':'1',gap:0}}>
-            <div style={{background:node.color||C.AM,color:'white',borderRadius:8,padding:vertical?'10px 20px':'9px 12px',textAlign:'center',minWidth:vertical?200:80,boxShadow:'0 2px 6px rgba(27,42,74,0.12)',margin:vertical?'0':'0 2px'}}>
+            <div style={{background:node.color||T.ACCENT,color:'#FFFFFF',borderRadius:8,padding:vertical?'10px 20px':'9px 12px',textAlign:'center',minWidth:vertical?200:80,boxShadow:'0 2px 6px rgba(27,42,74,0.12)',margin:vertical?'0':'0 2px'}}>
               <div style={{fontSize:12,fontWeight:700,lineHeight:1.4}}>{node.label}</div>
               {node.sub && <div style={{fontSize:10,opacity:0.8,marginTop:2,lineHeight:1.4}}>{node.sub}</div>}
             </div>

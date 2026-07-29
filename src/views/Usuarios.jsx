@@ -127,13 +127,13 @@ function UsuariosView(props) {
         <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,overflow:'hidden'}}>
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
             <thead>
-              <tr style={{background:C.AO}}>
-                {['Nombre','Email','Rol','Estado','Acciones'].map(function(h){return <th key={h} style={{color:'white',padding:'10px 14px',textAlign:'left',fontWeight:700,fontSize:12}}>{h}</th>;})}
+              <tr>
+                {['Nombre','Email','Rol','Estado','Acciones'].map(function(h){return <th key={h} style={{background:T.BG3,color:T.TEXT3,padding:'9px 14px',textAlign:'left',fontWeight:600,fontSize:10,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS,borderBottom:'1px solid '+T.BORDER2}}>{h}</th>;})}
               </tr>
             </thead>
             <tbody>
               {usuarios.map(function(u,i){
-                var rolCol = ROL_COL[u.rol]||'#888';
+                var rolCol = ROL_COL[u.rol]||T.TEXT3;
                 var esSelf = u.id === currentUser.id;
                 return (
                   <tr key={u.id} style={{background:i%2===0?T.BG3:T.BG2,opacity:u.activo?1:0.6}}>
@@ -152,7 +152,7 @@ function UsuariosView(props) {
                       )}
                     </td>
                     <td style={{padding:'10px 14px'}}>
-                      <span style={{background:u.activo?'rgba(0,230,118,0.1)':T.BG3,color:u.activo?T.GREEN:T.TEXT3,border:'1px solid '+(u.activo?C.VERDE:'#ddd'),borderRadius:8,padding:'2px 10px',fontSize:11,fontWeight:700}}>
+                      <span style={{background:u.activo?'rgba(0,230,118,0.1)':T.BG3,color:u.activo?T.GREEN:T.TEXT3,border:'1px solid '+(u.activo?T.GREEN:T.BORDER2),borderRadius:8,padding:'2px 10px',fontSize:11,fontWeight:700}}>
                         {u.activo ? '● Activo' : '○ Inactivo'}
                       </span>
                     </td>

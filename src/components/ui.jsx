@@ -81,4 +81,60 @@ function ReportModal(props) {
   );
 }
 
-export { Card, StatCard, Pill, Badge, SevBadge, ReportModal, chartGrid, chartAxis, chartTooltip };
+// ── Primitivas de tabla (T2d) ───────────────────────────────────────────────
+// Estilos base para tablas de datos. Legajos.jsx todavía usa su implementación
+// propia equivalente; migrarla acá quedó como tarea de limpieza para T8.
+var TH = {position:'sticky',top:0,zIndex:2,background:T.BG3,color:T.TEXT3,padding:'9px 10px',textAlign:'left',fontSize:10,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS,borderBottom:'1px solid '+T.BORDER2,whiteSpace:'nowrap'};
+var TD = {padding:'8px 10px',borderBottom:'1px solid '+T.BORDER,fontSize:12,verticalAlign:'middle',fontFamily:T.SANS};
+
+// Header de columna ordenable. props: k, label, sortBy {k,d}, onSort(k), extra
+function SortTh(props) {
+  var on = props.sortBy && props.sortBy.k === props.k;
+  var st = Object.assign({}, TH, props.extra||{}, {cursor:'pointer',userSelect:'none'});
+  if (on) st.color = T.ACCENT;
+  return (
+    <th onClick={function(){props.onSort(props.k);}} style={st} title={'Ordenar por ' + props.label}>
+      {props.label}<span style={{marginLeft:5,color:T.ACCENT,opacity:on?1:0}}>{props.sortBy.d===1?'\u2191':'\u2193'}</span>
+    </th>
+  );
+}
+
+// Contenedor de tabla con la elevación estándar de card
+function TableCard(props) {
+  return (
+    <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,boxShadow:T.SHADOW.card}}>
+      <table style={{width:'100%',borderCollapse:'separate',borderSpacing:0}}>{props.children}</table>
+    </div>
+  );
+}
+
+// Panel lateral derecho. Cierra con Esc o clic en el backdrop.
+function Drawer(props) {
+  useEffect(function() {
+    function onKey(e) { if (e.key === 'Escape') props.onClose(); }
+    window.addEventListener('keydown', onKey);
+    return function(){ window.removeEventListener('keydown', onKey); };
+  }, [props.onClose]);
+  return (
+    <div onClick={props.onClose} style={{position:'fixed',inset:0,background:'rgba(4,7,12,0.55)',backdropFilter:'blur(1px)',zIndex:1500,display:'flex',justifyContent:'flex-end',animation:'fadeIn 0.15s ease-out'}}>
+      <div onClick={function(e){e.stopPropagation();}}
+        style={{width:props.width||560,maxWidth:'94vw',height:'100vh',overflowY:'auto',background:T.BG,borderLeft:'1px solid '+T.BORDER2,boxShadow:T.SHADOW.pop,padding:22,animation:'drawerIn 0.18s ease-out'}}>
+        <button onClick={props.onClose} style={{background:'transparent',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,color:T.TEXT3,cursor:'pointer',fontSize:11,fontWeight:500,fontFamily:T.SANS,padding:'5px 11px',marginBottom:14}}>✕ Cerrar · Esc</button>
+        {props.children}
+      </div>
+    </div>
+  );
+}
+
+// Estado vacío estándar
+function EmptyState(props) {
+  return (
+    <div style={{background:T.BG2,border:'1px dashed '+T.BORDER2,borderRadius:T.RADIUS.md,padding:'44px 24px',textAlign:'center'}}>
+      <div style={{fontSize:28,marginBottom:9,opacity:0.45}}>{props.icon||'—'}</div>
+      <div style={{fontSize:14,fontWeight:600,color:T.TEXT,fontFamily:T.SANS}}>{props.title}</div>
+      {props.sub ? <div style={{fontSize:12,color:T.TEXT3,marginTop:5,fontFamily:T.SANS}}>{props.sub}</div> : null}
+    </div>
+  );
+}
+
+export { Card, StatCard, Pill, Badge, SevBadge, ReportModal, chartGrid, chartAxis, chartTooltip, TH, TD, SortTh, TableCard, Drawer, EmptyState };

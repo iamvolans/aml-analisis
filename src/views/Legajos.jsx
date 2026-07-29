@@ -403,7 +403,7 @@ function LegajosView(props) {
               {[
                 {icon:'📋',label:'Campos datos',val:iaFields.filled.length,max:10,col:C.AC},
                 {icon:'✅',label:'Docs en checklist',val:iaFields.okChecklist,max:15,col:C.VERDE},
-                {icon:'📊',label:'Factores scoring',val:iaFields.kybFilled,max:7,col:C.AM},
+                {icon:'📊',label:'Factores scoring',val:iaFields.kybFilled,max:7,col:T.ACCENT},
                 {icon:'🚩',label:'Red flags',val:iaFields.rfCount,max:null,col:iaFields.rfCount>0?C.ROJO:'#888'}
               ].map(function(stat,i){return(
                 <div key={i} style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,padding:'12px 14px',textAlign:'center',borderTop:'3px solid '+stat.col}}>

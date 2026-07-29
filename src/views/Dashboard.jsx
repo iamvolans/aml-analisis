@@ -345,8 +345,8 @@ function DashboardView(props) {
           {[
             {label:'Tasa de respuesta RFI',val:tasaRespuesta+'%',icon:'📊',col:tasaRespuesta>=70?C.VERDE:tasaRespuesta>=40?C.AMARILLO:C.ROJO},
             {label:'Tiempo prom. respuesta',val:tiempoPromResp?(tiempoPromResp+' días'):'—',icon:'⏱',col:C.AC},
-            {label:'RFIs vencen en 7 días',val:rfisVencen7.length,icon:'⚠',col:rfisVencen7.length>0?C.AMARILLO:'#7F8C8D'},
-            {label:'Períodos analizados',val:periodos.filter(function(p){return p.txns&&p.txns.length>0;}).length,icon:'📈',col:C.AM},
+            {label:'RFIs vencen en 7 días',val:rfisVencen7.length,icon:'⚠',col:rfisVencen7.length>0?T.AMBER:T.TEXT3},
+            {label:'Períodos analizados',val:periodos.filter(function(p){return p.txns&&p.txns.length>0;}).length,icon:'📈',col:T.ACCENT},
           ].map(function(k,i){return(
             <StatCard key={i} label={k.label} val={k.val} col={k.col} icon={k.icon}/>
           );})}
@@ -361,7 +361,7 @@ function DashboardView(props) {
               <div style={{maxHeight:340,overflowY:'auto'}}>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                   <thead><tr style={{position:'sticky',top:0,background:T.BG2}}>
-                    {['','Cliente','Seg','Score','ALTA','Períodos'].map(function(h,i){return <th key={i} style={{padding:'5px 8px',textAlign:'left',color:T.TEXT2,fontWeight:600,fontSize:11,borderBottom:'2px solid #eee'}}>{h}</th>;})}
+                    {['','Cliente','Seg','Score','ALTA','Períodos'].map(function(h,i){return <th key={i} style={{padding:'5px 8px',textAlign:'left',color:T.TEXT2,fontWeight:600,fontSize:11,borderBottom:'1px solid '+T.BORDER2}}>{h}</th>;})}
                   </tr></thead>
                   <tbody>{rankingRiesgo.map(function(x,i){
                     return(<tr key={i} style={{borderBottom:'1px solid #f5f5f5'}}>

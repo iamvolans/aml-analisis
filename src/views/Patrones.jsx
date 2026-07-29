@@ -89,7 +89,7 @@ function PatronesView() {
     <div style={{padding:22, maxWidth:960}}>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:6}}>
         <h2 style={{fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>🔍 Patrones AML — Referencia</h2>
-        <span style={{background:C.AO,color:'white',borderRadius:10,padding:'2px 10px',fontSize:11,fontWeight:700}}>12 patrones activos</span>
+        <span style={{background:T.ACCENT_SOFT,color:T.ACCENT,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.pill,padding:'2px 11px',fontSize:10,fontWeight:700,fontFamily:T.MONO}}>12 patrones activos</span>
       </div>
       <p style={{fontSize:12,color:T.TEXT2,marginBottom:20}}>
         Catálogo completo de patrones de comportamiento transaccional inusual detectados por el sistema.
@@ -112,9 +112,9 @@ function PatronesView() {
       {/* Tabla de patrones */}
       <div style={{border:'1px solid '+T.BORDER,borderRadius:8,overflow:'hidden'}}>
         {/* Header */}
-        <div style={{display:'grid',gridTemplateColumns:'90px 1fr 80px 80px',background:C.AO,padding:'9px 16px',gap:12}}>
+        <div style={{display:'grid',gridTemplateColumns:'90px 1fr 80px 80px',background:T.BG3,borderBottom:'1px solid '+T.BORDER2,padding:'9px 16px',gap:12}}>
           {['Código','Nombre del patrón','Tip. UIF','Severidad'].map(function(h){return(
-            <div key={h} style={{fontSize:10,fontWeight:700,color:'rgba(255,255,255,0.7)',letterSpacing:'0.05em',textTransform:'uppercase'}}>{h}</div>
+            <div key={h} style={{fontSize:10,fontWeight:700,color:T.TEXT3,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS}}>{h}</div>
           );})}
         </div>
 
@@ -123,7 +123,7 @@ function PatronesView() {
           var sevColor = SEV_COLOR[p.sev];
           var sevBg    = SEV_BG[p.sev];
           return (
-            <div key={p.code} style={{borderBottom: i < PATRONES.length-1 ? '1px solid #E8EEF4' : 'none'}}>
+            <div key={p.code} style={{borderBottom: i < PATRONES.length-1 ? '1px solid '+T.BORDER : 'none'}}>
               {/* Row */}
               <div
                 onClick={function(){ setExpanded(isOpen ? null : p.code); }}
@@ -155,7 +155,7 @@ function PatronesView() {
                     </div>
 
                     <div style={{background:'rgba(255,184,48,0.08)',border:'1px solid rgba(255,184,48,0.25)',borderRadius:3,padding:'12px 14px',gridColumn:'1/-1'}}>
-                      <div style={{fontSize:10,fontWeight:700,color:C.AMARI,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>Ejemplo práctico</div>
+                      <div style={{fontSize:10,fontWeight:700,color:T.AMBER,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>Ejemplo práctico</div>
                       <div style={{fontSize:12.5,color:T.TEXT,lineHeight:1.6,fontStyle:'italic'}}>{p.ejemplo}</div>
                     </div>
 

@@ -1,9 +1,21 @@
 import { useState, useEffect } from "react";
-import { SevBadge } from "../components/ui";
+import { SevBadge, SortTh, TableCard, Drawer, EmptyState, TD } from "../components/ui";
 import { calcMetricas, detectPatrones } from "../lib/aml";
 import { serverLoadKVPrefix } from "../lib/sync";
-import { C, T } from "../lib/theme";
-import { parseFechaAR, todayStr } from "../lib/utils";
+import { T } from "../lib/theme";
+import { parseFechaAR, sevColor, todayStr } from "../lib/utils";
+
+// ── Filtros persistentes en la sesión (mismo patrón que Legajos) ─────────────
+var FILTROS_KEY = 'rebit_alertas_filtros_v3';
+function leerFiltros() {
+  try { var raw = window.sessionStorage.getItem(FILTROS_KEY); return raw ? JSON.parse(raw) : {}; }
+  catch(e) { return {}; }
+}
+function guardarFiltros(f) {
+  try { window.sessionStorage.setItem(FILTROS_KEY, JSON.stringify(f)); } catch(e) {}
+}
+
+var SEV_ORD = { ALTA:0, MEDIA:1, BAJA:2 };
 
 function AlertasView(props) {
   var periodos = props.periodos, legajos = props.legajos;
@@ -11,8 +23,34 @@ function AlertasView(props) {
   var onNavAnalisis = props.onNavAnalisis; // function(leg, per)
   var currentUser = props.currentUser || {rol:'analista', nombre:'Analista'};
 
-  var tabState = useState('senales'); var tab=tabState[0]; var setTab=tabState[1];
+  var tabState = useState(function(){ return leerFiltros().tab || 'senales'; }); var tab=tabState[0]; var setTab=tabState[1];
   var justState = useState({}); var justMap=justState[0]; var setJustMap=justState[1]; // {key: texto}
+
+  // Filtros y orden
+  var searchState = useState(function(){ return leerFiltros().search || ''; }); var search=searchState[0]; var setSearch=searchState[1];
+  var fSevState = useState(function(){ return leerFiltros().sev || 'TODAS'; }); var fSev=fSevState[0]; var setFSev=fSevState[1];
+  var fLegState = useState(function(){ return leerFiltros().leg || 'TODOS'; }); var fLeg=fLegState[0]; var setFLeg=fLegState[1];
+  var fRfiState = useState(function(){ return leerFiltros().rfi || 'TODOS'; }); var fRfi=fRfiState[0]; var setFRfi=fRfiState[1];
+  var sortState = useState(function(){
+    return leerFiltros().sort || { senales:{k:'sev',d:1}, rfis:{k:'dias',d:-1}, analisis:{k:'dias',d:-1} };
+  });
+  var sortMap=sortState[0]; var setSortMap=sortState[1];
+  var sortBy = sortMap[tab] || {k:'sev',d:1};
+  function toggleSort(k) {
+    setSortMap(function(prev){
+      var cur = prev[tab] || {};
+      var next = Object.assign({}, prev);
+      next[tab] = cur.k === k ? {k:k, d:-cur.d} : {k:k, d:1};
+      return next;
+    });
+  }
+
+  useEffect(function() {
+    guardarFiltros({ tab:tab, search:search, sev:fSev, leg:fLeg, rfi:fRfi, sort:sortMap });
+  }, [tab, search, fSev, fLeg, fRfi, sortMap]);
+
+  // Señal abierta en el drawer
+  var selSigState = useState(null); var selSigKey=selSigState[0]; var setSelSigKey=selSigState[1];
 
   // RFIs de TODOS los legajos — cargados desde Supabase KV ('rfi_<legajoId>') en
   // una sola query. Reemplaza el loop muerto de localStorage que dejaba la
@@ -43,7 +81,6 @@ function AlertasView(props) {
   var allSigs = [];
   periodos.forEach(function(p) {
     var leg = legajos.find(function(l){return l.id===p.legajoId;});
-    // Usar metricas guardadas si existen, sino calcular si hay txns
     var m = p.metricas || (p.txns && p.txns.length ? calcMetricas(p.txns, leg) : null);
     if (!m) return;
     var sigs = detectPatrones(m, leg);
@@ -51,6 +88,7 @@ function AlertasView(props) {
       var res = (p.sigsResolucion||{})[s.pat];
       if (res && res.estado === 'RESUELTA') return; // ya resuelta
       allSigs.push(Object.assign({}, s, {
+        key: p.id + '_' + s.pat,
         legajoNom: (leg&&leg.razonSocial)||'N/D',
         legajoId:  p.legajoId,
         periodoId: p.id,
@@ -60,33 +98,25 @@ function AlertasView(props) {
       }));
     });
   });
-  allSigs.sort(function(a,b){
-    var sevOrd = {ALTA:0, MEDIA:1, BAJA:2};
-    return (sevOrd[a.sev]||2) - (sevOrd[b.sev]||2);
-  });
 
   // ── 2. RFIs VENCIDOS ─────────────────────────────────────────────────────────
-  // (desde Supabase KV — ver efecto rfisKV arriba)
   var todosRfis = rfisKV;
-  var rfisVencidos = todosRfis.filter(function(r){
-    if (r.estado==='CERRADO'||r.estado==='RESPONDIDO') return false;
+  var rfisAbiertos = todosRfis.filter(function(r){
+    return !(r.estado==='CERRADO'||r.estado==='RESPONDIDO');
+  }).map(function(r){
     var f = parseFechaAR(r.createdAt);
-    return f && Math.floor((hoy-f)/86400000) > 7;
-  });
-  var rfisProximos = todosRfis.filter(function(r){
-    if (r.estado==='CERRADO'||r.estado==='RESPONDIDO') return false;
-    var f = parseFechaAR(r.createdAt);
-    if (!f) return false;
-    var dias = Math.floor((hoy-f)/86400000);
-    return dias >= 5 && dias <= 7;
-  });
+    var dias = f ? Math.floor((hoy-f)/86400000) : 0;
+    return Object.assign({}, r, { dias: dias, vencido: dias > 7, porVencer: dias >= 5 && dias <= 7 });
+  }).filter(function(r){ return r.vencido || r.porVencer; });
+
+  var rfisVencidos = rfisAbiertos.filter(function(r){return r.vencido;});
+  var rfisProximos = rfisAbiertos.filter(function(r){return r.porVencer;});
 
   // ── 3. PERÍODOS SIN ANALIZAR ─────────────────────────────────────────────────
   var sinAnalizar = [];
   legajos.forEach(function(l){
     var lPers = periodos.filter(function(p){return p.legajoId===l.id;});
     if (lPers.length === 0) {
-      // Nunca tuvo período
       var alta = parseFechaAR(l.createdAt);
       var diasSinAnalisis = alta ? Math.floor((hoy-alta)/86400000) : 0;
       var limDias = l.segmento==='ALTO'?30:l.segmento==='MEDIO-ALTO'?60:90;
@@ -94,7 +124,6 @@ function AlertasView(props) {
         sinAnalizar.push({legajoNom:l.razonSocial, legajoId:l.id, leg:l, dias:diasSinAnalisis, limite:limDias, tipo:'sin_periodos'});
       }
     } else {
-      // Tiene períodos — verificar si el más reciente tiene métricas
       var conMetricas = lPers.filter(function(p){return p.metricas||p.txns&&p.txns.length;});
       if (conMetricas.length === 0) {
         sinAnalizar.push({legajoNom:l.razonSocial, legajoId:l.id, leg:l, dias:0, limite:0, tipo:'sin_metricas'});
@@ -102,7 +131,7 @@ function AlertasView(props) {
     }
   });
 
-  // ── Resolver señal directamente ───────────────────────────────────────────────
+  // ── Resolver señal ───────────────────────────────────────────────────────────
   function resolverSenal(sig, justificacion) {
     var updatedPers = periodos.map(function(p){
       if (p.id !== sig.periodoId) return p;
@@ -116,222 +145,299 @@ function AlertasView(props) {
       return Object.assign({}, p, {sigsResolucion: newRes});
     });
     setPeriodos(updatedPers);
-    // Limpiar input de justificación
     var newMap = Object.assign({}, justMap);
     delete newMap[sig.periodoId+'_'+sig.pat];
     setJustMap(newMap);
+    setSelSigKey(null);
   }
 
+  // ── Filtrado y orden ─────────────────────────────────────────────────────────
+  var q = search.trim().toLowerCase();
+  function matchTexto() {
+    var partes = Array.prototype.slice.call(arguments);
+    if (!q) return true;
+    return partes.some(function(x){ return (x||'').toString().toLowerCase().indexOf(q) >= 0; });
+  }
+  function cmp(va, vb, d) { return va < vb ? -d : va > vb ? d : 0; }
+
+  var sigsFiltradas = allSigs.filter(function(s){
+    return (fSev==='TODAS' || s.sev===fSev)
+      && (fLeg==='TODOS' || s.legajoId===fLeg)
+      && matchTexto(s.pat, s.legajoNom, s.titulo, s.periodoNom);
+  }).sort(function(a,b){
+    var k=sortBy.k, d=sortBy.d;
+    if (k==='sev') return cmp(SEV_ORD[a.sev]!==undefined?SEV_ORD[a.sev]:9, SEV_ORD[b.sev]!==undefined?SEV_ORD[b.sev]:9, d);
+    return cmp((a[k]||'').toString().toLowerCase(), (b[k]||'').toString().toLowerCase(), d);
+  });
+
+  var rfisFiltrados = rfisAbiertos.filter(function(r){
+    var estadoOk = fRfi==='TODOS' || (fRfi==='VENCIDO' ? r.vencido : r.porVencer);
+    return estadoOk
+      && (fLeg==='TODOS' || r.legajoId===fLeg)
+      && matchTexto(r.refNum, r.legajoNombre, r.asunto);
+  }).sort(function(a,b){
+    var k=sortBy.k, d=sortBy.d;
+    if (k==='dias') return cmp(a.dias, b.dias, d);
+    return cmp((a[k]||'').toString().toLowerCase(), (b[k]||'').toString().toLowerCase(), d);
+  });
+
+  var sinAnalizarFiltrados = sinAnalizar.filter(function(x){
+    return (fLeg==='TODOS' || x.legajoId===fLeg) && matchTexto(x.legajoNom);
+  }).sort(function(a,b){
+    var k=sortBy.k, d=sortBy.d;
+    if (k==='dias') return cmp(a.dias, b.dias, d);
+    return cmp((a[k]||'').toString().toLowerCase(), (b[k]||'').toString().toLowerCase(), d);
+  });
+
   var TAB_COUNTS = [
-    ['senales',   '🚨 Señales', allSigs.length],
-    ['rfis',      '📧 RFIs vencidos', rfisVencidos.length + rfisProximos.length],
-    ['analisis',  '⏱ Sin analizar', sinAnalizar.length],
+    ['senales',  '🚨 Señales',        allSigs.length],
+    ['rfis',     '📧 RFIs vencidos',  rfisAbiertos.length],
+    ['analisis', '⏱ Sin analizar',   sinAnalizar.length],
   ];
   var totalAlertas = allSigs.length + rfisVencidos.length + sinAnalizar.length;
 
+  var selSig = sigsFiltradas.find(function(s){return s.key===selSigKey;})
+            || allSigs.find(function(s){return s.key===selSigKey;});
+
+  var inputSt = {border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'7px 10px',fontSize:12,color:T.TEXT,fontFamily:T.SANS};
+  var hayFiltro = search || fSev!=='TODAS' || fLeg!=='TODOS' || fRfi!=='TODOS';
+
   return (
     <div style={{padding:22}}>
+
+      {/* ══ DRAWER DE SEÑAL ══════════════════════════════════════════════════ */}
+      {selSig && (
+        <Drawer onClose={function(){setSelSigKey(null);}}>
+          <div style={{display:'flex',alignItems:'center',gap:9,flexWrap:'wrap',marginBottom:10}}>
+            <span style={{fontFamily:T.MONO,fontSize:13,fontWeight:700,color:T.ACCENT}}>{selSig.pat}</span>
+            <SevBadge sev={selSig.sev}/>
+          </div>
+          <h3 style={{margin:'0 0 6px',fontSize:17,fontWeight:700,color:T.TEXT,lineHeight:1.3}}>{selSig.titulo}</h3>
+          <div style={{fontSize:12,color:T.TEXT3,fontFamily:T.SANS,marginBottom:16}}>
+            {selSig.legajoNom} · {selSig.periodoNom}
+          </div>
+
+          <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderLeft:'3px solid '+sevColor(selSig.sev),borderRadius:T.RADIUS.md,padding:'14px 16px',marginBottom:14}}>
+            <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:6}}>Descripción</div>
+            <div style={{fontSize:13,color:T.TEXT2,lineHeight:1.6}}>{selSig.desc}</div>
+          </div>
+
+          {selSig.tip ? (
+            <div style={{background:'rgba(61,126,255,0.06)',border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.md,padding:'14px 16px',marginBottom:14}}>
+              <div style={{fontSize:10,color:T.ACCENT,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:6}}>Acción sugerida</div>
+              <div style={{fontSize:13,color:T.TEXT2,lineHeight:1.6}}>{selSig.tip}</div>
+            </div>
+          ) : null}
+
+          <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,padding:'14px 16px',marginBottom:14}}>
+            <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:8}}>Justificación para resolver</div>
+            <textarea
+              value={justMap[selSig.key]||''}
+              onChange={function(e){var mm=Object.assign({},justMap); mm[selSig.key]=e.target.value; setJustMap(mm);}}
+              rows={4}
+              placeholder="Describí por qué se resuelve esta señal. Queda registrado en el legajo como evidencia de auditoría."
+              style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'9px 11px',fontSize:12,resize:'vertical',lineHeight:1.6,boxSizing:'border-box'}}
+            />
+            <button
+              onClick={function(){resolverSenal(selSig, justMap[selSig.key]);}}
+              style={{marginTop:10,width:'100%',background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:T.RADIUS.sm,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:13,fontFamily:T.SANS}}>
+              ✓ Resolver señal
+            </button>
+          </div>
+
+          {onNavAnalisis && selSig.leg && selSig.per && (
+            <button onClick={function(){setSelSigKey(null);onNavAnalisis(selSig.leg, selSig.per);}}
+              style={{width:'100%',background:T.ACCENT_SOFT,color:T.ACCENT,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.sm,padding:'9px 0',cursor:'pointer',fontWeight:600,fontSize:12,fontFamily:T.SANS}}>
+              Ver período completo →
+            </button>
+          )}
+        </Drawer>
+      )}
+
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
-        <h2 style={{color:T.TEXT,margin:0,fontSize:19,fontWeight:700,}}>Centro de Alertas</h2>
-        <span style={{background:totalAlertas>0?'rgba(255,68,85,0.2)':'rgba(0,230,118,0.2)',color:totalAlertas>0?T.RED:T.GREEN,borderRadius:3,padding:'2px 10px',fontSize:10,fontWeight:600,fontFamily:T.MONO}}>
+        <h2 style={{color:T.TEXT,margin:0,fontSize:19,fontWeight:700}}>Centro de Alertas</h2>
+        <span style={{background:totalAlertas>0?'rgba(255,68,85,0.16)':'rgba(0,230,118,0.16)',color:totalAlertas>0?T.RED:T.GREEN,borderRadius:T.RADIUS.pill,padding:'2px 11px',fontSize:10,fontWeight:700,fontFamily:T.MONO}}>
           {totalAlertas > 0 ? totalAlertas+' activas' : '✓ Sin alertas'}
         </span>
       </div>
 
       {/* Tabs */}
-      <div style={{display:'flex',gap:4,marginBottom:16,background:T.BG3,borderRadius:3,padding:4,border:'1px solid '+T.BORDER}}>
+      <div style={{display:'flex',gap:4,marginBottom:14,background:T.BG3,borderRadius:T.RADIUS.sm+2,padding:4,border:'1px solid '+T.BORDER}}>
         {TAB_COUNTS.map(function(t){
           var on = tab===t[0];
-          var hasCnt = t[2]>0;
           return (
             <button key={t[0]} onClick={function(){setTab(t[0]);}}
-              style={{flex:1,padding:'7px 8px',border:'none',borderRadius:6,cursor:'pointer',
+              style={{flex:1,padding:'7px 8px',border:'none',borderRadius:T.RADIUS.sm,cursor:'pointer',
                 background:on?T.ACCENT_SOFT:'transparent',
-                fontWeight:on?600:400,fontSize:12,color:on?T.ACCENT:T.TEXT2,
+                fontWeight:on?600:500,fontSize:12,color:on?T.ACCENT:T.TEXT2,fontFamily:T.SANS,
                 transition:T.TRANS}}>
               {t[1]}
-              {hasCnt && <span style={{marginLeft:6,background:on?(t[0]==='senales'?C.ROJO:C.NARANJA):'#ddd',color:'white',borderRadius:10,padding:'0 6px',fontSize:11,fontWeight:700}}>{t[2]}</span>}
+              {t[2]>0 && <span style={{marginLeft:6,background:on?T.ACCENT:T.BORDER3,color:on?'#FFFFFF':T.TEXT2,borderRadius:T.RADIUS.pill,padding:'0 7px',fontSize:10,fontWeight:700,fontFamily:T.MONO}}>{t[2]}</span>}
             </button>
           );
         })}
       </div>
 
+      {/* Filtros */}
+      <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
+        <input value={search} onChange={function(e){setSearch(e.target.value);}}
+          placeholder="🔍 Buscar por patrón, cliente, asunto…"
+          style={Object.assign({},inputSt,{flex:'1 1 240px'})}/>
+        {tab==='senales' && (
+          <select value={fSev} onChange={function(e){setFSev(e.target.value);}} style={inputSt}>
+            <option value="TODAS">Todas las severidades</option>
+            <option value="ALTA">ALTA</option>
+            <option value="MEDIA">MEDIA</option>
+            <option value="BAJA">BAJA</option>
+          </select>
+        )}
+        {tab==='rfis' && (
+          <select value={fRfi} onChange={function(e){setFRfi(e.target.value);}} style={inputSt}>
+            <option value="TODOS">Vencidos y por vencer</option>
+            <option value="VENCIDO">Solo vencidos</option>
+            <option value="POR_VENCER">Solo por vencer</option>
+          </select>
+        )}
+        <select value={fLeg} onChange={function(e){setFLeg(e.target.value);}} style={inputSt}>
+          <option value="TODOS">Todos los clientes</option>
+          {legajos.map(function(l){return <option key={l.id} value={l.id}>{l.razonSocial||'Sin nombre'}</option>;})}
+        </select>
+        {hayFiltro && (
+          <button onClick={function(){setSearch('');setFSev('TODAS');setFLeg('TODOS');setFRfi('TODOS');}}
+            style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.sm,padding:'7px 11px',cursor:'pointer',fontSize:12,color:T.TEXT2,fontFamily:T.SANS}}>✕ Limpiar</button>
+        )}
+      </div>
+
       {/* ── TAB: SEÑALES ── */}
       {tab==='senales' && (
-        <div>
-          {allSigs.length===0 ? (
-            <div style={{background:T.BG3,border:'1px dashed '+T.BORDER3,borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
-              <div style={{fontSize:32,marginBottom:8}}>✅</div>
-              <div style={{fontSize:14,fontWeight:600,color:T.TEXT2}}>Sin señales activas</div>
-              <div style={{fontSize:12,marginTop:4}}>Todos los períodos analizados están sin alertas pendientes.</div>
-            </div>
-          ) : allSigs.map(function(s,i){
-            var key = s.periodoId+'_'+s.pat;
-            var bord = s.sev==='ALTA'?C.ROJO:s.sev==='MEDIA'?C.NARANJA:C.AMARILLO;
-            var bg   = s.sev==='ALTA'?'rgba(255,71,87,0.06)':s.sev==='MEDIA'?'rgba(255,140,66,0.06)':'rgba(255,176,32,0.05)';
-            return (
-              <div key={i} style={{background:bg,border:'1px solid '+T.BORDER,borderRadius:8,padding:'12px 16px',marginBottom:10,borderLeft:'4px solid '+bord}}>
-                {/* Cabecera */}
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
-                  <div>
-                    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:4}}>
-                      <span style={{fontWeight:700,color:T.CYAN,fontSize:12,fontFamily:'monospace'}}>{s.pat}</span>
-                      <SevBadge sev={s.sev}/>
-                      <span style={{fontSize:12,color:T.TEXT2,fontWeight:500}}>{s.legajoNom}</span>
-                      <span style={{fontSize:11,color:T.TEXT3}}>· {s.periodoNom}</span>
-                    </div>
-                    <div style={{fontWeight:700,fontSize:13,color:T.TEXT}}>{s.titulo}</div>
-                    <div style={{fontSize:12,color:T.TEXT2,marginTop:2,lineHeight:1.5}}>{s.desc}</div>
-                  </div>
-                  {/* Botón ir al período */}
-                  {onNavAnalisis && s.leg && s.per && (
-                    <button onClick={function(){onNavAnalisis(s.leg, s.per);}}
-                      style={{flexShrink:0,background:T.BG2,border:'1px solid '+C.AC,color:T.CYAN,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
-                      Ver período →
-                    </button>
-                  )}
-                </div>
-
-                {/* Cierre directo */}
-                <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid rgba(0,0,0,0.06)'}}>
-                  <div style={{fontSize:11,color:T.TEXT2,marginBottom:5,fontWeight:600}}>JUSTIFICACIÓN PARA RESOLVER</div>
-                  <div style={{display:'flex',gap:8}}>
-                    <input
-                      value={justMap[key]||''}
-                      onChange={function(e){var m=Object.assign({},justMap); m[key]=e.target.value; setJustMap(m);}}
-                      placeholder="Describí brevemente por qué se resuelve esta señal..."
-                      style={{flex:1,padding:'6px 10px',border:'1px solid '+T.BORDER,borderRadius:6,fontSize:12,color:T.TEXT}}
-                    />
-                    <button
-                      onClick={function(){resolverSenal(s, justMap[key]);}}
-                      style={{background:C.VERDE,color:'white',border:'none',borderRadius:6,padding:'6px 14px',cursor:'pointer',fontSize:12,fontWeight:700,whiteSpace:'nowrap'}}>
-                      ✓ Resolver
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        allSigs.length===0 ? (
+          <EmptyState icon="✅" title="Sin señales activas" sub="Todos los períodos analizados están sin alertas pendientes."/>
+        ) : sigsFiltradas.length===0 ? (
+          <EmptyState icon="🔍" title="Sin resultados" sub="Ninguna señal coincide con los filtros aplicados."/>
+        ) : (
+          <TableCard>
+            <thead>
+              <tr>
+                <SortTh k="sev" label="Sev." sortBy={sortBy} onSort={toggleSort} extra={{width:86}}/>
+                <SortTh k="pat" label="Patrón" sortBy={sortBy} onSort={toggleSort} extra={{width:86}}/>
+                <SortTh k="titulo" label="Señal" sortBy={sortBy} onSort={toggleSort}/>
+                <SortTh k="legajoNom" label="Cliente" sortBy={sortBy} onSort={toggleSort} extra={{width:200}}/>
+                <SortTh k="periodoNom" label="Período" sortBy={sortBy} onSort={toggleSort} extra={{width:150}}/>
+              </tr>
+            </thead>
+            <tbody>
+              {sigsFiltradas.map(function(s){
+                return (
+                  <tr key={s.key} onClick={function(){setSelSigKey(s.key);}}
+                    style={{cursor:'pointer',background:selSigKey===s.key?T.ACCENT_SOFT:'transparent',transition:T.TRANS}}>
+                    <td style={Object.assign({},TD,{borderLeft:'3px solid '+sevColor(s.sev)})}><SevBadge sev={s.sev}/></td>
+                    <td style={Object.assign({},TD,{fontFamily:T.MONO,fontSize:11,color:T.ACCENT,fontWeight:600})}>{s.pat}</td>
+                    <td style={Object.assign({},TD,{color:T.TEXT,fontWeight:500})}>{s.titulo}</td>
+                    <td style={Object.assign({},TD,{color:T.TEXT2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:200})}>{s.legajoNom}</td>
+                    <td style={Object.assign({},TD,{color:T.TEXT3,fontFamily:T.MONO,fontSize:11})}>{s.periodoNom}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableCard>
+        )
       )}
 
       {/* ── TAB: RFIs ── */}
       {tab==='rfis' && (
-        <div>
-          {rfisVencidos.length===0 && rfisProximos.length===0 ? (
-            <div style={{background:T.BG3,border:'1px dashed '+T.BORDER3,borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
-              <div style={{fontSize:32,marginBottom:8}}>📧</div>
-              <div style={{fontSize:14,fontWeight:600,color:T.TEXT2}}>Sin RFIs vencidos o próximos a vencer</div>
-            </div>
-          ) : (
-            <div>
-              {rfisVencidos.length > 0 && (
-                <div>
-                  <div style={{fontSize:11,fontWeight:700,color:T.RED,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:8}}>
-                    🔴 Vencidos sin respuesta ({rfisVencidos.length})
-                  </div>
-                  {rfisVencidos.map(function(r,i){
-                    var f = parseFechaAR(r.createdAt);
-                    var dias = f ? Math.floor((hoy-f)/86400000) : '?';
-                    return (
-                      <div key={i} style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.25)',borderLeft:'2px solid '+T.RED,borderRadius:3,padding:'10px 14px',marginBottom:8}}>
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
-                          <div>
-                            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
-                              <span style={{fontFamily:'monospace',fontSize:12,fontWeight:700,color:T.CYAN}}>{r.refNum||'RFI'}</span>
-                              <span style={{background:'rgba(255,68,85,0.07)',color:T.RED,borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>{dias} días sin respuesta</span>
-                            </div>
-                            <div style={{fontSize:13,fontWeight:500,color:T.TEXT2}}>{r.legajoNombre}</div>
-                            <div style={{fontSize:12,color:T.TEXT2,marginTop:2}}>{r.asunto||'Sin asunto'}</div>
-                          </div>
-                          {onNavAnalisis && r.leg && (
-                            <button onClick={function(){
-                              var perAsoc = periodos.find(function(p){return p.legajoId===r.legajoId;});
-                              onNavAnalisis(r.leg, perAsoc||null);
-                            }} style={{flexShrink:0,background:T.BG2,border:'1px solid '+C.AC,color:T.CYAN,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
-                              Ver legajo →
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {rfisProximos.length > 0 && (
-                <div style={{marginTop: rfisVencidos.length>0?14:0}}>
-                  <div style={{fontSize:11,fontWeight:700,color:T.AMBER,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:8}}>
-                    🟡 Vencen en los próximos 2 días ({rfisProximos.length})
-                  </div>
-                  {rfisProximos.map(function(r,i){
-                    var f = parseFechaAR(r.createdAt);
-                    var dias = f ? Math.floor((hoy-f)/86400000) : '?';
-                    return (
-                      <div key={i} style={{background:'rgba(255,140,0,0.08)',border:'1px solid rgba(255,140,0,0.25)',borderLeft:'2px solid '+T.AMBER,borderRadius:3,padding:'10px 14px',marginBottom:8}}>
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
-                          <div>
-                            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
-                              <span style={{fontFamily:'monospace',fontSize:12,fontWeight:700,color:T.CYAN}}>{r.refNum||'RFI'}</span>
-                              <span style={{background:'rgba(255,184,48,0.15)',color:T.AMBER,borderRadius:2,padding:'1px 8px',fontSize:11,fontWeight:700}}>día {dias} de 7</span>
-                            </div>
-                            <div style={{fontSize:13,fontWeight:500,color:T.TEXT2}}>{r.legajoNombre}</div>
-                            <div style={{fontSize:12,color:T.TEXT2,marginTop:2}}>{r.asunto||'Sin asunto'}</div>
-                          </div>
-                          {onNavAnalisis && r.leg && (
-                            <button onClick={function(){
-                              var perAsoc = periodos.find(function(p){return p.legajoId===r.legajoId;});
-                              onNavAnalisis(r.leg, perAsoc||null);
-                            }} style={{flexShrink:0,background:T.BG2,border:'1px solid '+C.AC,color:T.CYAN,borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
-                              Ver legajo →
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        rfisAbiertos.length===0 ? (
+          <EmptyState icon="📧" title="Sin RFIs vencidos o próximos a vencer"/>
+        ) : rfisFiltrados.length===0 ? (
+          <EmptyState icon="🔍" title="Sin resultados" sub="Ningún RFI coincide con los filtros aplicados."/>
+        ) : (
+          <TableCard>
+            <thead>
+              <tr>
+                <SortTh k="refNum" label="Referencia" sortBy={sortBy} onSort={toggleSort} extra={{width:180}}/>
+                <SortTh k="legajoNombre" label="Cliente" sortBy={sortBy} onSort={toggleSort} extra={{width:200}}/>
+                <SortTh k="asunto" label="Asunto" sortBy={sortBy} onSort={toggleSort}/>
+                <SortTh k="dias" label="Días" sortBy={sortBy} onSort={toggleSort} extra={{width:130,textAlign:'right'}}/>
+                <th style={Object.assign({},TD,{width:120,textAlign:'right',background:T.BG3,position:'sticky',top:0,zIndex:2,borderBottom:'1px solid '+T.BORDER2})}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rfisFiltrados.map(function(r,i){
+                var col = r.vencido ? T.RED : T.AMBER;
+                return (
+                  <tr key={r.id||i}>
+                    <td style={Object.assign({},TD,{borderLeft:'3px solid '+col,fontFamily:T.MONO,fontSize:11,color:T.ACCENT,fontWeight:600})}>{r.refNum||'RFI'}</td>
+                    <td style={Object.assign({},TD,{color:T.TEXT,fontWeight:500})}>{r.legajoNombre}</td>
+                    <td style={Object.assign({},TD,{color:T.TEXT2})}>{r.asunto||'Sin asunto'}</td>
+                    <td style={Object.assign({},TD,{textAlign:'right',whiteSpace:'nowrap'})}>
+                      <span style={{background:r.vencido?'rgba(255,68,85,0.14)':'rgba(255,184,48,0.14)',color:col,border:'1px solid '+(r.vencido?'rgba(255,68,85,0.35)':'rgba(255,184,48,0.35)'),borderRadius:T.RADIUS.pill,padding:'2px 9px',fontSize:10,fontWeight:700,fontFamily:T.MONO}}>
+                        {r.vencido ? r.dias+' d vencido' : 'día '+r.dias+' de 7'}
+                      </span>
+                    </td>
+                    <td style={Object.assign({},TD,{textAlign:'right'})}>
+                      {onNavAnalisis && r.leg && (
+                        <button onClick={function(){
+                          var perAsoc = periodos.find(function(p){return p.legajoId===r.legajoId;});
+                          onNavAnalisis(r.leg, perAsoc||null);
+                        }} style={{background:T.ACCENT_SOFT,border:'1px solid '+T.ACCENT_DIM,color:T.ACCENT,borderRadius:T.RADIUS.sm,padding:'4px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap',fontFamily:T.SANS}}>
+                          Ver legajo →
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableCard>
+        )
       )}
 
       {/* ── TAB: SIN ANALIZAR ── */}
       {tab==='analisis' && (
-        <div>
-          {sinAnalizar.length===0 ? (
-            <div style={{background:T.BG3,border:'1px dashed '+T.BORDER3,borderRadius:8,padding:'30px 20px',textAlign:'center',color:T.TEXT3}}>
-              <div style={{fontSize:32,marginBottom:8}}>⏱</div>
-              <div style={{fontSize:14,fontWeight:600,color:T.TEXT2}}>Todos los clientes tienen análisis reciente</div>
-            </div>
-          ) : sinAnalizar.map(function(item,i){
-            return (
-              <div key={i} style={{background:'rgba(255,140,0,0.08)',border:'1px solid rgba(255,140,0,0.25)',borderLeft:'2px solid '+T.AMBER,borderRadius:3,padding:'12px 16px',marginBottom:8}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
-                  <div>
-                    <div style={{fontSize:13,fontWeight:600,color:T.TEXT,marginBottom:3}}>{item.legajoNom}</div>
-                    {item.tipo==='sin_periodos' ? (
-                      <div style={{fontSize:12,color:T.TEXT2}}>
-                        Sin períodos cargados · {item.dias} días desde el alta · Límite para segmento {item.leg&&item.leg.segmento||'N/D'}: {item.limite} días
-                      </div>
-                    ) : (
-                      <div style={{fontSize:12,color:T.TEXT2}}>
-                        Tiene períodos pero sin métricas calculadas — cargar archivo XLS para analizar
-                      </div>
-                    )}
-                  </div>
-                  {onNavAnalisis && item.leg && (
-                    <button onClick={function(){onNavAnalisis(item.leg, null);}}
-                      style={{flexShrink:0,background:C.AC,color:'white',border:'none',borderRadius:6,padding:'6px 12px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
-                      Cargar período →
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        sinAnalizar.length===0 ? (
+          <EmptyState icon="⏱" title="Todos los clientes tienen análisis reciente"/>
+        ) : sinAnalizarFiltrados.length===0 ? (
+          <EmptyState icon="🔍" title="Sin resultados" sub="Ningún cliente coincide con los filtros aplicados."/>
+        ) : (
+          <TableCard>
+            <thead>
+              <tr>
+                <SortTh k="legajoNom" label="Cliente" sortBy={sortBy} onSort={toggleSort} extra={{width:230}}/>
+                <SortTh k="tipo" label="Motivo" sortBy={sortBy} onSort={toggleSort}/>
+                <SortTh k="dias" label="Días / límite" sortBy={sortBy} onSort={toggleSort} extra={{width:150,textAlign:'right'}}/>
+                <th style={Object.assign({},TD,{width:150,textAlign:'right',background:T.BG3,position:'sticky',top:0,zIndex:2,borderBottom:'1px solid '+T.BORDER2})}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {sinAnalizarFiltrados.map(function(item,i){
+                return (
+                  <tr key={item.legajoId||i}>
+                    <td style={Object.assign({},TD,{borderLeft:'3px solid '+T.AMBER,color:T.TEXT,fontWeight:600})}>{item.legajoNom}</td>
+                    <td style={Object.assign({},TD,{color:T.TEXT2})}>
+                      {item.tipo==='sin_periodos'
+                        ? 'Sin períodos cargados desde el alta'
+                        : 'Tiene períodos pero sin métricas calculadas — falta cargar el archivo'}
+                    </td>
+                    <td style={Object.assign({},TD,{textAlign:'right',fontFamily:T.MONO,fontSize:11,color:T.AMBER,whiteSpace:'nowrap'})}>
+                      {item.tipo==='sin_periodos'
+                        ? item.dias + ' / ' + item.limite + ' d'
+                        : '—'}
+                      {item.tipo==='sin_periodos' && <div style={{fontSize:9,color:T.TEXT4}}>segmento {(item.leg&&item.leg.segmento)||'N/D'}</div>}
+                    </td>
+                    <td style={Object.assign({},TD,{textAlign:'right'})}>
+                      {onNavAnalisis && item.leg && (
+                        <button onClick={function(){onNavAnalisis(item.leg, null);}}
+                          style={{background:T.ACCENT_SOFT,border:'1px solid '+T.ACCENT_DIM,color:T.ACCENT,borderRadius:T.RADIUS.sm,padding:'4px 10px',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap',fontFamily:T.SANS}}>
+                          Cargar período →
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableCard>
+        )
       )}
     </div>
   );
