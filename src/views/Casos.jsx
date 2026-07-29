@@ -41,6 +41,16 @@ function CasosView(props) {
   var selState = useState(null); var selId=selState[0]; var setSelId=selState[1];
   var notaState = useState(''); var nota=notaState[0]; var setNota=notaState[1];
   var previewState = useState(null); var preview=previewState[0]; var setPreview=previewState[1];
+  var previewSelState = useState([]); var previewSel=previewSelState[0]; var setPreviewSel=previewSelState[1];
+
+  // Clave estable de cada señal pendiente, para poder marcarlas una por una
+  function claveP(p) { return p.periodoId + '::' + p.pat; }
+  function togglePreview(p) {
+    var k = claveP(p);
+    setPreviewSel(function(prev){
+      return prev.indexOf(k) >= 0 ? prev.filter(function(x){return x!==k;}) : prev.concat([k]);
+    });
+  }
 
   function toggleSort(k) {
     setSortBy(function(prev){ return prev.k===k ? {k:k,d:-prev.d} : {k:k,d:1}; });
@@ -81,18 +91,23 @@ function CasosView(props) {
     var pend = casosPendientesDeCrear(legajos, periodos, casos);
     if (pend.length === 0) { toast('No hay señales ALTA activas sin caso asociado.'); return; }
     setPreview(pend);
+    // Arrancan todas marcadas — desmarcar es más rápido que marcar de a una
+    setPreviewSel(pend.map(claveP));
   }
 
   async function confirmarGeneracion() {
     if (!preview || !preview.length) return;
-    if (!(await uiConfirm('Se van a crear ' + preview.length + ' caso(s) a partir de señales ALTA activas.\n\nCada uno queda registrado con su origen y fecha de apertura.', {confirmLabel:'Crear casos'}))) return;
+    var elegidos = preview.filter(function(p){ return previewSel.indexOf(claveP(p)) >= 0; });
+    if (!elegidos.length) { toast('No seleccionaste ninguna señal.'); return; }
+    if (!(await uiConfirm('Se van a crear ' + elegidos.length + ' caso(s) a partir de las señales seleccionadas.\n\nCada uno queda registrado con su origen y fecha de apertura.', {confirmLabel:'Crear ' + elegidos.length + ' caso(s)'}))) return;
     var n = casos.length;
-    var nuevos = preview.map(function(p, i){
+    var nuevos = elegidos.map(function(p, i){
       return nuevoCaso(Object.assign({}, p, { ref: refCaso(p.legajoNom, n + i + 1) }));
     });
     var lista = casos.concat(nuevos);
     guardar(lista);
     setPreview(null);
+    setPreviewSel([]);
     auditLog(currentUser, 'generar_casos', 'caso', '', { cantidad: nuevos.length });
     toast('✓ ' + nuevos.length + ' caso(s) creados.');
   }
@@ -266,32 +281,55 @@ function CasosView(props) {
       })()}
 
       {/* ══ PREVIEW DE GENERACIÓN ════════════════════════════════════════════ */}
-      {preview && (
-        <Drawer width={560} onClose={function(){setPreview(null);}}>
+      {preview && (function(){
+        var elegidos = preview.filter(function(p){ return previewSel.indexOf(claveP(p)) >= 0; });
+        var todos = elegidos.length === preview.length;
+        return (
+        <Drawer width={600} onClose={function(){setPreview(null);setPreviewSel([]);}}>
           <h3 style={{margin:'0 0 6px',fontSize:17,fontWeight:700,color:T.TEXT}}>Casos a generar</h3>
-          <div style={{fontSize:12,color:T.TEXT3,marginBottom:16}}>
-            {preview.length} señal(es) ALTA activa(s) sin caso asociado. Revisá antes de confirmar.
+          <div style={{fontSize:12,color:T.TEXT3,marginBottom:14}}>
+            {preview.length} señal(es) ALTA activa(s) sin caso asociado. Elegí cuáles convertir en caso.
           </div>
+
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,paddingBottom:10,borderBottom:'1px solid '+T.BORDER}}>
+            <button onClick={function(){ setPreviewSel(todos ? [] : preview.map(claveP)); }}
+              style={{background:'transparent',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'5px 11px',cursor:'pointer',fontSize:11,fontWeight:600,color:T.TEXT2,fontFamily:T.SANS}}>
+              {todos ? 'Desmarcar todas' : 'Marcar todas'}
+            </button>
+            <span style={{fontSize:11,color:T.TEXT3,fontFamily:T.MONO}}>{elegidos.length} de {preview.length} seleccionadas</span>
+          </div>
+
           <div style={{marginBottom:16}}>
             {preview.map(function(p,i){
+              var marcado = previewSel.indexOf(claveP(p)) >= 0;
               return (
-                <div key={i} style={{background:T.BG2,border:'1px solid '+T.BORDER,borderLeft:'3px solid '+T.RED,borderRadius:T.RADIUS.sm,padding:'10px 12px',marginBottom:7}}>
-                  <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3}}>
-                    <span style={{fontFamily:T.MONO,fontSize:10,fontWeight:700,color:T.ACCENT}}>{p.pat}</span>
-                    <span style={{fontSize:11,color:T.TEXT2}}>{p.legajoNom}</span>
+                <div key={claveP(p)} onClick={function(){togglePreview(p);}}
+                  style={{display:'flex',gap:11,alignItems:'flex-start',background:marcado?T.BG2:'transparent',
+                    border:'1px solid '+(marcado?T.BORDER2:T.BORDER),
+                    borderLeft:'3px solid '+(marcado?T.RED:T.BORDER2),
+                    borderRadius:T.RADIUS.sm,padding:'10px 12px',marginBottom:7,cursor:'pointer',
+                    opacity:marcado?1:0.55,transition:T.TRANS}}>
+                  <input type="checkbox" checked={marcado} readOnly style={{marginTop:2,flexShrink:0,pointerEvents:'none'}}/>
+                  <div style={{minWidth:0,flex:1}}>
+                    <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:3,flexWrap:'wrap'}}>
+                      <span style={{fontFamily:T.MONO,fontSize:10,fontWeight:700,color:T.ACCENT}}>{p.pat}</span>
+                      <span style={{fontSize:11,color:T.TEXT2}}>{p.legajoNom}</span>
+                    </div>
+                    <div style={{fontSize:12,color:T.TEXT,fontWeight:500,lineHeight:1.4}}>{p.titulo}</div>
+                    <div style={{fontSize:10,color:T.TEXT3,marginTop:2,fontFamily:T.MONO}}>{p.periodoNom}</div>
                   </div>
-                  <div style={{fontSize:12,color:T.TEXT,fontWeight:500}}>{p.titulo}</div>
-                  <div style={{fontSize:10,color:T.TEXT3,marginTop:2,fontFamily:T.MONO}}>{p.periodoNom}</div>
                 </div>
               );
             })}
           </div>
-          <button onClick={confirmarGeneracion}
-            style={{width:'100%',background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:T.RADIUS.sm,padding:'10px 0',cursor:'pointer',fontWeight:700,fontSize:13,fontFamily:T.SANS}}>
-            ✓ Crear {preview.length} caso(s)
+
+          <button onClick={confirmarGeneracion} disabled={elegidos.length===0}
+            style={{width:'100%',background:elegidos.length?'rgba(0,230,118,0.15)':T.BG3,color:elegidos.length?T.GREEN:T.TEXT4,border:'1px solid '+(elegidos.length?'rgba(0,230,118,0.3)':T.BORDER),borderRadius:T.RADIUS.sm,padding:'10px 0',cursor:elegidos.length?'pointer':'not-allowed',fontWeight:700,fontSize:13,fontFamily:T.SANS}}>
+            {elegidos.length ? '✓ Crear ' + elegidos.length + ' caso(s)' : 'Seleccioná al menos una señal'}
           </button>
         </Drawer>
-      )}
+        );
+      })()}
 
       {/* Header */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:8}}>

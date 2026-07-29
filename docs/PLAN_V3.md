@@ -136,6 +136,8 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
       `serverSaveCasos`.
     - Vista `Casos`: KPIs, filtros persistentes, tabla ordenable por urgencia de
       plazo, drawer con plazos aplicables, transiciones e historial.
+    - v3.8.1: el preview de generación es **selección por señal** (checkbox por fila,
+      marcar/desmarcar todas, contador). Antes solo ofrecía crear todas de una.
   - [ ] **T3b — PRÓXIMA: kanban, asignación y comentarios** (spec abajo)
 - [ ] T4 — Calendario regulatorio
 - [ ] T5 — Screening periódico
@@ -201,7 +203,9 @@ mover un caso: sella `fechaCalificacion` al elevar a comité, `fechaRfi` al mand
 
 **Generación de casos** — `casosPendientesDeCrear` no crea nada: devuelve el preview y la
 vista pide confirmación. Decisión deliberada: en un registro con valor regulatorio no
-conviene que aparezcan filas sin que quede claro quién las originó y cuándo.
+conviene que aparezcan filas sin que quede claro quién las originó y cuándo. El preview
+permite elegir señal por señal (arrancan todas marcadas); se materializan solo las
+seleccionadas.
 
 **Legajos.jsx** — lista en `<table>` con `thSort` local; detalle en `renderDrawer()`.
 Filtros en `sessionStorage` → `rebit_legajos_filtros_v3`.
