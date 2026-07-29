@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { LayoutDashboard, FolderOpen, BarChart3, Bell, Scale, Radar, BookOpen, Users, Download, Upload, Settings, LogOut } from "lucide-react";
 import { ReportModal } from "./components/ui";
 import { setModuleKeys } from "./lib/ai";
 import { ROL_LABELS, puedeGestionarUsuarios } from "./lib/auth";
@@ -52,31 +53,35 @@ export default function App() {
   }
 
   useEffect(function() {
-    // Inyectar JetBrains Mono para el tema cypherpunk
+    // Fuentes: Inter (UI) + JetBrains Mono (datos duros)
     var link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap';
+    link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap';
     document.head.appendChild(link);
-    // CSS global para asegurar tema oscuro en todos los elementos nativos
+    // CSS global derivado de los design tokens (theme.js) — v3 fintech
     var styleEl = document.createElement('style');
     styleEl.textContent = [
       '*, *::before, *::after { box-sizing: border-box; }',
-      'body { background: #0D1520; color: #E2EAF4; margin: 0; }',
-      'input, select, textarea, button { font-family: \'JetBrains Mono\',monospace; color: #E2EAF4; background: #1A2940; border-color: #253A5E; }',
-      'input::placeholder, textarea::placeholder { color: #4A6A8A; }',
-      'select option { background: #111D2E; color: #E2EAF4; }',
-      'input[type="checkbox"] { accent-color: #3B6DAA; width: 14px; height: 14px; cursor: pointer; }',
-      'input[type="radio"] { accent-color: #3B6DAA; cursor: pointer; }',
-      '::-webkit-scrollbar { width: 6px; height: 6px; }',
-      '::-webkit-scrollbar-track { background: #0D1520; }',
-      '::-webkit-scrollbar-thumb { background: #253A5E; border-radius: 3px; }',
-      '::-webkit-scrollbar-thumb:hover { background: #2E4870; }',
-      'a { color: #00D4FF; text-decoration: none; }',
-      '::selection { background: rgba(59,109,170,0.4); color: #E2EAF4; }',
+      'body { background: ' + T.BG + '; color: ' + T.TEXT + '; margin: 0; font-family: ' + T.SANS + '; -webkit-font-smoothing: antialiased; }',
+      'input, select, textarea, button { font-family: ' + T.SANS + '; color: ' + T.TEXT + '; background: ' + T.BG4 + '; border-color: ' + T.BORDER2 + '; }',
+      'input, select, textarea { transition: ' + T.TRANS + '; }',
+      'input:focus, select:focus, textarea:focus { outline: none; border-color: ' + T.ACCENT + ' !important; box-shadow: 0 0 0 3px ' + T.ACCENT_SOFT + '; }',
+      'input::placeholder, textarea::placeholder { color: ' + T.TEXT3 + '; }',
+      'select option { background: ' + T.BG2 + '; color: ' + T.TEXT + '; }',
+      'input[type="checkbox"] { accent-color: ' + T.ACCENT + '; width: 14px; height: 14px; cursor: pointer; }',
+      'input[type="radio"] { accent-color: ' + T.ACCENT + '; cursor: pointer; }',
+      'button { transition: ' + T.TRANS + '; }',
+      '::-webkit-scrollbar { width: 8px; height: 8px; }',
+      '::-webkit-scrollbar-track { background: transparent; }',
+      '::-webkit-scrollbar-thumb { background: ' + T.BORDER2 + '; border-radius: 4px; }',
+      '::-webkit-scrollbar-thumb:hover { background: ' + T.BORDER3 + '; }',
+      'a { color: ' + T.ACCENT + '; text-decoration: none; }',
+      '::selection { background: ' + T.ACCENT_DIM + '; color: ' + T.TEXT + '; }',
       'table { border-collapse: collapse; width: 100%; }',
-      'th { font-weight: 500; text-align: left; color: #4A6A8A; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }',
-      'td { color: #E2EAF4; }',
-      'tr:hover td { background: rgba(59,109,170,0.06); }'
+      'th { font-weight: 500; text-align: left; color: ' + T.TEXT3 + '; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }',
+      'td { color: ' + T.TEXT + '; }',
+      'tr:hover td { background: ' + T.ACCENT_SOFT.replace('0.12','0.05') + '; }',
+      '@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }'
     ].join('\n');
     document.head.appendChild(styleEl);
     setSyncStatus('loading');
@@ -213,11 +218,16 @@ export default function App() {
   }
 
   var NAV = [
-    ['dashboard','🏠','Dashboard'],['legajos','📁','Legajos KYB'],['analisis','📊','Analisis AML'],
-    ['alertas','🚨','Alertas'],['normativa','⚖️','Normativa'],['patrones','🔍','Patrones AML'],['wiki','📚','Wiki']
+    ['dashboard', LayoutDashboard, 'Dashboard'],
+    ['legajos',   FolderOpen,      'Legajos KYB'],
+    ['analisis',  BarChart3,       'Análisis AML'],
+    ['alertas',   Bell,            'Alertas'],
+    ['normativa', Scale,           'Normativa'],
+    ['patrones',  Radar,           'Patrones AML'],
+    ['wiki',      BookOpen,        'Wiki']
   ];
   if (currentUser && puedeGestionarUsuarios(currentUser.rol)) {
-    NAV.push(['usuarios','👥','Usuarios']);
+    NAV.push(['usuarios', Users, 'Usuarios']);
   }
 
   if (!isAuth) return <LoginScreen onLogin={function(usuario){setUserToken(usuario && usuario.token); setCurrentUser(usuario);}} />;
@@ -366,44 +376,84 @@ export default function App() {
         </div>
       </div> : null}
 
-      <div style={{width:195,background:T.BG2,borderRight:'1px solid '+T.BORDER,display:'flex',flexDirection:'column',flexShrink:0}}>
-        <div style={{padding:'16px 14px 14px',borderBottom:'1px solid '+T.BORDER}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{width:26,height:26,background:C.AC,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#fff',borderRadius:3,flexShrink:0}}>RB</div>
+      {/* ══ SIDEBAR v3 — fintech shell ══ */}
+      <div style={{width:230,background:T.BG2,borderRight:'1px solid '+T.BORDER,display:'flex',flexDirection:'column',flexShrink:0}}>
+
+        {/* Logo */}
+        <div style={{padding:'20px 16px 16px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:11}}>
+            <div style={{width:34,height:34,background:'linear-gradient(135deg,'+T.ACCENT+' 0%,#2A5FD0 100%)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff',borderRadius:T.RADIUS.md,flexShrink:0,fontFamily:T.SANS,boxShadow:'0 2px 8px '+T.ACCENT_DIM}}>RB</div>
             <div>
-              <div style={{color:T.TEXT,fontWeight:600,fontSize:12,letterSpacing:'1px'}}>REBIT AML</div>
-              <div style={{color:T.TEXT3,fontSize:9,letterSpacing:'1px'}}>KYB & TRANSACCIONAL</div>
+              <div style={{color:T.TEXT,fontWeight:700,fontSize:14,letterSpacing:'-0.2px',fontFamily:T.SANS}}>Rebit AML</div>
+              <div style={{color:T.TEXT3,fontSize:10,fontWeight:500,letterSpacing:'0.5px',fontFamily:T.SANS}}>Compliance Suite</div>
             </div>
           </div>
         </div>
-        <nav style={{flex:1,padding:'10px 8px'}}>
-          {NAV.map(function(n){return(
-            <button key={n[0]} onClick={function(){setView(n[0]);}} style={{display:'flex',gap:8,alignItems:'center',width:'100%',padding:'9px 10px',border:'none',borderLeft:view===n[0]?'2px solid '+C.AC:'2px solid transparent',borderRadius:0,background:view===n[0]?'rgba(59,109,170,0.12)':'transparent',color:view===n[0]?T.TEXT:T.TEXT2,cursor:'pointer',fontSize:11,fontWeight:view===n[0]?600:400,textAlign:'left',marginBottom:1,fontFamily:T.MONO}}>
-              <span style={{fontSize:13}}>{n[1]}</span>{n[2]}
-            </button>
-          );})}
+
+        {/* Navegación */}
+        <nav style={{flex:1,padding:'4px 10px',overflowY:'auto'}}>
+          {NAV.map(function(n){
+            var Icon = n[1];
+            var active = view === n[0];
+            return (
+              <button key={n[0]} onClick={function(){setView(n[0]);}}
+                style={{display:'flex',gap:10,alignItems:'center',width:'100%',padding:'9px 12px',border:'none',borderRadius:T.RADIUS.sm+2,
+                  background:active?T.ACCENT_SOFT:'transparent',
+                  color:active?T.ACCENT:T.TEXT2,
+                  cursor:'pointer',fontSize:13,fontWeight:active?600:500,textAlign:'left',marginBottom:2,fontFamily:T.SANS,transition:T.TRANS}}>
+                <Icon size={16} strokeWidth={active?2.2:1.8}/>
+                {n[2]}
+              </button>
+            );
+          })}
         </nav>
-        <div style={{padding:'10px 8px',borderTop:'1px solid rgba(255,255,255,0.1)'}}>
-          <div style={{color:T.TEXT4,fontSize:9,marginBottom:6,paddingLeft:4,letterSpacing:'1px'}}>// BACKUP</div>
-          <button onClick={handleExport} style={{display:'flex',gap:6,alignItems:'center',width:'100%',padding:'7px 10px',border:'none',borderRadius:0,borderLeft:'2px solid rgba(0,230,118,0.4)',background:'rgba(0,230,118,0.07)',color:T.GREEN,cursor:'pointer',fontSize:10,fontFamily:T.MONO,textAlign:'left',marginBottom:4}}>
-            <span>💾</span> Exportar JSON
-          </button>
-          <button onClick={function(){importRef.current.click();}} style={{display:'flex',gap:6,alignItems:'center',width:'100%',padding:'7px 10px',border:'none',borderRadius:0,borderLeft:'2px solid rgba(0,212,255,0.4)',background:'rgba(0,212,255,0.07)',color:T.CYAN,cursor:'pointer',fontSize:10,fontFamily:T.MONO,textAlign:'left',marginBottom:4}}>
-            <span>📂</span> Importar JSON
-          </button>
-          <button onClick={function(){setConfigOpen(true);}} style={{display:'flex',gap:6,alignItems:'center',width:'100%',padding:'7px 10px',border:'none',borderRadius:0,borderLeft:activeKeyOk?'2px solid rgba(0,230,118,0.4)':'2px solid rgba(255,68,85,0.4)',background:activeKeyOk?'rgba(0,230,118,0.07)':'rgba(255,68,85,0.07)',color:activeKeyOk?T.GREEN:T.RED,cursor:'pointer',fontSize:10,fontFamily:T.MONO,textAlign:'left',marginBottom:6}}>
-            <span>⚙️</span> {activeKeyOk?(provider==='openai'?'GPT-4o ✓':'Claude ✓'):'IA sin configurar ⚠'}
+
+        {/* Acciones: datos + configuración */}
+        <div style={{padding:'10px 10px 6px',borderTop:'1px solid '+T.BORDER}}>
+          <div style={{display:'flex',gap:6,marginBottom:6}}>
+            <button onClick={handleExport} title="Exportar backup JSON"
+              style={{flex:1,display:'flex',gap:6,alignItems:'center',justifyContent:'center',padding:'8px 0',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm+2,background:'transparent',color:T.TEXT2,cursor:'pointer',fontSize:11,fontWeight:500,fontFamily:T.SANS,transition:T.TRANS}}>
+              <Download size={13}/> Exportar
+            </button>
+            <button onClick={function(){importRef.current.click();}} title="Importar backup JSON"
+              style={{flex:1,display:'flex',gap:6,alignItems:'center',justifyContent:'center',padding:'8px 0',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm+2,background:'transparent',color:T.TEXT2,cursor:'pointer',fontSize:11,fontWeight:500,fontFamily:T.SANS,transition:T.TRANS}}>
+              <Upload size={13}/> Importar
+            </button>
+          </div>
+          <button onClick={function(){setConfigOpen(true);}}
+            style={{display:'flex',gap:8,alignItems:'center',width:'100%',padding:'8px 12px',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm+2,background:'transparent',color:T.TEXT2,cursor:'pointer',fontSize:11,fontWeight:500,fontFamily:T.SANS,transition:T.TRANS}}>
+            <Settings size={13}/>
+            <span style={{flex:1,textAlign:'left'}}>Configuración IA</span>
+            <span style={{width:7,height:7,borderRadius:99,background:activeKeyOk?T.GREEN:T.RED,boxShadow:'0 0 6px '+(activeKeyOk?T.GREEN:T.RED)}}/>
           </button>
         </div>
-        <div style={{padding:'8px 14px 12px',borderTop:'1px solid '+T.BORDER,color:T.TEXT4,fontSize:9,lineHeight:1.7,fontFamily:T.MONO}}>
-          GOAT S.A. — CUIT 30-71703953-6<br/>
-          Design System v2.2.0<br/>
-          {legajos.length} legajos · {periodos.length} periodos<br/>
-          {currentUser && <span style={{color:'rgba(255,255,255,0.5)',fontSize:9}}>{currentUser.nombre} · {ROL_LABELS[currentUser.rol]||currentUser.rol}<br/></span>}
-          <span style={{color:syncStatus==='ok'?T.GREEN:syncStatus==='error'?T.RED:syncStatus==='saving'?T.AMBER:T.TEXT4}}>
-            {syncStatus==='ok'?'// supabase OK':syncStatus==='saving'?'// guardando...':syncStatus==='loading'?'// cargando...':syncStatus==='error'?'// sync ERROR':'// —'}<br/>
-          </span>
-          <button onClick={function(){if(window.confirm('¿Cerrar sesión?')){setCurrentUser(null);}}} style={{background:'none',border:'none',color:T.TEXT4,cursor:'pointer',fontSize:9,padding:0,marginTop:4,textDecoration:'none',fontFamily:T.MONO}}>// cerrar sesión →</button>
+
+        {/* Usuario + estado */}
+        <div style={{padding:'12px 14px 14px',borderTop:'1px solid '+T.BORDER}}>
+          {currentUser && (
+            <div style={{display:'flex',alignItems:'center',gap:9,marginBottom:10}}>
+              <div style={{width:28,height:28,borderRadius:99,background:T.BG4,border:'1px solid '+T.BORDER3,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:T.ACCENT,fontFamily:T.SANS,flexShrink:0}}>
+                {(currentUser.nombre||'?').split(' ').map(function(p){return p[0];}).slice(0,2).join('').toUpperCase()}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{color:T.TEXT,fontSize:12,fontWeight:600,fontFamily:T.SANS,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{currentUser.nombre}</div>
+                <div style={{color:T.TEXT3,fontSize:10,fontFamily:T.SANS}}>{ROL_LABELS[currentUser.rol]||currentUser.rol}</div>
+              </div>
+              <button onClick={function(){if(window.confirm('¿Cerrar sesión?')){setCurrentUser(null);}}} title="Cerrar sesión"
+                style={{background:'none',border:'none',color:T.TEXT3,cursor:'pointer',padding:4,display:'flex'}}>
+                <LogOut size={14}/>
+              </button>
+            </div>
+          )}
+          <div style={{display:'flex',alignItems:'center',gap:7,fontSize:10,fontFamily:T.SANS,color:T.TEXT3}}>
+            <span style={{width:7,height:7,borderRadius:99,flexShrink:0,
+              background:syncStatus==='ok'?T.GREEN:syncStatus==='error'?T.RED:T.AMBER,
+              animation:(syncStatus==='saving'||syncStatus==='loading')?'pulse 1.2s infinite':'none'}}/>
+            <span style={{flex:1}}>
+              {syncStatus==='ok'?'Sincronizado':syncStatus==='saving'?'Guardando…':syncStatus==='loading'?'Cargando…':syncStatus==='error'?'Sin conexión':'—'}
+            </span>
+            <span style={{fontFamily:T.MONO,color:T.TEXT4}}>{legajos.length}L · {periodos.length}P</span>
+          </div>
         </div>
       </div>
       <div style={{flex:1,overflowY:'auto',maxHeight:'100vh',background:T.BG}}>
