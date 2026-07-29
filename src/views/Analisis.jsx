@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { toast, uiConfirm } from "../components/feedback";
-import { BarChart, Bar, LineChart, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, LineChart, Line, ComposedChart, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
-import { Card, SevBadge, StatCard, chartGrid, chartAxis, chartTooltip } from "../components/ui";
+import { Card, Pill, SevBadge, StatCard, chartGrid, chartAxis, chartTooltip } from "../components/ui";
 import { calcMetricas, calcScoring, detectPatrones } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEditar } from "../lib/auth";
 import { parseCsv, parseExcelFile } from "../lib/parsers";
@@ -11,6 +11,16 @@ import { APP_TOKEN } from "../lib/session";
 import { serverLoadKV, serverLoadTxns, serverSaveKV, serverSaveTxns } from "../lib/sync";
 import { C, T } from "../lib/theme";
 import { fmtM, safeArr, sevColor, todayStr, uid } from "../lib/utils";
+
+// Estados del período — compartidos entre el panel lateral y el header de contenido
+var ESTADOS_PERIODO = [
+  {id:'EN_REVISION',        label:'🔍 En revisión',           col:T.CYAN,  bg:'rgba(61,126,255,0.10)'},
+  {id:'RFI_ENVIADO',        label:'📧 RFI enviado',           col:T.AMBER, bg:'rgba(255,184,48,0.10)'},
+  {id:'CERRADO_SIN_ALERTA', label:'✅ Cerrado — sin alerta',  col:T.GREEN, bg:'rgba(0,230,118,0.10)'},
+  {id:'CERRADO_CON_ALERTA', label:'🚨 Cerrado — con alerta',  col:T.RED,   bg:'rgba(255,68,85,0.10)'},
+  {id:'ARCHIVADO',          label:'📦 Archivado',             col:T.TEXT3, bg:T.BG3},
+];
+function getEstadoPeriodo(id) { return ESTADOS_PERIODO.find(function(e){return e.id===id;}) || ESTADOS_PERIODO[0]; }
 
 function AnalisisView(props) {
   var legajos=props.legajos, periodos=props.periodos, setPeriodos=props.setPeriodos, onReport=props.onReport, onSync=props.onSync||function(){}, currentUser=props.currentUser||{rol:'analista',nombre:'Analista'};
@@ -306,71 +316,145 @@ function AnalisisView(props) {
   var scData = sc ? sc.scores.map(function(f){return{f:f.factor.length>16?f.factor.slice(0,16)+'…':f.factor,s:f.score,fill:f.score>=4?C.ROJO:f.score>=3?C.NARANJA:C.VERDE};}) : [];
   var nota = m ? genNotaDD(selLegajo, selPeriodo, m, sigs, sc) : null;
 
+  // Señales ALTA activas de un período — usa las métricas persistidas, así que
+  // no depende de que las txns estén hidratadas en memoria.
+  function altaActivas(p) {
+    var mm = p.metricas || (p.txns && p.txns.length ? calcMetricas(p.txns, selLegajo) : null);
+    if (!mm) return 0;
+    return detectPatrones(mm, selLegajo).filter(function(s){
+      if (s.sev !== 'ALTA') return false;
+      var r = (p.sigsResolucion||{})[s.pat];
+      return !r || r.estado !== 'RESUELTA';
+    }).length;
+  }
+  function txnsDe(p) {
+    return (p.txns && p.txns.length > 0) ? p.txns.length : (p.metricas ? (p.metricas.totalTxns||0) : 0);
+  }
+
+  var labelSt = {display:'block',fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS,marginBottom:5};
+
   return (
     <div style={{padding:22}}>
-      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700,}}>Analisis Transaccional — INF-02</h2>
-      <div style={{display:'flex',gap:12,marginBottom:16,flexWrap:'wrap',alignItems:'flex-end'}}>
-        <div style={{flex:'1 1 200px'}}>
-          <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:3}}>Legajo</label>
-          <select value={selLegajo?selLegajo.id:''} onChange={function(e){setSelLegajo(legajos.find(function(l){return l.id===e.target.value;})||null);setSelPeriodo(null);setCsv(null);setTendencias(false);}} style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,color:T.TEXT}}>
-            <option value="">— Seleccionar legajo —</option>
-            {legajos.map(function(l){return <option key={l.id} value={l.id}>{(l.razonSocial||'Sin nombre')} — {(l.cuit||'CUIT N/D')}</option>;})}
-          </select>
-        </div>
-        {selLegajo && lP.length >= 2 && (
-          <div style={{display:'flex',gap:2,background:T.BG3,borderRadius:4,padding:3,flexShrink:0,border:'1px solid '+T.BORDER}}>
-            <button onClick={function(){setTendencias(false);}} style={{padding:'6px 14px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:!tendencias?700:400,background:!tendencias?T.ACCENT:'transparent',color:!tendencias?'#fff':T.TEXT2,fontSize:12}}>🔍 Período individual</button>
-            <button onClick={function(){setTendencias(true);setSelPeriodo(null);}} style={{padding:'6px 14px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:tendencias?700:400,background:tendencias?'#7D3C98':'transparent',color:tendencias?'white':C.AO,fontSize:12}}>📊 Tendencias ({lP.length} períodos)</button>
-          </div>
-        )}
-        {selLegajo && !tendencias ? <div style={{flex:'1 1 200px'}}>
-          <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:3}}>Periodo</label>
-          <div style={{display:'flex',gap:6,alignItems:'center'}}>
-            <select value={selPeriodo?selPeriodo.id:''} onChange={function(e){
-              var p = lP.find(function(x){return x.id===e.target.value;})||null;
-              handleSelectPeriodo(p);
-            }} style={{flex:1,border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,color:T.TEXT}}>
-              <option value="">— Seleccionar periodo —</option>
-              {lP.map(function(p){
-                // Mostrar txns desde metricas si no están en memoria
-                var txnCount = (p.txns && p.txns.length > 0)
-                  ? p.txns.length
-                  : (p.metricas ? p.metricas.totalTxns : 0);
-                return <option key={p.id} value={p.id}>{p.nombre} ({txnCount.toLocaleString('es-AR')} txns)</option>;
-              })}
+      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700}}>Analisis Transaccional — INF-02</h2>
+
+      <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
+
+        {/* ══ PANEL IZQUIERDO — selector ═══════════════════════════════════ */}
+        <div style={{width:296,flexShrink:0,position:'sticky',top:16,maxHeight:'calc(100vh - 40px)',overflowY:'auto',background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,boxShadow:T.SHADOW.card}}>
+
+          <div style={{padding:'13px 14px',borderBottom:'1px solid '+T.BORDER}}>
+            <label style={labelSt}>Legajo</label>
+            <select value={selLegajo?selLegajo.id:''} onChange={function(e){setSelLegajo(legajos.find(function(l){return l.id===e.target.value;})||null);setSelPeriodo(null);setCsv(null);setTendencias(false);}} style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'8px 10px',fontSize:12,color:T.TEXT}}>
+              <option value="">— Seleccionar legajo —</option>
+              {legajos.map(function(l){return <option key={l.id} value={l.id}>{(l.razonSocial||'Sin nombre')} — {(l.cuit||'CUIT N/D')}</option>;})}
             </select>
-            {txnsLoading && <span style={{fontSize:11,color:T.CYAN,flexShrink:0,fontFamily:T.MONO}}>// cargando txns...</span>}
-            {!txnsLoading && selPeriodo && (!selPeriodo.txns || selPeriodo.txns.length === 0) && selPeriodo.metricas && (
-              <span style={{fontSize:10,color:T.AMBER,flexShrink:0,fontFamily:T.MONO}} title="Txns no cargadas en memoria, pero las métricas están disponibles">⚠ cached</span>
-            )}
-            {selPeriodo && !txnsLoading && (!selPeriodo.txns || selPeriodo.txns.length === 0) && (
-              <button
-                onClick={function(){ handleSelectPeriodo(Object.assign({},selPeriodo,{txns:[]})); }}
-                title="Recargar transacciones desde Supabase"
-                style={{background:'rgba(0,212,255,0.1)',border:'1px solid rgba(0,212,255,0.3)',borderRadius:3,padding:'7px 10px',cursor:'pointer',fontSize:11,color:T.CYAN,flexShrink:0,fontFamily:T.MONO}}
-              >↺ recargar</button>
-            )}
-          {selPeriodo && (
-              <button
-                onClick={async function(){
-                  if (!(await uiConfirm('Eliminar período "' + selPeriodo.nombre + '"?\n\nEsto elimina el período y sus transacciones. No se puede deshacer.', {danger:true, confirmLabel:'Eliminar período'}))) return;
-                  var updatedPers = periodos.filter(function(p){return p.id!==selPeriodo.id;});
-                  props.setPeriodos(updatedPers);
-                  fetch('/api/sync?action=txns', {
-                    method:'POST',
-                    headers:{'Content-Type':'application/json','x-app-token':APP_TOKEN},
-                    body:JSON.stringify({periodo_id:selPeriodo.id, txns:[]})
-                  });
-                  onSync(legajos, updatedPers, [], [selPeriodo.id]);
-                  setSelPeriodo(null);
-                }}
-                title="Eliminar este período"
-                style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.25)',borderRadius:3,padding:'7px 10px',cursor:'pointer',fontSize:13,color:T.RED,fontWeight:700,flexShrink:0}}
-              >🗑</button>
-            )}
           </div>
-        </div> : null}
-      </div>
+
+          {/* Ficha compacta del legajo */}
+          {selLegajo && (
+            <div style={{padding:'12px 14px',borderBottom:'1px solid '+T.BORDER}}>
+              <div style={{fontSize:13,fontWeight:600,color:T.TEXT,lineHeight:1.35}}>{selLegajo.razonSocial||'Sin nombre'}</div>
+              <div style={{fontSize:11,color:T.TEXT3,fontFamily:T.MONO,marginTop:2}}>{selLegajo.cuit||'CUIT N/D'}</div>
+              <div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap'}}>
+                <Pill v={selLegajo.segmento}/>
+                <Pill v={selLegajo.dictamen}/>
+              </div>
+            </div>
+          )}
+
+          {/* Lista de períodos */}
+          {selLegajo && (
+            <div>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px 8px'}}>
+                <span style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS}}>Períodos ({lP.length})</span>
+                <button onClick={function(){setSelPeriodo(null);setTendencias(false);setCsv(null);}}
+                  style={{background:T.ACCENT_SOFT,color:T.ACCENT,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.sm,padding:'3px 9px',cursor:'pointer',fontSize:11,fontWeight:600,fontFamily:T.SANS}}>+ Nuevo</button>
+              </div>
+
+              {lP.length === 0 ? (
+                <div style={{padding:'0 14px 14px',fontSize:11,color:T.TEXT3,lineHeight:1.5}}>Sin períodos cargados. Usá “+ Nuevo” para subir el primer archivo de transacciones.</div>
+              ) : lP.map(function(p){
+                var activo = !tendencias && selPeriodo && selPeriodo.id===p.id;
+                var ep = getEstadoPeriodo(p.estadoPeriodo||'EN_REVISION');
+                var alta = altaActivas(p);
+                return (
+                  <div key={p.id} onClick={function(){setTendencias(false);handleSelectPeriodo(p);}}
+                    style={{padding:'9px 14px 9px 11px',cursor:'pointer',borderLeft:'3px solid '+(activo?T.ACCENT:'transparent'),background:activo?T.ACCENT_SOFT:'transparent',borderBottom:'1px solid '+T.BORDER,transition:T.TRANS}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6}}>
+                      <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:activo?600:500,color:activo?T.TEXT:T.TEXT2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.nombre}</span>
+                      {alta>0 && <span style={{flexShrink:0,background:'rgba(255,68,85,0.14)',color:T.RED,border:'1px solid rgba(255,68,85,0.35)',borderRadius:T.RADIUS.pill,padding:'0 7px',fontSize:9,fontWeight:700,fontFamily:T.MONO}}>{alta} ALTA</span>}
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}>
+                      <span style={{width:6,height:6,borderRadius:'50%',background:ep.col,flexShrink:0}}/>
+                      <span style={{fontSize:9,color:T.TEXT3,fontFamily:T.MONO,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                        {txnsDe(p).toLocaleString('es-AR')} txns · {p.createdAt||'—'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Toggle tendencias */}
+          {selLegajo && lP.length >= 2 && (
+            <div style={{padding:'12px 14px',borderTop:'1px solid '+T.BORDER}}>
+              <button onClick={function(){setTendencias(!tendencias);if(!tendencias)setSelPeriodo(null);}}
+                style={{width:'100%',padding:'8px 0',border:'1px solid '+(tendencias?'rgba(139,124,246,0.45)':T.BORDER2),borderRadius:T.RADIUS.sm,cursor:'pointer',fontWeight:600,background:tendencias?'rgba(139,124,246,0.14)':'transparent',color:tendencias?T.VIOLET:T.TEXT2,fontSize:11,fontFamily:T.SANS,transition:T.TRANS}}>
+                📊 Tendencias · {lP.length} períodos
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ══ PANEL DERECHO — contenido ════════════════════════════════════ */}
+        <div style={{flex:1,minWidth:0}}>
+
+          {!selLegajo && (
+            <div style={{background:T.BG2,border:'1px dashed '+T.BORDER2,borderRadius:T.RADIUS.md,padding:'60px 30px',textAlign:'center'}}>
+              <div style={{fontSize:30,marginBottom:10,opacity:0.45}}>📊</div>
+              <div style={{fontSize:14,fontWeight:600,color:T.TEXT}}>Seleccioná un legajo para comenzar</div>
+              <div style={{fontSize:12,color:T.TEXT3,marginTop:5}}>Elegí un cliente en el panel izquierdo y luego un período para analizar.</div>
+            </div>
+          )}
+
+          {/* Barra del período activo */}
+          {selPeriodo && !tendencias && (
+            <div style={{display:'flex',alignItems:'center',gap:9,marginBottom:12,flexWrap:'wrap'}}>
+              <span style={{fontSize:16,fontWeight:700,color:T.TEXT}}>{selPeriodo.nombre}</span>
+              <span style={{fontSize:11,color:T.TEXT3,fontFamily:T.MONO}}>{txnsDe(selPeriodo).toLocaleString('es-AR')} txns</span>
+              {txnsLoading && <span style={{fontSize:11,color:T.ACCENT,fontFamily:T.MONO}}>// cargando txns…</span>}
+              {!txnsLoading && (!selPeriodo.txns || selPeriodo.txns.length === 0) && selPeriodo.metricas && (
+                <span style={{fontSize:10,color:T.AMBER,fontFamily:T.MONO}} title="Txns no cargadas en memoria, pero las métricas están disponibles">⚠ cached</span>
+              )}
+              <div style={{marginLeft:'auto',display:'flex',gap:6}}>
+                {!txnsLoading && (!selPeriodo.txns || selPeriodo.txns.length === 0) && (
+                  <button
+                    onClick={function(){ handleSelectPeriodo(Object.assign({},selPeriodo,{txns:[]})); }}
+                    title="Recargar transacciones desde Supabase"
+                    style={{background:'transparent',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'5px 10px',cursor:'pointer',fontSize:11,color:T.TEXT2,fontFamily:T.SANS}}
+                  >↺ Recargar</button>
+                )}
+                <button
+                  onClick={async function(){
+                    if (!(await uiConfirm('Eliminar período "' + selPeriodo.nombre + '"?\n\nEsto elimina el período y sus transacciones. No se puede deshacer.', {danger:true, confirmLabel:'Eliminar período'}))) return;
+                    var updatedPers = periodos.filter(function(p){return p.id!==selPeriodo.id;});
+                    props.setPeriodos(updatedPers);
+                    fetch('/api/sync?action=txns', {
+                      method:'POST',
+                      headers:{'Content-Type':'application/json','x-app-token':APP_TOKEN},
+                      body:JSON.stringify({periodo_id:selPeriodo.id, txns:[]})
+                    });
+                    onSync(legajos, updatedPers, [], [selPeriodo.id]);
+                    setSelPeriodo(null);
+                  }}
+                  title="Eliminar este período"
+                  style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.25)',borderRadius:T.RADIUS.sm,padding:'5px 10px',cursor:'pointer',fontSize:11,color:T.RED,fontWeight:600,fontFamily:T.SANS}}
+                >🗑 Eliminar</button>
+              </div>
+            </div>
+          )}
+
 
       {/* ════════════ VISTA TENDENCIAS MULTI-PERÍODO ════════════ */}
       {tendencias && selLegajo && (function(){
@@ -432,7 +516,7 @@ function AnalisisView(props) {
               return (
                 <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}}>
                   {[
-                    {label:'Períodos analizados', val:periodosDatos.length, col:C.AM},
+                    {label:'Períodos analizados', val:periodosDatos.length, col:T.ACCENT},
                     {label:'Vol IN tendencia', val:varVol!==null?(varVol>0?'▲ +'+varVol+'%':'▼ '+varVol+'%'):'—', col:varVol>0?C.ROJO:C.VERDE},
                     {label:'Score tendencia', val:varScore!==null?(varScore>0?'▲ +'+varScore:varScore<0?'▼ '+varScore:'= Estable'):'—', col:varScore>0?C.ROJO:varScore<0?C.VERDE:'#888'},
                     {label:'Último riesgo', val:last.clasificacion, col:last.col},
@@ -448,39 +532,49 @@ function AnalisisView(props) {
 
             {/* Gráficos: volumen + score */}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
-              <Card title="📈 Evolución de Volumen IN/OUT">
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={periodosDatos} margin={{top:5,right:10,left:0,bottom:30}}>
+              <Card title="Evolución de volumen y actividad">
+                <ResponsiveContainer width="100%" height={244}>
+                  <ComposedChart data={periodosDatos} margin={{top:5,right:6,left:0,bottom:30}}>
                     <CartesianGrid {...chartGrid}/>
-                    <XAxis dataKey="nombre" {...chartAxis} angle={-25} textAnchor="end"/>
-                    <YAxis {...chartAxis} tickFormatter={function(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v;}} tick={{fontSize:9}}/>
-                    <Tooltip {...chartTooltip} formatter={function(v){return fmtM(v);}}/>
-                    <Line type="monotone" dataKey="tIn" stroke={C.VERDE} strokeWidth={2} dot={{r:4}} name="Vol IN"/>
-                    <Line type="monotone" dataKey="tOut" stroke={C.ROJO} strokeWidth={2} dot={{r:4}} name="Vol OUT"/>
-                  </LineChart>
+                    <XAxis dataKey="nombre" {...chartAxis} angle={-25} textAnchor="end" interval={0}/>
+                    <YAxis yAxisId="vol" {...chartAxis} tickFormatter={function(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v;}}/>
+                    <YAxis yAxisId="ops" orientation="right" {...chartAxis}/>
+                    <Tooltip {...chartTooltip} formatter={function(v,n){return n==='Operaciones'?Number(v).toLocaleString('es-AR'):fmtM(v);}}/>
+                    <Legend wrapperStyle={{fontSize:10,fontFamily:T.SANS,color:T.TEXT3}} iconSize={8}/>
+                    <Bar yAxisId="ops" dataKey="totalTxns" fill={T.BORDER3} radius={[3,3,0,0]} name="Operaciones" barSize={16}/>
+                    <Line yAxisId="vol" type="monotone" dataKey="tIn" stroke={T.GREEN} strokeWidth={2} dot={{r:3,fill:T.GREEN,strokeWidth:0}} name="Vol IN"/>
+                    <Line yAxisId="vol" type="monotone" dataKey="tOut" stroke={T.RED} strokeWidth={2} dot={{r:3,fill:T.RED,strokeWidth:0}} name="Vol OUT"/>
+                  </ComposedChart>
                 </ResponsiveContainer>
               </Card>
-              <Card title="📊 Evolución del Score de Riesgo">
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={scoreData} margin={{top:5,right:10,left:0,bottom:30}}>
+              <Card title="Evolución del riesgo">
+                <ResponsiveContainer width="100%" height={244}>
+                  <ComposedChart data={scoreData} margin={{top:5,right:6,left:0,bottom:30}}>
                     <CartesianGrid {...chartGrid}/>
-                    <XAxis dataKey="nombre" {...chartAxis} angle={-25} textAnchor="end"/>
-                    <YAxis domain={[0,5]} ticks={[1,2,3,4,5]} tick={{fontSize:9}}/>
-                    <Tooltip {...chartTooltip} formatter={function(v){return v.toFixed(2)+'/5';}}/>
-                    <Line type="monotone" dataKey="score" stroke={C.AM} strokeWidth={2} dot={function(props){var col=props.payload.score>=4?C.ROJO:props.payload.score>=3?C.NARANJA:C.VERDE;return <circle key={props.key} cx={props.cx} cy={props.cy} r={5} fill={col} stroke="white" strokeWidth={1}/>;}} name="Score"/>
-                  </LineChart>
+                    <XAxis dataKey="nombre" {...chartAxis} angle={-25} textAnchor="end" interval={0}/>
+                    <YAxis yAxisId="sc" domain={[0,5]} ticks={[1,2,3,4,5]} {...chartAxis}/>
+                    <YAxis yAxisId="sig" orientation="right" allowDecimals={false} {...chartAxis}/>
+                    <Tooltip {...chartTooltip} formatter={function(v,n){return n==='Score'?Number(v).toFixed(2)+'/5':v;}}/>
+                    <Legend wrapperStyle={{fontSize:10,fontFamily:T.SANS,color:T.TEXT3}} iconSize={8}/>
+                    <ReferenceLine yAxisId="sc" y={3} stroke={T.AMBER} strokeDasharray="4 4" strokeOpacity={0.55}/>
+                    <ReferenceLine yAxisId="sc" y={4} stroke={T.RED} strokeDasharray="4 4" strokeOpacity={0.55}/>
+                    <Bar yAxisId="sig" dataKey="sigsAlta" fill="rgba(255,68,85,0.28)" radius={[3,3,0,0]} name="Señales ALTA" barSize={16}/>
+                    <Line yAxisId="sc" type="monotone" dataKey="score" stroke={T.ACCENT} strokeWidth={2} name="Score"
+                      dot={function(dp){var col=dp.payload.score>=4?T.RED:dp.payload.score>=3?T.AMBER:T.GREEN;return <circle key={dp.key} cx={dp.cx} cy={dp.cy} r={4.5} fill={col} stroke={T.BG2} strokeWidth={1.5}/>;}}/>
+                  </ComposedChart>
                 </ResponsiveContainer>
+                <div style={{fontSize:10,color:T.TEXT4,marginTop:6,fontFamily:T.SANS}}>Líneas punteadas: umbrales de score 3 (medio) y 4 (alto).</div>
               </Card>
             </div>
 
             {/* Tabla comparativa */}
-            <Card title="📋 Comparativa de Métricas por Período">
+            <Card title="Comparativa de métricas por período">
               <div style={{overflowX:'auto'}}>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:500}}>
                   <thead>
-                    <tr style={{background:C.AO}}>
-                      <th style={{color:'white',padding:'7px 10px',textAlign:'left',fontWeight:700,fontSize:11}}>Métrica</th>
-                      {periodosDatos.map(function(d){return <th key={d.id} style={{color:'white',padding:'7px 10px',textAlign:'right',fontWeight:700,fontSize:11,whiteSpace:'nowrap'}}>{d.nombre}</th>;})}
+                    <tr>
+                      <th style={{background:T.BG3,color:T.TEXT3,padding:'8px 10px',textAlign:'left',fontWeight:600,fontSize:10,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS,borderBottom:'1px solid '+T.BORDER2}}>Métrica</th>
+                      {periodosDatos.map(function(d){return <th key={d.id} style={{background:T.BG3,color:T.TEXT3,padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:10,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS,whiteSpace:'nowrap',borderBottom:'1px solid '+T.BORDER2}}>{d.nombre}</th>;})}
                     </tr>
                   </thead>
                   <tbody>
@@ -496,7 +590,7 @@ function AnalisisView(props) {
                     ].map(function(row,ri){
                       return (
                         <tr key={ri} style={{background:ri%2===0?T.BG3:T.BG2}}>
-                          <td style={{padding:'6px 10px',fontWeight:600,color:T.TEXT2,borderRight:'2px solid #eee'}}>{row.label}</td>
+                          <td style={{padding:'6px 10px',fontWeight:600,color:T.TEXT2,borderRight:'1px solid '+T.BORDER2}}>{row.label}</td>
                           {periodosDatos.map(function(d,di){
                             var val = row.fn(d);
                             var col = row.colFn ? row.colFn(d) : null;
@@ -518,12 +612,12 @@ function AnalisisView(props) {
 
             {/* Análisis de contrapartes */}
             {cpAnalysis.length > 0 && (
-              <Card title="🔄 Rotación de Contrapartes entre Períodos">
+              <Card title="Rotación de contrapartes entre períodos">
                 <div style={{overflowX:'auto'}}>
                   <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                     <thead>
-                      <tr style={{background:C.AO}}>
-                        {['Período','Total CP','Nuevas','Perdidas','Recurrentes','% Nuevas','Observación'].map(function(h){return <th key={h} style={{color:'white',padding:'6px 10px',textAlign:'left',fontWeight:700,fontSize:11}}>{h}</th>;})}
+                      <tr>
+                        {['Período','Total CP','Nuevas','Perdidas','Recurrentes','% Nuevas','Observación'].map(function(h){return <th key={h} style={{background:T.BG3,color:T.TEXT3,padding:'8px 10px',textAlign:'left',fontWeight:600,fontSize:10,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS,borderBottom:'1px solid '+T.BORDER2}}>{h}</th>;})}
                       </tr>
                     </thead>
                     <tbody>
@@ -591,14 +685,7 @@ function AnalisisView(props) {
             )}
             {/* Estado del período */}
             {(function(){
-              var ESTADOS_PERIODO = [
-                {id:'EN_REVISION',label:'🔍 En revisión',col:T.CYAN,bg:'rgba(0,212,255,0.1)'},
-                {id:'RFI_ENVIADO',label:'📧 RFI enviado',col:T.AMBER,bg:'rgba(255,184,48,0.1)'},
-                {id:'CERRADO_SIN_ALERTA',label:'✅ Cerrado — sin alerta',col:T.GREEN,bg:'rgba(0,230,118,0.1)'},
-                {id:'CERRADO_CON_ALERTA',label:'🚨 Cerrado — con alerta',col:T.RED,bg:'rgba(255,68,85,0.1)'},
-                {id:'ARCHIVADO',label:'📦 Archivado',col:T.TEXT3,bg:T.BG3},
-              ];
-              var estadoActual = ESTADOS_PERIODO.find(function(e){return e.id===(selPeriodo.estadoPeriodo||'EN_REVISION');}) || ESTADOS_PERIODO[0];
+              var estadoActual = getEstadoPeriodo(selPeriodo.estadoPeriodo||'EN_REVISION');
               var puedeEditar = currentUser && (puedeAprobar(currentUser.rol));
               return puedeEditar ? (
                 <select
@@ -633,7 +720,7 @@ function AnalisisView(props) {
         </div>
         {tab === 'metricas' ? <Card title="Metricas del periodo">
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:12}}>
-            {[{l:'Volumen IN',v:fmtM(m.tIn),c:C.VERDE},{l:'Volumen OUT',v:fmtM(m.tOut),c:C.ROJO},{l:'Balance Neto',v:fmtM(m.balanceNeto),c:m.balanceNeto>=0?C.VERDE:C.ROJO},{l:'Total Ops',v:m.totalTxns,c:C.AM},{l:'Cp. unicas IN',v:m.uniqueCpIn,c:C.AC},{l:'Cp. unicas OUT',v:m.uniqueCpOut,c:C.AC}].map(function(k,i){return(
+            {[{l:'Volumen IN',v:fmtM(m.tIn),c:C.VERDE},{l:'Volumen OUT',v:fmtM(m.tOut),c:C.ROJO},{l:'Balance Neto',v:fmtM(m.balanceNeto),c:m.balanceNeto>=0?C.VERDE:C.ROJO},{l:'Total Ops',v:m.totalTxns,c:T.ACCENT},{l:'Cp. unicas IN',v:m.uniqueCpIn,c:C.AC},{l:'Cp. unicas OUT',v:m.uniqueCpOut,c:C.AC}].map(function(k,i){return(
               <div key={i} style={{background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:6,padding:'10px 14px',borderLeft:'3px solid '+k.c}}>
                 <div style={{fontSize:10,color:T.TEXT2}}>{k.l}</div>
                 <div style={{fontSize:17,fontWeight:700,color:k.c}}>{k.v}</div>
@@ -714,7 +801,7 @@ function AnalisisView(props) {
                     )}
                   </div>
                 </div>
-                <div style={{fontWeight:700,fontSize:13,color:resuelta?'#888':C.AO}}>{s.titulo}</div>
+                <div style={{fontWeight:700,fontSize:13,color:resuelta?T.TEXT3:T.TEXT}}>{s.titulo}</div>
                 <div style={{fontSize:12,color:T.TEXT2,marginTop:2}}>{s.desc}</div>
                 {(propuesta||resuelta) && res.explicacion && (
                   <div style={{marginTop:6,background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 10px',fontSize:11}}>
@@ -870,7 +957,7 @@ function AnalisisView(props) {
               <div style={{background:T.BG3,border:'2px solid #2471A3',borderRadius:6,padding:'14px 16px',marginBottom:14}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
                   <div>
-                    <div style={{fontWeight:700,color:'#1A4A6B',fontSize:14}}>📋 Generador de Memo de Compliance</div>
+                    <div style={{fontWeight:700,color:T.ACCENT,fontSize:14}}>📋 Generador de Memo de Compliance</div>
                     <div style={{fontSize:11,color:T.TEXT2,marginTop:2}}>
                       {altaSigs.length} señal(es) ALTA · {mediaSigs.length} señal(es) MEDIA · {accionesSugeridas.length} acciones sugeridas
                     </div>
@@ -1047,7 +1134,7 @@ function AnalisisView(props) {
           {/* Header */}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
             <div>
-              <div style={{fontWeight:700,color:'#1A4A6B',fontSize:14}}>📧 RFI — Requerimientos de Información</div>
+              <div style={{fontWeight:700,color:T.ACCENT,fontSize:14}}>📧 RFI — Requerimientos de Información</div>
               <div style={{fontSize:11,color:T.TEXT2,marginTop:2}}>{selLegajo&&selLegajo.razonSocial} · {rfis.length} RFI(s) registrado(s) · {rfis.filter(function(r){return r.estado!=='CERRADO';}).length} activo(s)</div>
             </div>
             <button
@@ -1062,7 +1149,7 @@ function AnalisisView(props) {
           {/* Formulario nuevo RFI */}
           {rfiMode === 'nuevo' && (
             <div style={{background:T.BG3,border:'2px solid #2471A3',borderRadius:6,padding:'16px 18px',marginBottom:16}}>
-              <div style={{fontWeight:700,color:'#1A4A6B',fontSize:13,marginBottom:12}}>Nuevo RFI — {selLegajo&&selLegajo.razonSocial}</div>
+              <div style={{fontWeight:700,color:T.ACCENT,fontSize:13,marginBottom:12}}>Nuevo RFI — {selLegajo&&selLegajo.razonSocial}</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
                 <div>
                   <label style={{fontSize:11,fontWeight:700,color:T.TEXT2,display:'block',marginBottom:3}}>N° de referencia</label>
@@ -1089,7 +1176,7 @@ function AnalisisView(props) {
               </div>
               <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
                 <button onClick={function(){setRfiMode(null);}} style={{background:T.BG4,color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:3,padding:'8px 16px',cursor:'pointer',fontSize:12}}>Cancelar</button>
-                <button onClick={crearRfi} disabled={!rfiForm.contenido.trim()} style={{background:rfiForm.contenido.trim()?'#1A4A6B':T.BG4,color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rfiForm.contenido.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:12}}>💾 Registrar RFI</button>
+                <button onClick={crearRfi} disabled={!rfiForm.contenido.trim()} style={{background:rfiForm.contenido.trim()?T.ACCENT:T.BG4,color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 20px',cursor:rfiForm.contenido.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:12}}>💾 Registrar RFI</button>
               </div>
             </div>
           )}
@@ -1145,7 +1232,7 @@ function AnalisisView(props) {
                           var isResp = msg.tipo==='RESPUESTA';
                           var isNota = msg.tipo==='NOTA';
                           var isCierre = msg.tipo==='CIERRE';
-                          var msgColor = isEnvio?'#1A4A6B':isResp?'#1A6B3A':isCierre?T.TEXT3:'#FF8C00';
+                          var msgColor = isEnvio?T.ACCENT:isResp?T.GREEN:isCierre?T.TEXT3:T.AMBER;
                           var msgBg = isEnvio?'rgba(0,212,255,0.08)':isResp?'rgba(0,230,118,0.08)':isCierre?T.BG3:'rgba(255,184,48,0.08)';
                           var msgLabel = isEnvio?'📤 ENVÍO':'📥 RESPUESTA';
                           if (isNota) msgLabel = '📌 NOTA INTERNA';
@@ -1175,7 +1262,7 @@ function AnalisisView(props) {
                         {/* Agregar intercambio */}
                         {rfi.estado !== 'CERRADO' && (
                           <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:6,padding:'12px 14px',marginTop:8}}>
-                            <div style={{fontWeight:700,color:'#1A4A6B',fontSize:12,marginBottom:10}}>Agregar al hilo</div>
+                            <div style={{fontWeight:700,color:T.ACCENT,fontSize:12,marginBottom:10}}>Agregar al hilo</div>
                             <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap'}}>
                               <select
                                 value={rfiResp.tipo}
@@ -1210,7 +1297,7 @@ function AnalisisView(props) {
                               <button
                                 onClick={function(){agregarIntercambio(rfi.id);}}
                                 disabled={!rfiResp.contenido.trim()}
-                                style={{background:rfiResp.contenido.trim()?'#1A4A6B':T.BG4,color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rfiResp.contenido.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:12}}
+                                style={{background:rfiResp.contenido.trim()?T.ACCENT:T.BG4,color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 20px',cursor:rfiResp.contenido.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:12}}
                               >💾 Agregar al hilo</button>
                             </div>
                           </div>
@@ -1224,8 +1311,12 @@ function AnalisisView(props) {
           )}
         </div> : null}
       </div> : null}
+
+        </div>{/* fin panel derecho */}
+      </div>{/* fin layout dos paneles */}
     </div>
   );
 }
 
 export default AnalisisView;
+

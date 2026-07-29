@@ -117,16 +117,29 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
 4. Verificación en producción con checklist de smoke test.
 5. Este documento se actualiza marcando la tanda como ✅.
 
-## Estado (actualizado 29/07/2026)
+## Estado (actualizado 29/07/2026 · cierre T2c)
 
 - [x] T0 — Modularización + tokens ✅ (22 módulos, v3.0; App.jsx 7.480→432 líneas)
 - [x] T1 — Design system fintech ✅
   - T1a: paleta fintech vía tokens, Inter, sidebar v3 con lucide (v3.1.0)
-  - T1b: Toast + ConfirmDialog (20 alerts + 10 confirms convertidos), Command Palette ⌘K, barrido de modo claro residual (v3.2.0)
+  - T1b: Toast + ConfirmDialog (20 alerts + 10 confirms convertidos), Command Palette ⌘K (v3.2.0)
 - [~] T2 — Rediseño de vistas — EN CURSO
   - [x] T2a: Dashboard con StatCards + charts oscuros app-wide (chartGrid/chartAxis/chartTooltip en ui.jsx) (v3.3.0)
-  - [ ] **T2b — PRÓXIMA: rediseño de Legajos** (spec abajo)
-  - [ ] T2c: Análisis (layout dos paneles) · T2d: Alertas + resto
+  - [x] T2b — Legajos ✅
+    - v3.4.0: drawer lateral 780px (Esc/backdrop) + timeline vertical en Historial
+    - v3.5.0: tabla profesional con orden por header (7 columnas), filtros persistentes en
+      sessionStorage, drawer como overlay real sobre la lista, fix menú ⋯ (texto invisible
+      por `C.AO` sobre fondo oscuro)
+  - [x] T2c — Análisis: layout de dos paneles ✅ (v3.6.0)
+    - Panel izquierdo sticky 296px: selector de legajo, ficha compacta, lista de períodos
+      con estado + señales ALTA, toggle Tendencias
+    - Panel derecho: barra del período activo (recargar/eliminar) + tabs + contenido
+    - Gráficos de evolución: ComposedChart de doble eje (volumen IN/OUT + operaciones;
+      score + señales ALTA con líneas de umbral 3 y 4), leyendas y ejes tokenizados
+    - Fix crítico: `Pill` se usaba sin importar → pantalla en blanco al entrar a Análisis
+    - Barrido de contraste: `C.AO`, `C.AM`, `#1A4A6B`, `#1A6B3A` usados como color de texto
+      sobre fondo oscuro; `index.html` limpio del CSS de modo claro heredado
+  - [ ] **T2d — PRÓXIMA: Alertas + vistas restantes** (spec abajo)
 - [ ] T3 — Case management + SLA
 - [ ] T4 — Calendario regulatorio
 - [ ] T5 — Screening periódico
@@ -134,16 +147,45 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
 - [ ] T7 — Reportería + documental
 - [ ] T8 — Hardening final
 
-## Spec T2b — Rediseño de Legajos (src/views/Legajos.jsx, ~1.600 líneas)
+## Spec T2d — Alertas + vistas restantes (PRÓXIMA)
 
-1. **Tabla profesional** para la lista: columnas Razón Social / CUIT / Segmento / Dictamen / Estado / Últ. análisis, orden por columna (click en header), filtros existentes (search, segmento, dictamen, estado) persistentes en la sesión, densidad compacta con tokens.
-2. **Drawer lateral** para el detalle del legajo (reemplaza el panel actual): se desliza desde la derecha (~720px), mantiene las 7 pestañas existentes intactas (Resumen IA, Datos, Checklist, Scoring, Red Flags, Historial, Screening), cierre con Esc/backdrop.
-3. **Timeline visual** del ciclo de vida en la pestaña Historial: línea vertical con nodos de color por estado, fecha/hora/analista.
-4. Restricciones: CERO cambio de lógica/datos — mismo estado interno (selId, form, tabs), mismos handlers, misma extracción IA. Solo capa de presentación. Respetar `initSelId` (Command Palette) y permisos por rol. Sin backticks en componentes.
+1. **Alertas** (`src/views/Alertas.jsx`, 340 líneas): tabla profesional con orden por columna,
+   filtros por severidad / estado / legajo persistentes en sesión, y drawer de detalle de señal
+   reutilizando el patrón ya validado en Legajos.
+2. **Barrido final de contraste** en Patrones, Normativa, Wiki, Usuarios y Login. Es el mismo
+   bug que apareció en T2b y T2c: colores de la paleta legacy `C` (pensada para fondo claro)
+   usados como color de texto sobre fondo oscuro. Revisar `C.AO`, `C.AM`, `C.CEL` y hexes sueltos.
+3. Al cerrar T2d, `C` debería quedar reducida a los semánticos (VERDE/AMARILLO/NARANJA/ROJO)
+   o eliminarse en favor de `T`.
 
-## Notas de sesión (29/07/2026) para el próximo arranque
+## Método de verificación por tanda
 
-- Producción sana en v3.3.0. Repo `iamvolans/aml-analisis`, branch main.
-- Componentes disponibles en `src/components/`: ui.jsx (Card, StatCard, Pill, Badge, SevBadge, ReportModal, chartGrid/Axis/Tooltip), feedback.jsx (toast, uiConfirm, FeedbackHost), palette.jsx (CommandPalette).
-- `theme.js` es la fuente única de diseño; paleta de informes PDF bloqueada e independiente.
-- Método de entrega validado: zip de src/ completa + `rm -rf src && mkdir src && unzip` + comandos git. Frann no edita código.
+- Build Vite OK.
+- **Chequeo de identificadores**: el build de Vite NO detecta variables no declaradas. Un
+  componente JSX usado sin importar compila limpio y crashea en runtime (pasó con `Pill` en T2c).
+  Antes de entregar, verificar componentes usados vs. importados/declarados en cada archivo tocado.
+- Smoke test en producción de la vista tocada.
+
+## Notas técnicas acumuladas
+
+**Legajos.jsx** — la lista es una `<table>` con `thSort(k,label,extra)`; el detalle es
+`renderDrawer()` (sin `return` temprano, la tabla queda viva detrás). `stats[legajoId]` se
+precalcula recorriendo `periodos` una vez → {periodos, alta, ultLabel, ultTs}. Filtros y orden
+en `sessionStorage` bajo `rebit_legajos_filtros_v3`.
+
+**Analisis.jsx** — `ESTADOS_PERIODO` y `getEstadoPeriodo()` viven en scope de módulo (los usan
+el panel lateral y el header de contenido). Helpers: `altaActivas(p)` cuenta señales ALTA no
+resueltas desde `p.metricas` (no depende de txns hidratadas) y `txnsDe(p)`.
+
+**Pendiente transversal** — el conteo de señales ALTA no es uniforme: Análisis usa `p.metricas`,
+Dashboard usa el fallback `p.scoring.senales`, y la columna ALTA de Legajos todavía exige txns
+en memoria (subreporta). Unificar en un helper compartido de `lib/aml.js`.
+
+**App.jsx** — keyframes `pulse`, `fadeIn` y `drawerIn` en el CSS global derivado de tokens.
+
+**theme.js** es la fuente única de diseño; la paleta de los informes PDF está bloqueada e
+independiente.
+
+**Entrega** — zip de `src/` completa + `rm -rf src && unzip` + comandos git. Frann no edita código.
+Ojo con los nombres de archivo repetidos en `~/Downloads`: si ya existe uno con el mismo nombre,
+el navegador guarda el nuevo como `archivo-1.ext` y el `cp` termina copiando el viejo.
