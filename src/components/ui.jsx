@@ -5,15 +5,43 @@ import { sevColor } from "../lib/utils";
 // UI
 function Card(props) {
   return (
-    <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:4,marginBottom:14,overflow:'hidden'}}>
-      {props.title ? <div style={{background:T.BG3,borderBottom:'1px solid '+T.BORDER,padding:'9px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <span style={{fontWeight:600,fontSize:12,color:T.TEXT2,letterSpacing:'1px',textTransform:'uppercase'}}>{props.title}</span>
+    <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,marginBottom:14,overflow:'hidden',boxShadow:T.SHADOW.card}}>
+      {props.title ? <div style={{borderBottom:'1px solid '+T.BORDER,padding:'11px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <span style={{fontWeight:600,fontSize:11,color:T.TEXT3,letterSpacing:'1px',textTransform:'uppercase',fontFamily:T.SANS}}>{props.title}</span>
         {props.actions ? props.actions : null}
       </div> : null}
       <div style={{padding:16}}>{props.children}</div>
     </div>
   );
 }
+
+// ── StatCard v3: KPI con acento lateral, número grande SANS y sub opcional ──
+function StatCard(props) {
+  var col = props.col || T.ACCENT;
+  return (
+    <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,padding:'14px 16px',position:'relative',overflow:'hidden',boxShadow:T.SHADOW.card}}>
+      <div style={{position:'absolute',left:0,top:0,bottom:0,width:3,background:col,opacity:0.9}}/>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+        <div style={{minWidth:0}}>
+          <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{props.label}</div>
+          <div style={{fontSize:26,fontWeight:700,color:T.TEXT,lineHeight:1,fontFamily:T.SANS,letterSpacing:'-0.5px'}}>{props.val}</div>
+          {props.sub ? <div style={{fontSize:10,color:T.TEXT3,marginTop:5,fontFamily:T.SANS}}>{props.sub}</div> : null}
+        </div>
+        {props.icon ? <span style={{fontSize:17,opacity:0.55,flexShrink:0}}>{props.icon}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+// ── Props compartidas para recharts en tema oscuro ──
+var chartGrid = { strokeDasharray: '3 3', stroke: T.BORDER, vertical: false };
+var chartAxis = { tick: { fontSize: 10, fill: T.TEXT3, fontFamily: T.SANS }, axisLine: { stroke: T.BORDER2 }, tickLine: false };
+var chartTooltip = {
+  contentStyle: { background: T.BG3, border: '1px solid ' + T.BORDER2, borderRadius: 8, fontFamily: T.SANS, fontSize: 12, boxShadow: T.SHADOW.pop },
+  labelStyle: { color: T.TEXT, fontWeight: 600 },
+  itemStyle: { color: T.TEXT2 },
+  cursor: { fill: 'rgba(61,126,255,0.06)' }
+};
 
 function Pill(props) {
   if (!props.v) return null;
@@ -53,4 +81,4 @@ function ReportModal(props) {
   );
 }
 
-export { Card, Pill, Badge, SevBadge, ReportModal };
+export { Card, StatCard, Pill, Badge, SevBadge, ReportModal, chartGrid, chartAxis, chartTooltip };

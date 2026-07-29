@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { toast, uiConfirm } from "../components/feedback";
 import { BarChart, Bar, LineChart, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
-import { Card, SevBadge } from "../components/ui";
+import { Card, SevBadge, StatCard, chartGrid, chartAxis, chartTooltip } from "../components/ui";
 import { calcMetricas, calcScoring, detectPatrones } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEditar } from "../lib/auth";
 import { parseCsv, parseExcelFile } from "../lib/parsers";
@@ -451,10 +451,10 @@ function AnalisisView(props) {
               <Card title="📈 Evolución de Volumen IN/OUT">
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={periodosDatos} margin={{top:5,right:10,left:0,bottom:30}}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
-                    <XAxis dataKey="nombre" tick={{fontSize:9}} angle={-25} textAnchor="end"/>
-                    <YAxis tickFormatter={function(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v;}} tick={{fontSize:9}}/>
-                    <Tooltip formatter={function(v){return fmtM(v);}}/>
+                    <CartesianGrid {...chartGrid}/>
+                    <XAxis dataKey="nombre" {...chartAxis} angle={-25} textAnchor="end"/>
+                    <YAxis {...chartAxis} tickFormatter={function(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v;}} tick={{fontSize:9}}/>
+                    <Tooltip {...chartTooltip} formatter={function(v){return fmtM(v);}}/>
                     <Line type="monotone" dataKey="tIn" stroke={C.VERDE} strokeWidth={2} dot={{r:4}} name="Vol IN"/>
                     <Line type="monotone" dataKey="tOut" stroke={C.ROJO} strokeWidth={2} dot={{r:4}} name="Vol OUT"/>
                   </LineChart>
@@ -463,10 +463,10 @@ function AnalisisView(props) {
               <Card title="📊 Evolución del Score de Riesgo">
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={scoreData} margin={{top:5,right:10,left:0,bottom:30}}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
-                    <XAxis dataKey="nombre" tick={{fontSize:9}} angle={-25} textAnchor="end"/>
+                    <CartesianGrid {...chartGrid}/>
+                    <XAxis dataKey="nombre" {...chartAxis} angle={-25} textAnchor="end"/>
                     <YAxis domain={[0,5]} ticks={[1,2,3,4,5]} tick={{fontSize:9}}/>
-                    <Tooltip formatter={function(v){return v.toFixed(2)+'/5';}}/>
+                    <Tooltip {...chartTooltip} formatter={function(v){return v.toFixed(2)+'/5';}}/>
                     <Line type="monotone" dataKey="score" stroke={C.AM} strokeWidth={2} dot={function(props){var col=props.payload.score>=4?C.ROJO:props.payload.score>=3?C.NARANJA:C.VERDE;return <circle key={props.key} cx={props.cx} cy={props.cy} r={5} fill={col} stroke="white" strokeWidth={1}/>;}} name="Score"/>
                   </LineChart>
                 </ResponsiveContainer>
@@ -751,10 +751,10 @@ function AnalisisView(props) {
           <Card title="Scoring por factor">
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={scData} layout="vertical" margin={{top:5,right:30,left:100,bottom:5}}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+                <CartesianGrid {...chartGrid}/>
                 <XAxis type="number" domain={[0,5]}/>
                 <YAxis dataKey="f" type="category" tick={{fontSize:9,fill:'#4A6A8A',fontFamily:"'JetBrains Mono',monospace"}}/>
-                <Tooltip/>
+                <Tooltip {...chartTooltip}/>
                 <Bar dataKey="s">{scData.map(function(e,i){return <Cell key={i} fill={e.fill}/>;})}</Bar>
               </BarChart>
             </ResponsiveContainer>

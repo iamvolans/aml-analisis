@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { BarChart, Bar, LineChart, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Card, Pill } from "../components/ui";
+import { Card, Pill, StatCard, chartGrid, chartAxis, chartTooltip } from "../components/ui";
 import { calcMetricas, calcScoring, detectPatrones } from "../lib/aml";
 import { ESTADOS_CUENTA, getEstado } from "../lib/constants";
 import { serverLoadKVPrefix } from "../lib/sync";
@@ -208,11 +208,11 @@ function DashboardView(props) {
     <div style={{padding:22}}>
       {/* TABS */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
-        <h2 style={{fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px',margin:0}}>Dashboard — GOAT S.A. / Rebit</h2>
+        <h2 style={{fontSize:17,fontWeight:700,color:T.TEXT,letterSpacing:'-0.3px',margin:0,fontFamily:T.SANS}}>Dashboard <span style={{color:T.TEXT3,fontWeight:400,fontSize:13}}>· GOAT S.A. / Rebit</span></h2>
         <div style={{display:'flex',gap:2,background:T.BG3,borderRadius:4,padding:4,border:'1px solid '+T.BORDER}}>
           {[['operacional','📊 Operacional'],['ejecutivo','📈 Ejecutivo']].map(function(t){return(
             <button key={t[0]} onClick={function(){setDashTab(t[0]);}}
-              style={{padding:'7px 18px',border:'none',borderRadius:3,cursor:'pointer',fontWeight:dashTab===t[0]?600:400,background:dashTab===t[0]?'rgba(59,109,170,0.2)':'transparent',color:dashTab===t[0]?T.CYAN:T.TEXT2,fontFamily:T.MONO,fontSize:12}}>
+              style={{padding:'7px 18px',border:'none',borderRadius:T.RADIUS.sm+2,cursor:'pointer',fontWeight:dashTab===t[0]?600:500,background:dashTab===t[0]?T.ACCENT_SOFT:'transparent',color:dashTab===t[0]?T.ACCENT:T.TEXT2,fontFamily:T.SANS,fontSize:12.5,transition:T.TRANS}}>
               {t[1]}
             </button>
           );})}
@@ -253,18 +253,17 @@ function DashboardView(props) {
           </div>
         )}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}}>
-          {[{label:'Legajos KYB',val:total,col:C.AC},{label:'Periodos AML',val:periodos.length,col:T.CYAN},{label:'Senales ALTA',val:altas,col:T.RED},{label:'Total Senales',val:allSigs.length,col:T.AMBER}].map(function(kpi,i){return(
-            <div key={i} style={{background:kpi.col,borderRadius:6,padding:'14px 18px',color:'white'}}>
-              <div style={{fontSize:11,opacity:0.8}}>{kpi.label}</div>
-              <div style={{fontSize:28,fontWeight:700}}>{kpi.val}</div>
-            </div>
+          {[{label:'Legajos KYB',val:total,col:T.ACCENT},{label:'Períodos AML',val:periodos.length,col:T.VIOLET},{label:'Señales ALTA',val:altas,col:T.RED},{label:'Total señales',val:allSigs.length,col:T.AMBER}].map(function(kpi,i){return(
+            <StatCard key={i} label={kpi.label} val={kpi.val} col={kpi.col}/>
           );})}
         </div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:18}}>
           {[{label:'En Onboarding',val:onboarding,col:'#8BA3C0',bg:T.BG3},{label:'Activas',val:activas,col:T.GREEN,bg:'rgba(0,230,118,0.1)'},{label:'Monitoreo Ref.',val:activasRef,col:T.AMBER,bg:'rgba(255,140,0,0.1)'},{label:'Suspendidas',val:suspendidas,col:T.AMBER,bg:'rgba(255,184,48,0.1)'},{label:'Cerradas',val:cerradas,col:T.RED,bg:'rgba(255,68,85,0.1)'}].map(function(kpi,i){return(
-            <div key={i} style={{background:kpi.bg,border:'2px solid '+kpi.col,borderRadius:6,padding:'10px 14px',textAlign:'center'}}>
-              <div style={{fontSize:10,color:kpi.col,fontWeight:700}}>{kpi.label}</div>
-              <div style={{fontSize:24,fontWeight:700,color:kpi.col}}>{kpi.val}</div>
+            <div key={i} style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,padding:'10px 14px',textAlign:'center',boxShadow:T.SHADOW.card}}>
+              <div style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:10,color:T.TEXT3,fontWeight:600,fontFamily:T.SANS,letterSpacing:'0.5px',textTransform:'uppercase'}}>
+                <span style={{width:7,height:7,borderRadius:99,background:kpi.col}}/>{kpi.label}
+              </div>
+              <div style={{fontSize:23,fontWeight:700,color:T.TEXT,fontFamily:T.SANS,marginTop:3}}>{kpi.val}</div>
             </div>
           );})}
         </div>
@@ -272,7 +271,7 @@ function DashboardView(props) {
           <Card title="Legajos por segmento">
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={segData} margin={{top:5,right:10,left:-20,bottom:5}}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="seg" tick={{fontSize:9,fill:'#4A6A8A',fontFamily:"'JetBrains Mono',monospace"}}/><YAxis allowDecimals={false}/><Tooltip/>
+                <CartesianGrid {...chartGrid}/><XAxis dataKey="seg" {...chartAxis}/><YAxis allowDecimals={false} {...chartAxis}/><Tooltip {...chartTooltip}/>
                 <Bar dataKey="count" name="Legajos">{segData.map(function(e,i){return <Cell key={i} fill={e.fill}/>;})}</Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -280,7 +279,7 @@ function DashboardView(props) {
           <Card title="Dictamenes KYB">
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={[{d:'APROBADO',count:aprobados,fill:C.VERDE},{d:'CONDICIONAL',count:cond,fill:C.NARANJA},{d:'RECHAZADO',count:rech,fill:C.ROJO}]} margin={{top:5,right:10,left:-20,bottom:5}}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="d" tick={{fontSize:9}}/><YAxis allowDecimals={false}/><Tooltip/>
+                <CartesianGrid {...chartGrid}/><XAxis dataKey="d" {...chartAxis}/><YAxis allowDecimals={false} {...chartAxis}/><Tooltip {...chartTooltip}/>
                 <Bar dataKey="count">{[{fill:C.VERDE},{fill:C.NARANJA},{fill:C.ROJO}].map(function(e,i){return <Cell key={i} fill={e.fill}/>;})}</Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -288,7 +287,7 @@ function DashboardView(props) {
           <Card title="Estado de cuentas">
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={estadoData} margin={{top:5,right:10,left:-20,bottom:5}}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="est" tick={{fontSize:8}}/><YAxis allowDecimals={false}/><Tooltip/>
+                <CartesianGrid {...chartGrid}/><XAxis dataKey="est" {...chartAxis}/><YAxis allowDecimals={false} {...chartAxis}/><Tooltip {...chartTooltip}/>
                 <Bar dataKey="count" name="Legajos">{estadoData.map(function(e,i){return <Cell key={i} fill={e.fill}/>;})}</Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -337,15 +336,7 @@ function DashboardView(props) {
             {label:'RFIs abiertos',val:rfisAbiertos.length,icon:'📧',col:rfisAbiertos.length>0?T.AMBER:T.GREEN,bg:rfisAbiertos.length>0?'rgba(255,184,48,0.1)':'rgba(0,230,118,0.1)'},
             {label:'RFIs vencidos',val:rfisVencidos.length,icon:'⏰',col:rfisVencidos.length>0?T.RED:T.TEXT3,bg:rfisVencidos.length>0?'rgba(255,68,85,0.1)':T.BG3},
           ].map(function(k,i){return(
-            <div key={i} style={{background:k.bg,border:'1px solid '+k.col+'33',borderRadius:4,padding:'14px 16px'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                <div>
-                  <div style={{fontSize:10,color:k.col,fontWeight:700,marginBottom:4}}>{k.label}</div>
-                  <div style={{fontSize:32,fontWeight:700,color:k.col,lineHeight:1}}>{k.val}</div>
-                </div>
-                <span style={{fontSize:22}}>{k.icon}</span>
-              </div>
-            </div>
+            <StatCard key={i} label={k.label} val={k.val} col={k.col} icon={k.icon}/>
           );})}
         </div>
 
@@ -357,13 +348,7 @@ function DashboardView(props) {
             {label:'RFIs vencen en 7 días',val:rfisVencen7.length,icon:'⚠',col:rfisVencen7.length>0?C.AMARILLO:'#7F8C8D'},
             {label:'Períodos analizados',val:periodos.filter(function(p){return p.txns&&p.txns.length>0;}).length,icon:'📈',col:C.AM},
           ].map(function(k,i){return(
-            <div key={i} style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:8,padding:'12px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <div>
-                <div style={{fontSize:10,color:T.TEXT2,fontWeight:600}}>{k.label}</div>
-                <div style={{fontSize:22,fontWeight:700,color:k.col,marginTop:2}}>{k.val}</div>
-              </div>
-              <span style={{fontSize:20}}>{k.icon}</span>
-            </div>
+            <StatCard key={i} label={k.label} val={k.val} col={k.col} icon={k.icon}/>
           );})}
         </div>
 
@@ -413,10 +398,10 @@ function DashboardView(props) {
                 </div>
                 <ResponsiveContainer width="100%" height={260}>
                   <LineChart data={evolucionData} margin={{top:5,right:10,left:0,bottom:30}}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
-                    <XAxis dataKey="nombre" tick={{fontSize:9,fill:'#4A6A8A',fontFamily:"'JetBrains Mono',monospace"}} angle={-25} textAnchor="end" interval={0}/>
-                    <YAxis tickFormatter={function(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v;}} tick={{fontSize:9,fill:'#4A6A8A',fontFamily:"'JetBrains Mono',monospace"}} width={45}/>
-                    <Tooltip formatter={function(v,name){return [fmtM(v), name==='tIn'?'Vol IN':'Vol OUT'];}} labelStyle={{fontWeight:600,color:T.TEXT}}/>
+                    <CartesianGrid {...chartGrid}/>
+                    <XAxis dataKey="nombre" {...chartAxis} angle={-25} textAnchor="end" interval={0}/>
+                    <YAxis {...chartAxis} tickFormatter={function(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v;}} tick={{fontSize:9,fill:'#4A6A8A',fontFamily:"'JetBrains Mono',monospace"}} width={45}/>
+                    <Tooltip {...chartTooltip} formatter={function(v,name){return [fmtM(v), name==='tIn'?'Vol IN':'Vol OUT'];}} labelStyle={{fontWeight:600,color:T.TEXT}}/>
                     <Line type="monotone" dataKey="tIn" stroke={C.VERDE} strokeWidth={2.5} dot={{r:4,fill:C.VERDE}} activeDot={{r:6}} name="tIn"/>
                     <Line type="monotone" dataKey="tOut" stroke={C.ROJO} strokeWidth={2.5} dot={{r:4,fill:C.ROJO}} activeDot={{r:6}} name="tOut"/>
                   </LineChart>
