@@ -9,8 +9,20 @@ import { genINF01, genINF07Cierre, genROS } from "../lib/reports";
 import { APP_TOKEN } from "../lib/session";
 import { gzipPayload } from "../lib/sync";
 import { C, T } from "../lib/theme";
-import { fileToBase64, fmtM, safeArr, segColor, todayStr, uid } from "../lib/utils";
-import AnalisisView from "./Analisis";
+import { fileToBase64, fmtM, parseFechaAR, safeArr, segColor, todayStr, uid } from "../lib/utils";
+
+// ── Filtros persistentes en la sesión ────────────────────────────────────────
+// El shell remonta LegajosView cada vez que se navega (key={'leg-'+legTarget}),
+// así que el estado de filtros se perdía al ir y volver. sessionStorage los
+// mantiene mientras dure la pestaña, sin ensuciar Supabase ni el legajo.
+var FILTROS_KEY = 'rebit_legajos_filtros_v3';
+function leerFiltros() {
+  try { var raw = window.sessionStorage.getItem(FILTROS_KEY); return raw ? JSON.parse(raw) : {}; }
+  catch(e) { return {}; }
+}
+function guardarFiltros(f) {
+  try { window.sessionStorage.setItem(FILTROS_KEY, JSON.stringify(f)); } catch(e) {}
+}
 
 function LegajosView(props) {
   var legajos=props.legajos, setLegajos=props.setLegajos, periodos=props.periodos, setPeriodos=props.setPeriodos, onAnalizar=props.onAnalizar, onReport=props.onReport, onSync=props.onSync||function(){}, currentUser=props.currentUser||{rol:'analista'};
@@ -22,8 +34,8 @@ function LegajosView(props) {
   var uploadPctState = useState(0); var uploadPct = uploadPctState[0]; var setUploadPct = uploadPctState[1];
   var iaFieldsState = useState(null); var iaFields = iaFieldsState[0]; var setIaFields = iaFieldsState[1];
   var tabState = useState('datos'); var tab = tabState[0]; var setTab = tabState[1];
-  var searchState = useState(''); var search=searchState[0]; var setSearch=searchState[1];
-  var sortState = useState({k:'razonSocial',d:1}); var sortBy=sortState[0]; var setSortBy=sortState[1];
+  var searchState = useState(function(){ return leerFiltros().search || ''; }); var search=searchState[0]; var setSearch=searchState[1];
+  var sortState = useState(function(){ return leerFiltros().sort || {k:'razonSocial',d:1}; }); var sortBy=sortState[0]; var setSortBy=sortState[1];
 
   // Drawer: Esc cierra el detalle (nunca en edición, para no perder datos)
   useEffect(function() {
@@ -33,9 +45,14 @@ function LegajosView(props) {
     window.addEventListener('keydown', onKey);
     return function(){ window.removeEventListener('keydown', onKey); };
   }, [selId, editing]);
-  var filtroSegState = useState('TODOS'); var filtroSeg=filtroSegState[0]; var setFiltroSeg=filtroSegState[1];
-  var filtroDictState = useState('TODOS'); var filtroDict=filtroDictState[0]; var setFiltroDict=filtroDictState[1];
-  var filtroEstState = useState('TODOS'); var filtroEst=filtroEstState[0]; var setFiltroEst=filtroEstState[1];
+  var filtroSegState = useState(function(){ return leerFiltros().seg || 'TODOS'; }); var filtroSeg=filtroSegState[0]; var setFiltroSeg=filtroSegState[1];
+  var filtroDictState = useState(function(){ return leerFiltros().dict || 'TODOS'; }); var filtroDict=filtroDictState[0]; var setFiltroDict=filtroDictState[1];
+  var filtroEstState = useState(function(){ return leerFiltros().est || 'TODOS'; }); var filtroEst=filtroEstState[0]; var setFiltroEst=filtroEstState[1];
+
+  // Persistencia de filtros y orden mientras dure la sesión del navegador
+  useEffect(function() {
+    guardarFiltros({ search:search, seg:filtroSeg, dict:filtroDict, est:filtroEst, sort:sortBy });
+  }, [search, filtroSeg, filtroDict, filtroEst, sortBy]);
   var selectedState = useState([]); var selected=selectedState[0]; var setSelected=selectedState[1];
   var selectModeState = useState(false); var selectMode=selectModeState[0]; var setSelectMode=selectModeState[1];
   var menuOpenState = useState(null); var menuOpen=menuOpenState[0]; var setMenuOpen=menuOpenState[1];
@@ -352,7 +369,7 @@ function LegajosView(props) {
               <div style={{marginTop:10,background:C.AC,color:'white',borderRadius:4,padding:'6px 0',fontSize:12,fontWeight:700}}>📂 Seleccionar documentos</div>
               <div style={{fontSize:10,color:T.TEXT3,marginTop:6}}>Requiere créditos en Anthropic o OpenAI</div>
             </div>
-            <div onClick={function(){setTab('datos');}} style={{border:'1px solid rgba(0,230,118,0.4)',borderRadius:8,padding:'20px 16px',textAlign:'center',cursor:'pointer',background:'#F0FAF4'}}>
+            <div onClick={function(){setTab('datos');}} style={{border:'1px solid rgba(0,230,118,0.4)',borderRadius:8,padding:'20px 16px',textAlign:'center',cursor:'pointer',background:'rgba(0,214,143,0.06)'}}>
               <div style={{fontSize:26,marginBottom:6}}>✍️</div>
               <div style={{fontSize:13,color:T.TEXT,fontWeight:600,marginBottom:4}}>Carga manual</div>
               <div style={{fontSize:11,color:T.TEXT2,lineHeight:1.5}}>Completá los campos a mano. Podés hacerlo ahora y usar IA después cuando tengas créditos.</div>
@@ -362,7 +379,7 @@ function LegajosView(props) {
           </div> : null}
 
           {/* ZONA DE UPLOAD cuando ya hay resultado o está cargando */}
-          {(iaFields || uploading) ? <div onClick={function(){if(!uploading)fileRef.current.click();}} style={{border:'2px dashed '+C.AC,borderRadius:8,padding:'20px',textAlign:'center',cursor:uploading?'wait':'pointer',background:uploading?T.BG2:'#F0FAF4',marginBottom:12}}>
+          {(iaFields || uploading) ? <div onClick={function(){if(!uploading)fileRef.current.click();}} style={{border:'2px dashed '+C.AC,borderRadius:8,padding:'20px',textAlign:'center',cursor:uploading?'wait':'pointer',background:uploading?T.BG2:'rgba(0,214,143,0.06)',marginBottom:12}}>
             <div style={{fontSize:24,marginBottom:4}}>{uploading?'⏳':'✅'}</div>
             <div style={{fontSize:13,color:T.CYAN,fontWeight:700}}>{uploading?uploadMsg:'Documentos analizados · Clic para re-analizar con nuevos docs'}</div>
           </div> : null}
@@ -426,7 +443,7 @@ function LegajosView(props) {
                       ['Segmento sugerido', form && (form.segmento||'—')],
                       ['Dictamen sugerido', form && (form.dictamen||'—')]
                     ].map(function(r,i){return(
-                      <tr key={i} style={{borderBottom:'1px solid #EBF9F0'}}>
+                      <tr key={i} style={{borderBottom:'1px solid rgba(0,214,143,0.18)'}}>
                         <td style={{padding:'4px 8px 4px 0',color:T.TEXT2,fontWeight:600,width:'40%'}}>{r[0]}</td>
                         <td style={{padding:'4px 0',color:r[1]==='—'?T.TEXT3:T.TEXT,fontWeight:r[1]==='—'?400:700}}>{r[1]}</td>
                       </tr>
@@ -449,7 +466,7 @@ function LegajosView(props) {
             {/* Red flags */}
             {safeArr(form.redFlags).length > 0 && <div style={{background:'rgba(255,68,85,0.08)',border:'1px solid rgba(255,68,85,0.2)',borderRadius:6,padding:'12px 14px',marginBottom:10}}>
               <div style={{fontWeight:700,color:T.RED,fontSize:12,marginBottom:8}}>🚩 Red flags detectados por IA:</div>
-              {form.redFlags.map(function(rf,i){return <div key={i} style={{fontSize:12,color:T.RED,padding:'3px 0',borderBottom:'1px solid #FADBD8'}}>• {rf}</div>;})}
+              {form.redFlags.map(function(rf,i){return <div key={i} style={{fontSize:12,color:T.RED,padding:'3px 0',borderBottom:'1px solid rgba(255,68,85,0.18)'}}>• {rf}</div>;})}
             </div>}
 
             {/* Docs procesados */}
@@ -983,7 +1000,7 @@ function LegajosView(props) {
                   <button
                     onClick={ejecutarScreening}
                     disabled={screeningLoading || nombresArr.length===0}
-                    style={{background:screeningLoading||nombresArr.length===0?T.BG4:'#1A4A6B',color:'white',border:'none',borderRadius:4,padding:'9px 16px',cursor:screeningLoading||nombresArr.length===0?'not-allowed':'pointer',fontWeight:700,fontSize:13,flexShrink:0,marginLeft:12}}
+                    style={{background:screeningLoading||nombresArr.length===0?T.BG4:T.ACCENT,color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 16px',cursor:screeningLoading||nombresArr.length===0?'not-allowed':'pointer',fontWeight:700,fontSize:13,flexShrink:0,marginLeft:12}}
                   >
                     {screeningLoading ? '⏳ Verificando...' : scr ? '🔄 Repetir Screening' : '🔍 Ejecutar Screening'}
                   </button>
@@ -1124,7 +1141,11 @@ function LegajosView(props) {
     );
   }
 
-  if (sel && !editing) {
+  // ── DRAWER DE DETALLE ──────────────────────────────────────────────────────
+  // Se monta por encima de la tabla (la lista queda visible detrás del backdrop)
+  // en lugar de reemplazar la vista completa como hacía el return temprano.
+  function renderDrawer() {
+    if (!sel || editing) return null;
     var lPeriodos = periodos.filter(function(p){return p.legajoId===sel.id;});
     var clVals = Object.values(sel.checklist||{});
     var okC2 = clVals.filter(function(v){return v==='OK';}).length;
@@ -1132,10 +1153,10 @@ function LegajosView(props) {
     var scP2 = scV2.length>0?(scV2.reduce(function(a,b){return a+b;},0)/scV2.length).toFixed(2):'N/D';
     return (
       <div onClick={function(){setSelId(null);}}
-        style={{position:'fixed',inset:0,background:'rgba(4,7,12,0.55)',backdropFilter:'blur(1px)',zIndex:1500,display:'flex',justifyContent:'flex-end'}}>
+        style={{position:'fixed',inset:0,background:'rgba(4,7,12,0.55)',backdropFilter:'blur(1px)',zIndex:1500,display:'flex',justifyContent:'flex-end',animation:'fadeIn 0.15s ease-out'}}>
       <div onClick={function(e){e.stopPropagation();}}
-        style={{width:780,maxWidth:'94vw',height:'100vh',overflowY:'auto',background:T.BG,borderLeft:'1px solid '+T.BORDER2,boxShadow:T.SHADOW.pop,padding:22}}>
-        <button onClick={function(){setSelId(null);}} style={{background:'none',border:'none',color:T.TEXT3,cursor:'pointer',fontSize:13,marginBottom:12}}>← Volver a lista</button>
+        style={{width:780,maxWidth:'94vw',height:'100vh',overflowY:'auto',background:T.BG,borderLeft:'1px solid '+T.BORDER2,boxShadow:T.SHADOW.pop,padding:22,animation:'drawerIn 0.18s ease-out'}}>
+        <button onClick={function(){setSelId(null);}} style={{background:'transparent',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,color:T.TEXT3,cursor:'pointer',fontSize:11,fontWeight:500,fontFamily:T.SANS,padding:'5px 11px',marginBottom:12}}>✕ Cerrar · Esc</button>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
           <div>
             <h2 style={{color:T.TEXT,fontSize:18,fontWeight:700,margin:0}}>{sel.razonSocial||'Sin nombre'}</h2>
@@ -1244,7 +1265,7 @@ function LegajosView(props) {
                         auditLog(currentUser,'generar_ros','legajo',sel.id,{razonSocial:sel.razonSocial,rosNum:'ROS-'+new Date().getFullYear()+'-'+String(num).padStart(3,'0'),periodos:rosSelPer.length});
                         setRosOpen(false);
                       }}
-                      style={{background:rosSelPer.length>0?'#7D3C98':T.BG4,color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rosSelPer.length>0?'pointer':'not-allowed',fontWeight:700,fontSize:13}}
+                      style={{background:rosSelPer.length>0?T.VIOLET:T.BG4,color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:rosSelPer.length>0?'pointer':'not-allowed',fontWeight:700,fontSize:13}}
                     >📋 Generar ROS ({rosSelPer.length} período{rosSelPer.length!==1?'s':''})</button>
                   </div>
                 </div>
@@ -1419,14 +1440,45 @@ function LegajosView(props) {
     return matchSearch && matchSeg && matchDict && matchEst;
   });
 
+  // ── Estadísticas por legajo ────────────────────────────────────────────────
+  // Se calculan una sola vez recorriendo periodos (antes se recalculaban dentro
+  // del map, una vez por fila). Misma lógica de conteo de señales ALTA que la
+  // lista v2: solo cuenta períodos con txns hidratadas en memoria.
+  var legIndex = {};
+  legajos.forEach(function(l){ legIndex[l.id] = l; });
+  var stats = {};
+  legajos.forEach(function(l){ stats[l.id] = { periodos:0, alta:0, ultLabel:null, ultTs:0 }; });
+  periodos.forEach(function(p) {
+    var st = stats[p.legajoId];
+    if (!st) return;
+    st.periodos++;
+    var fp = parseFechaAR(p.createdAt);
+    var ts = fp ? fp.getTime() : 0;
+    if (ts >= st.ultTs) { st.ultTs = ts; st.ultLabel = p.createdAt || null; }
+    if (p.txns && p.txns.length) {
+      var leg = legIndex[p.legajoId];
+      var mp = calcMetricas(p.txns, leg);
+      if (mp) st.alta += detectPatrones(mp, leg).filter(function(s){return s.sev==='ALTA';}).length;
+    }
+  });
+  // Últ. análisis: período más reciente, o la fecha de análisis externo al sistema
+  function ultAnalisis(l) {
+    var st = stats[l.id] || {};
+    if (st.ultLabel) return { label: st.ultLabel, ts: st.ultTs, externo: false };
+    if (l.ultimoAnalisisExterno) {
+      var fe = parseFechaAR(l.ultimoAnalisisExterno);
+      return { label: l.ultimoAnalisisExterno, ts: fe ? fe.getTime() : 0, externo: true };
+    }
+    return { label: null, ts: 0, externo: false };
+  }
+
   var SEG_ORD = {BAJO:0, MEDIO:1, 'MEDIO-ALTO':2, ALTO:3};
   var sortedLegs = filteredLegs.slice().sort(function(a, b) {
     var k = sortBy.k, d = sortBy.d, va, vb;
     if (k === 'segmento') { va = SEG_ORD[a.segmento]||0; vb = SEG_ORD[b.segmento]||0; }
-    else if (k === 'periodos') {
-      va = periodos.filter(function(p){return p.legajoId===a.id;}).length;
-      vb = periodos.filter(function(p){return p.legajoId===b.id;}).length;
-    }
+    else if (k === 'periodos') { va = (stats[a.id]||{}).periodos||0; vb = (stats[b.id]||{}).periodos||0; }
+    else if (k === 'ultAnalisis') { va = ultAnalisis(a).ts; vb = ultAnalisis(b).ts; }
+    else if (k === 'estadoCuenta') { va = (a.estadoCuenta||'EN_ONBOARDING').toLowerCase(); vb = (b.estadoCuenta||'EN_ONBOARDING').toLowerCase(); }
     else { va = (a[k]||'').toString().toLowerCase(); vb = (b[k]||'').toString().toLowerCase(); }
     return va < vb ? -d : va > vb ? d : 0;
   });
@@ -1469,8 +1521,25 @@ function LegajosView(props) {
     saveList(newLegs); setPeriodos(newPers);
   }
 
+  // ── Estilos de tabla derivados de tokens ───────────────────────────────────
+  var thBase = {position:'sticky',top:0,zIndex:2,background:T.BG3,color:T.TEXT3,padding:'9px 10px',textAlign:'left',fontSize:10,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS,borderBottom:'1px solid '+T.BORDER2,whiteSpace:'nowrap'};
+  var tdBase = {padding:'8px 10px',borderBottom:'1px solid '+T.BORDER,fontSize:12,verticalAlign:'middle',fontFamily:T.SANS};
+
+  function thSort(k, label, extra) {
+    var on = sortBy.k === k;
+    var st = Object.assign({}, thBase, extra||{}, {cursor:'pointer',userSelect:'none'});
+    if (on) st.color = T.ACCENT;
+    return (
+      <th key={k} onClick={function(){toggleSort(k);}} style={st} title={'Ordenar por ' + label}>
+        {label}<span style={{marginLeft:5,color:T.ACCENT,opacity:on?1:0}}>{sortBy.d===1?'\u2191':'\u2193'}</span>
+      </th>
+    );
+  }
+
   return (
     <div style={{padding:22}} onClick={function(){if(menuOpen)setMenuOpen(null);}}>
+      {renderDrawer()}
+
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
         <h2 style={{fontSize:15,fontWeight:600,color:T.TEXT,letterSpacing:'1px'}}>Legajos KYB ({legajos.length})</h2>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
@@ -1510,126 +1579,134 @@ function LegajosView(props) {
       </div>
 
       {legajos.length===0 && <Card title=""><p style={{color:T.TEXT2,textAlign:'center',padding:'20px 0'}}>No hay legajos. Creá el primero con "+ Nuevo legajo".</p></Card>}
-      {filteredLegs.length > 0 && (
-        <div style={{display:'flex',gap:4,alignItems:'center',padding:'6px 16px',marginBottom:8,fontFamily:T.SANS}}>
-          <span style={{fontSize:10,color:T.TEXT4,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginRight:6}}>Ordenar</span>
-          {[['razonSocial','Razón social'],['cuit','CUIT'],['segmento','Segmento'],['dictamen','Dictamen'],['estadoCuenta','Estado'],['periodos','Períodos']].map(function(c){
-            var on = sortBy.k === c[0];
-            return (
-              <button key={c[0]} onClick={function(){toggleSort(c[0]);}}
-                style={{padding:'5px 11px',border:'1px solid '+(on?T.ACCENT_DIM:T.BORDER),borderRadius:99,background:on?T.ACCENT_SOFT:'transparent',color:on?T.ACCENT:T.TEXT3,cursor:'pointer',fontSize:11,fontWeight:on?600:500,fontFamily:T.SANS,transition:T.TRANS}}>
-                {c[1]}{on ? (sortBy.d === 1 ? ' ↑' : ' ↓') : ''}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       {filteredLegs.length===0 && legajos.length>0 && <Card title=""><p style={{color:T.TEXT2,textAlign:'center',padding:'16px 0'}}>Sin resultados para los filtros aplicados.</p></Card>}
 
-      {sortedLegs.map(function(l,i){
-        var lp = periodos.filter(function(p){return p.legajoId===l.id;});
-        var allSigsL = [];
-        lp.forEach(function(p){
-          if(p.txns&&p.txns.length){
-            var m2=calcMetricas(p.txns,l);
-            if(m2)detectPatrones(m2,l).forEach(function(s){allSigsL.push(s);});
-          }
-        });
-        var hiL = allSigsL.filter(function(s){return s.sev==='ALTA';}).length;
-        var isSelected = selected.indexOf(l.id)>=0;
-        var isMenuOpen = menuOpen===l.id;
+      {/* ══ TABLA DE LEGAJOS ══════════════════════════════════════════════════ */}
+      {sortedLegs.length > 0 && (
+        <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,boxShadow:T.SHADOW.card}}>
+          <table style={{width:'100%',borderCollapse:'separate',borderSpacing:0}}>
+            <thead>
+              <tr>
+                {selectMode && <th style={Object.assign({},thBase,{width:36,borderTopLeftRadius:T.RADIUS.md})}></th>}
+                {thSort('razonSocial','Razón social', selectMode?null:{borderTopLeftRadius:T.RADIUS.md})}
+                {thSort('cuit','CUIT',{width:130})}
+                {thSort('segmento','Segmento',{width:110})}
+                {thSort('dictamen','Dictamen',{width:120})}
+                {thSort('estadoCuenta','Estado',{width:180})}
+                {thSort('periodos','Per.',{width:60,textAlign:'right'})}
+                {thSort('ultAnalisis','Últ. análisis',{width:120})}
+                {!selectMode && <th style={Object.assign({},thBase,{width:96,textAlign:'right',borderTopRightRadius:T.RADIUS.md})}>Acciones</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedLegs.map(function(l){
+                var st = stats[l.id] || {periodos:0, alta:0};
+                var est = getEstado(l.estadoCuenta||'EN_ONBOARDING');
+                var ua = ultAnalisis(l);
+                var isSelected = selected.indexOf(l.id)>=0;
+                var isMenuOpen = menuOpen===l.id;
+                var isEstMenu = menuOpen==='est_'+l.id;
+                var rowBg = isSelected ? T.ACCENT_SOFT : (selId===l.id ? T.BG3 : 'transparent');
 
-        return (
-          <div key={l.id} style={{background:T.BG2,border:'1px solid '+(isSelected?T.ACCENT:T.BORDER),borderRadius:T.RADIUS.md,padding:'12px 16px',marginBottom:8,boxShadow:isSelected?('0 0 0 2px '+T.ACCENT_SOFT):T.SHADOW.card,transition:T.TRANS}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                return (
+                  <tr key={l.id}
+                    onClick={function(){
+                      if (menuOpen) { setMenuOpen(null); return; }
+                      if (selectMode) { toggleSelect(l.id); } else { setSelId(l.id); }
+                    }}
+                    style={{cursor:'pointer',background:rowBg,transition:T.TRANS}}>
 
-              {/* LEFT: checkbox + info */}
-              <div style={{display:'flex',gap:10,alignItems:'center',flex:1,minWidth:0}}>
-                {selectMode && (
-                  <input type="checkbox" checked={isSelected} onChange={function(){toggleSelect(l.id);}} style={{width:16,height:16,cursor:'pointer',flexShrink:0}}/>
-                )}
-                <div style={{flex:1,minWidth:0,cursor:selectMode?'pointer':'default'}} onClick={function(){if(selectMode)toggleSelect(l.id);}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                    <span style={{fontWeight:600,color:T.TEXT,fontSize:14}}>{l.razonSocial||'Sin nombre'}</span>
-                    {hiL>0 && <span style={{background:C.ROJO,color:'white',borderRadius:10,padding:'1px 8px',fontSize:10,fontWeight:700}}>{hiL} ALTA</span>}
-                  </div>
-                  <div style={{color:T.TEXT2,fontSize:12,marginTop:2}}>CUIT: {l.cuit||'N/D'} · {l.actividad||'Sin actividad'} · {lp.length} periodo(s)</div>
-                </div>
-              </div>
+                    {selectMode && (
+                      <td style={Object.assign({},tdBase,{width:36})}>
+                        <input type="checkbox" checked={isSelected} readOnly style={{cursor:'pointer',pointerEvents:'none'}}/>
+                      </td>
+                    )}
 
-              {/* RIGHT: pills + actions */}
-              <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
-                {/* Badge de estado — clickeable para cambio rápido */}
-                {(function(){
-                  var est=getEstado(l.estadoCuenta||'EN_ONBOARDING');
-                  var isEstMenu = menuOpen==='est_'+l.id;
-                  return (
-                    <div style={{position:'relative'}}>
+                    {/* Razón social + actividad + señales ALTA */}
+                    <td style={Object.assign({},tdBase,{minWidth:210})}>
+                      <div style={{display:'flex',alignItems:'center',gap:9}}>
+                        <span style={{width:3,height:24,borderRadius:2,background:segColor(l.segmento),flexShrink:0,opacity:0.9}}/>
+                        <div style={{minWidth:0,flex:1}}>
+                          <div style={{fontWeight:600,color:T.TEXT,fontSize:13,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{l.razonSocial||'Sin nombre'}</div>
+                          <div style={{fontSize:10,color:T.TEXT3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{l.actividad||'Sin actividad declarada'}</div>
+                        </div>
+                        {st.alta>0 && <span title={st.alta + ' señal(es) de severidad ALTA sin resolver'} style={{flexShrink:0,background:'rgba(255,68,85,0.14)',color:T.RED,border:'1px solid rgba(255,68,85,0.35)',borderRadius:T.RADIUS.pill,padding:'1px 8px',fontSize:10,fontWeight:700,fontFamily:T.MONO}}>{st.alta} ALTA</span>}
+                      </div>
+                    </td>
+
+                    <td style={Object.assign({},tdBase,{fontFamily:T.MONO,fontSize:11,color:l.cuit?T.TEXT2:T.TEXT4,whiteSpace:'nowrap'})}>{l.cuit||'N/D'}</td>
+                    <td style={tdBase}><Pill v={l.segmento}/></td>
+                    <td style={tdBase}><Pill v={l.dictamen}/></td>
+
+                    {/* Estado con cambio rápido */}
+                    <td style={Object.assign({},tdBase,{position:'relative'})}>
                       <span
                         onClick={function(e){e.stopPropagation();setMenuOpen(isEstMenu?null:'est_'+l.id);}}
-                        title="Clic para cambiar estado"
-                        style={{background:est.bg,color:est.color,border:'1px solid '+est.color,borderRadius:10,padding:'2px 9px',fontSize:10,fontWeight:700,whiteSpace:'nowrap',cursor:'pointer',userSelect:'none'}}
+                        title="Clic para cambiar el estado de cuenta"
+                        style={{display:'inline-block',background:est.bg,color:est.color,border:'1px solid '+est.color,borderRadius:T.RADIUS.pill,padding:'2px 10px',fontSize:10,fontWeight:700,whiteSpace:'nowrap',cursor:'pointer',userSelect:'none'}}
                       >{est.label} ▾</span>
                       {isEstMenu && (
-                        <div style={{position:'absolute',left:0,top:'120%',background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',zIndex:300,minWidth:220,padding:4}}>
-                          <div style={{padding:'6px 10px',fontSize:10,fontWeight:700,color:T.TEXT2,borderBottom:'1px solid '+T.BORDER,marginBottom:4}}>Cambiar estado de cuenta</div>
+                        <div onClick={function(e){e.stopPropagation();}} style={{position:'absolute',left:10,top:'100%',background:T.BG2,border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.md,boxShadow:T.SHADOW.pop,zIndex:400,minWidth:260,padding:5}}>
+                          <div style={{padding:'6px 10px',fontSize:10,fontWeight:600,color:T.TEXT3,letterSpacing:'0.8px',textTransform:'uppercase',borderBottom:'1px solid '+T.BORDER,marginBottom:4}}>Cambiar estado de cuenta</div>
                           {ESTADOS_CUENTA.map(function(eOpt){
                             var isCurrent = (l.estadoCuenta||'EN_ONBOARDING')===eOpt.id;
                             return (
                               <div
                                 key={eOpt.id}
                                 onClick={function(ev){ev.stopPropagation();if(!isCurrent){cambioRapidoEstado(l,eOpt.id);}setMenuOpen(null);}}
-                                style={{padding:'8px 12px',cursor:isCurrent?'default':'pointer',fontSize:12,display:'flex',gap:8,alignItems:'center',borderRadius:4,background:isCurrent?eOpt.bg:T.BG4,opacity:isCurrent?0.7:1}}
+                                style={{padding:'7px 10px',cursor:isCurrent?'default':'pointer',fontSize:12,display:'flex',gap:8,alignItems:'center',borderRadius:T.RADIUS.sm,background:isCurrent?eOpt.bg:'transparent',opacity:isCurrent?0.7:1}}
                               >
                                 <span style={{width:8,height:8,borderRadius:'50%',background:eOpt.color,display:'inline-block',flexShrink:0}}></span>
-                                <span style={{color:eOpt.color,fontWeight:isCurrent?700:400}}>{eOpt.label}</span>
-                                {isCurrent && <span style={{marginLeft:'auto',fontSize:10,color:T.TEXT3}}>actual</span>}
-                                <span style={{marginLeft:isCurrent?0:'auto',fontSize:10,color:T.TEXT3}}>{eOpt.desc}</span>
+                                <span style={{color:eOpt.color,fontWeight:isCurrent?700:500}}>{eOpt.label}</span>
+                                <span style={{marginLeft:'auto',fontSize:10,color:T.TEXT3}}>{isCurrent?'actual':eOpt.desc}</span>
                               </div>
                             );
                           })}
                         </div>
                       )}
-                    </div>
-                  );
-                }())}
-                <Pill v={l.segmento}/>
-                <Pill v={l.dictamen}/>
-                {!selectMode && (
-                  <div style={{display:'flex',gap:4}}>
-                    <button onClick={function(){setSelId(l.id);}} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:700}}>Abrir</button>
-                    {/* MENÚ ⋯ */}
-                    <div style={{position:'relative'}}>
-                      <button
-                        onClick={function(e){e.stopPropagation();setMenuOpen(isMenuOpen?null:l.id);}}
-                        style={{background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:4,padding:'5px 9px',cursor:'pointer',fontSize:14,color:T.TEXT2,lineHeight:1}}
-                      >⋯</button>
-                      {isMenuOpen && (
-                        <div style={{position:'absolute',right:0,top:'110%',background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',zIndex:200,minWidth:170,padding:4}}>
-                          {[
-                            {icon:'✏️',label:'Editar',action:function(){setMenuOpen(null);setForm(JSON.parse(JSON.stringify(l)));setEditing(true);setTab('datos');}},
-                            {icon:'📋',label:'Duplicar',action:function(){setMenuOpen(null);duplicateLegajo(l);}},
-                            {icon:'💾',label:'Exportar JSON',action:function(){setMenuOpen(null);exportLegajoJSON(l);}},
-                            ...(puedeEliminar(currentUser.rol) ? [{icon:'🗑',label:'Eliminar',action:function(){setMenuOpen(null);deleteSingle(l);},danger:true}] : [])
-                          ].map(function(item,j){return(
-                            <div key={j} onClick={item.action} style={{padding:'8px 12px',cursor:'pointer',fontSize:12,color:item.danger?C.ROJO:C.AO,fontWeight:item.danger?700:400,borderRadius:4,display:'flex',gap:8,alignItems:'center'}}>
-                              <span>{item.icon}</span>{item.label}
-                            </div>
-                          );})}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
+                    </td>
+
+                    <td style={Object.assign({},tdBase,{fontFamily:T.MONO,fontSize:12,textAlign:'right',color:st.periodos?T.TEXT2:T.TEXT4})}>{st.periodos}</td>
+
+                    <td style={Object.assign({},tdBase,{fontFamily:T.MONO,fontSize:11,whiteSpace:'nowrap',color:ua.label?T.TEXT2:T.TEXT4})}>
+                      {ua.label || '—'}
+                      {ua.externo && <span title="Análisis previo, externo al sistema" style={{marginLeft:5,color:T.TEXT4,fontSize:9}}>ext</span>}
+                    </td>
+
+                    {/* Acciones */}
+                    {!selectMode && (
+                      <td style={Object.assign({},tdBase,{textAlign:'right',position:'relative',whiteSpace:'nowrap'})}>
+                        <button onClick={function(e){e.stopPropagation();setSelId(l.id);}} style={{background:T.ACCENT_SOFT,color:T.ACCENT,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.sm,padding:'4px 11px',cursor:'pointer',fontSize:11,fontWeight:600,fontFamily:T.SANS}}>Abrir</button>
+                        <button
+                          onClick={function(e){e.stopPropagation();setMenuOpen(isMenuOpen?null:l.id);}}
+                          style={{marginLeft:4,background:'transparent',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'4px 8px',cursor:'pointer',fontSize:13,color:T.TEXT3,lineHeight:1}}
+                        >⋯</button>
+                        {isMenuOpen && (
+                          <div onClick={function(e){e.stopPropagation();}} style={{position:'absolute',right:10,top:'100%',background:T.BG2,border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.md,boxShadow:T.SHADOW.pop,zIndex:400,minWidth:180,padding:5,textAlign:'left'}}>
+                            {[
+                              {icon:'✏️',label:'Editar',action:function(){setMenuOpen(null);setForm(JSON.parse(JSON.stringify(l)));setEditing(true);setTab('datos');}},
+                              {icon:'📋',label:'Duplicar',action:function(){setMenuOpen(null);duplicateLegajo(l);}},
+                              {icon:'💾',label:'Exportar JSON',action:function(){setMenuOpen(null);exportLegajoJSON(l);}}
+                            ].concat(puedeEliminar(currentUser.rol) ? [{icon:'🗑',label:'Eliminar',action:function(){setMenuOpen(null);deleteSingle(l);},danger:true}] : [])
+                            .map(function(item,j){return(
+                              <div key={j} onClick={item.action} style={{padding:'7px 10px',cursor:'pointer',fontSize:12,color:item.danger?T.RED:T.TEXT2,fontWeight:item.danger?600:500,borderRadius:T.RADIUS.sm,display:'flex',gap:8,alignItems:'center'}}>
+                                <span>{item.icon}</span>{item.label}
+                              </div>
+                            );})}
+                          </div>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {legajos.length > 0 && (
-        <div style={{fontSize:11,color:T.TEXT3,textAlign:'center',marginTop:8}}>
+        <div style={{fontSize:11,color:T.TEXT3,textAlign:'center',marginTop:10,fontFamily:T.SANS}}>
           {filteredLegs.length} de {legajos.length} legajos · {periodos.length} periodos
         </div>
       )}

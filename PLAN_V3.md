@@ -117,33 +117,14 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
 4. Verificación en producción con checklist de smoke test.
 5. Este documento se actualiza marcando la tanda como ✅.
 
-## Estado (actualizado 29/07/2026)
+## Estado
 
-- [x] T0 — Modularización + tokens ✅ (22 módulos, v3.0; App.jsx 7.480→432 líneas)
-- [x] T1 — Design system fintech ✅
-  - T1a: paleta fintech vía tokens, Inter, sidebar v3 con lucide (v3.1.0)
-  - T1b: Toast + ConfirmDialog (20 alerts + 10 confirms convertidos), Command Palette ⌘K, barrido de modo claro residual (v3.2.0)
-- [~] T2 — Rediseño de vistas — EN CURSO
-  - [x] T2a: Dashboard con StatCards + charts oscuros app-wide (chartGrid/chartAxis/chartTooltip en ui.jsx) (v3.3.0)
-  - [ ] **T2b — PRÓXIMA: rediseño de Legajos** (spec abajo)
-  - [ ] T2c: Análisis (layout dos paneles) · T2d: Alertas + resto
+- [ ] T0 — Modularización + tokens
+- [ ] T1 — Design system fintech
+- [ ] T2 — Rediseño de vistas
 - [ ] T3 — Case management + SLA
 - [ ] T4 — Calendario regulatorio
 - [ ] T5 — Screening periódico
 - [ ] T6 — Comportamiento + grafo
 - [ ] T7 — Reportería + documental
 - [ ] T8 — Hardening final
-
-## Spec T2b — Rediseño de Legajos (src/views/Legajos.jsx, ~1.600 líneas)
-
-1. **Tabla profesional** para la lista: columnas Razón Social / CUIT / Segmento / Dictamen / Estado / Últ. análisis, orden por columna (click en header), filtros existentes (search, segmento, dictamen, estado) persistentes en la sesión, densidad compacta con tokens.
-2. **Drawer lateral** para el detalle del legajo (reemplaza el panel actual): se desliza desde la derecha (~720px), mantiene las 7 pestañas existentes intactas (Resumen IA, Datos, Checklist, Scoring, Red Flags, Historial, Screening), cierre con Esc/backdrop.
-3. **Timeline visual** del ciclo de vida en la pestaña Historial: línea vertical con nodos de color por estado, fecha/hora/analista.
-4. Restricciones: CERO cambio de lógica/datos — mismo estado interno (selId, form, tabs), mismos handlers, misma extracción IA. Solo capa de presentación. Respetar `initSelId` (Command Palette) y permisos por rol. Sin backticks en componentes.
-
-## Notas de sesión (29/07/2026) para el próximo arranque
-
-- Producción sana en v3.3.0. Repo `iamvolans/aml-analisis`, branch main.
-- Componentes disponibles en `src/components/`: ui.jsx (Card, StatCard, Pill, Badge, SevBadge, ReportModal, chartGrid/Axis/Tooltip), feedback.jsx (toast, uiConfirm, FeedbackHost), palette.jsx (CommandPalette).
-- `theme.js` es la fuente única de diseño; paleta de informes PDF bloqueada e independiente.
-- Método de entrega validado: zip de src/ completa + `rm -rf src && mkdir src && unzip` + comandos git. Frann no edita código.

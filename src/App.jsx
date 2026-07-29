@@ -85,7 +85,9 @@ export default function App() {
       'th { font-weight: 500; text-align: left; color: ' + T.TEXT3 + '; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }',
       'td { color: ' + T.TEXT + '; }',
       'tr:hover td { background: ' + T.ACCENT_SOFT.replace('0.12','0.05') + '; }',
-      '@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }'
+      '@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }',
+      '@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }',
+      '@keyframes drawerIn { from { transform: translateX(26px); opacity: 0; } to { transform: none; opacity: 1; } }'
     ].join('\n');
     document.head.appendChild(styleEl);
     setSyncStatus('loading');
