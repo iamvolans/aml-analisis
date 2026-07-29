@@ -117,70 +117,110 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
 4. Verificación en producción con checklist de smoke test.
 5. Este documento se actualiza marcando la tanda como ✅.
 
-## Estado (actualizado 29/07/2026 · cierre T2 completa)
+## Estado (actualizado 29/07/2026 · T3a)
 
-- [x] T0 — Modularización + tokens ✅ (22 módulos, v3.0; App.jsx 7.480→432 líneas)
-- [x] T1 — Design system fintech ✅ (v3.1.0 tokens+sidebar, v3.2.0 Toast/Confirm/⌘K)
-- [x] **T2 — Rediseño de vistas ✅ COMPLETA**
-  - T2a (v3.3.0): Dashboard con StatCards + charts oscuros app-wide
-  - T2b (v3.4.0 / v3.5.0): Legajos — drawer lateral + timeline; tabla profesional con
-    orden por header, filtros persistentes en sessionStorage, drawer sobre la lista
-  - T2c (v3.6.0): Análisis — layout de dos paneles (selector sticky | contenido),
-    gráficos de evolución con ComposedChart de doble eje y umbrales de riesgo
-  - T2d (v3.7.0): Alertas — tres tablas ordenables (Señales / RFIs / Sin analizar),
-    filtros persistentes, drawer de detalle de señal con acción sugerida y resolución.
-    Primitivas compartidas nuevas en `components/ui.jsx`: `SortTh`, `TableCard`,
-    `Drawer`, `EmptyState`, `TH`, `TD`. Barrido final de contraste en Patrones,
-    Normativa, Wiki, Usuarios y Dashboard; paleta legacy `C` reducida a los semánticos.
-- [ ] **T3 — PRÓXIMA: Case management + SLA**
+- [x] T0 — Modularización + tokens ✅ (v3.0)
+- [x] T1 — Design system fintech ✅ (v3.1.0 / v3.2.0)
+- [x] T2 — Rediseño de vistas ✅ COMPLETA
+  - T2a Dashboard (v3.3.0) · T2b Legajos (v3.4.0/v3.5.0) · T2c Análisis (v3.6.0) · T2d Alertas (v3.7.0)
+- [~] **T3 — Case management + SLA — EN CURSO**
+  - [x] T3a (v3.8.0): fundación
+    - Deuda #1 resuelta: criterio único de señal activa en `lib/aml.js`
+      (`metricasDe`, `senalesActivas`, `contarAlta`). Las cuatro vistas lo usan.
+      **Legajos dejó de subreportar**: antes exigía txns hidratadas en memoria.
+    - `lib/casos.js`: ciclo de vida de 6 estados, orígenes, prioridades, motor de
+      plazos (`hitosSLA` / `slaCritico`), generación desde señales, transiciones
+      que sellan las fechas que disparan cada contador.
+    - Tabla `casos` en Supabase (script idempotente en `sql/T3_casos.sql`),
+      endpoints `GET|POST /api/sync?action=casos`, helpers `serverLoadCasos` /
+      `serverSaveCasos`.
+    - Vista `Casos`: KPIs, filtros persistentes, tabla ordenable por urgencia de
+      plazo, drawer con plazos aplicables, transiciones e historial.
+  - [ ] **T3b — PRÓXIMA: kanban, asignación y comentarios** (spec abajo)
 - [ ] T4 — Calendario regulatorio
 - [ ] T5 — Screening periódico
 - [ ] T6 — Comportamiento + grafo
 - [ ] T7 — Reportería + documental
 - [ ] T8 — Hardening final
 
+## ⚠️ Pendiente de validación normativa (BLOQUEANTE para uso operativo)
+
+Los plazos por defecto en `src/lib/casos.js` (objeto `SLA`) reflejan el régimen
+general de la Ley 25.246 y resoluciones UIF tal como se conocían al construir el
+módulo: 15 días corridos para reportar desde la calificación, tope de 150 días
+desde la operación, 48 horas para FT. **Germán debe validar cada valor contra la
+resolución UIF vigente aplicable a PSPCP antes de que el panel se use como
+control operativo real.** El resto (RFI 7 días, comité 10 días, toma de caso
+2 días) es política interna de Rebit y se define puertas adentro.
+
+Cambiar un número en `SLA` recalcula todos los contadores de la app.
+
+## Spec T3b — Kanban, asignación y comentarios (PRÓXIMA)
+
+1. **Vista kanban** de la bandeja: columnas por estado, drag & drop entre columnas
+   (con la misma función `cambiarEstadoCaso`, para que sellar fechas siga siendo
+   un único camino). Toggle lista/kanban persistente en sesión.
+2. **Asignación por analista**: selector de analista desde la tabla `perfiles`,
+   filtro "mis casos", y KPI de carga por analista.
+3. **Hilo de comentarios** por caso (separado del historial de estados), con autor
+   y fecha, persistido en `data.comentarios`.
+4. **Vínculo señal ↔ caso en las dos direcciones**: hoy el caso apunta al período
+   y al patrón; falta que Alertas muestre "ya tiene caso CASO-XXX" en la fila de
+   la señal y permita saltar al caso.
+5. Widget de casos vencidos en el Dashboard.
+
 ## Método de verificación por tanda
 
 - Build Vite OK.
-- **Chequeo de identificadores**: el build de Vite NO detecta variables no declaradas. Un
-  componente JSX usado sin importar compila limpio y crashea en runtime (pasó con `Pill` en T2c).
-  Antes de entregar, verificar componentes usados vs. importados/declarados, y que no queden
-  claves inexistentes de la paleta (`C.AMARI` era `undefined` y pasaba silenciosamente).
+- **Chequeo de identificadores**: el build de Vite NO detecta variables no declaradas.
+  Un componente JSX usado sin importar compila limpio y crashea en runtime (pasó con
+  `Pill` en T2c). Verificar también claves inexistentes de paleta (`C.AMARI` era
+  `undefined` y pasaba silenciosamente) e imports muertos.
 - Smoke test en producción de la vista tocada.
 
 ## Deuda técnica registrada
 
-1. **Conteo de señales ALTA no uniforme.** Análisis y Alertas usan `p.metricas`; Dashboard usa
-   el fallback `p.scoring.senales`; la columna ALTA de Legajos exige txns en memoria y
-   subreporta. Unificar en un helper de `lib/aml.js` — candidato natural a resolverse en T3,
-   que necesita un criterio único de "alerta activa" para generar casos.
-2. **Legajos.jsx no usa las primitivas compartidas** (`SortTh`/`TableCard`): tiene su propia
-   implementación equivalente. Migración mecánica, sin beneficio visible; se dejó para T8 para
-   no re-verificar una vista ya validada en producción.
-3. **Bundle 1.29MB** sin code-splitting (ítem de T8).
-4. **3 vulnerabilidades npm** (1 moderada, 2 altas) de las deps transitivas de Vite 4 / esbuild.
-   `npm audit fix --force` sube Vite a 5+ y Recharts a 3 y rompe los charts. Tratar en T8.
+1. ~~Conteo de señales ALTA no uniforme~~ — **resuelto en T3a**.
+2. **Legajos.jsx no usa las primitivas compartidas** (`SortTh`/`TableCard`): tiene su
+   propia implementación equivalente. Migración mecánica, para T8.
+3. **Bundle 1.30MB** sin code-splitting (T8).
+4. **3 vulnerabilidades npm** de deps transitivas de Vite 4 / esbuild. `npm audit fix
+   --force` sube Vite a 5+ y Recharts a 3 y rompe los charts. Tratar en T8.
+5. **`/api/sync` sigue con app-token**, no autenticación por usuario (ítem propio de T8).
+   Los casos heredan esa limitación.
 
 ## Notas técnicas acumuladas
 
-**Legajos.jsx** — lista en `<table>` con `thSort(k,label,extra)` local; detalle en
-`renderDrawer()` (sin `return` temprano). `stats[legajoId]` precalculado recorriendo `periodos`
-una vez. Filtros en `sessionStorage` → `rebit_legajos_filtros_v3`.
+**lib/aml.js** — `metricasDe(p, leg)` prefiere `p.metricas` persistidas y cae a `p.txns`;
+`senalesActivas(p, leg)` filtra las resueltas; `contarAlta(p, leg)`. Fuente única.
 
-**Analisis.jsx** — `ESTADOS_PERIODO` y `getEstadoPeriodo()` en scope de módulo. Helpers
-`altaActivas(p)` (desde `p.metricas`, sin depender de txns) y `txnsDe(p)`.
+**lib/casos.js** — un caso se deduplica por `(periodoId, pat)`, con índice único parcial
+en Postgres además del chequeo en cliente. `cambiarEstadoCaso` es el único camino para
+mover un caso: sella `fechaCalificacion` al elevar a comité, `fechaRfi` al mandar RFI y
+`fechaCierre` al cerrar. No sobrescribe fechas ya selladas.
 
-**Alertas.jsx** — filtros en `rebit_alertas_filtros_v3`, con orden independiente por pestaña
-(`sortMap[tab]`). El drawer de señal muestra `s.tip` como acción sugerida.
+**Generación de casos** — `casosPendientesDeCrear` no crea nada: devuelve el preview y la
+vista pide confirmación. Decisión deliberada: en un registro con valor regulatorio no
+conviene que aparezcan filas sin que quede claro quién las originó y cuándo.
 
-**components/ui.jsx** — Card, StatCard, Pill, Badge, SevBadge, ReportModal, chartGrid/Axis/Tooltip,
-TH, TD, SortTh, TableCard, Drawer, EmptyState.
+**Legajos.jsx** — lista en `<table>` con `thSort` local; detalle en `renderDrawer()`.
+Filtros en `sessionStorage` → `rebit_legajos_filtros_v3`.
 
-**App.jsx** — keyframes `pulse`, `fadeIn`, `drawerIn` en el CSS global derivado de tokens.
+**Analisis.jsx** — `ESTADOS_PERIODO` / `getEstadoPeriodo()` en scope de módulo.
 
-**theme.js** es la fuente única de diseño; la paleta de los informes PDF está bloqueada e
-independiente. `C` quedó reducida a AC + los cuatro semánticos.
+**Alertas.jsx** — filtros en `rebit_alertas_filtros_v3`, orden independiente por pestaña.
 
-**Entrega** — zip de `src/` completa + `rm -rf src && unzip` + comandos git. Frann no edita código.
-Ojo con nombres repetidos en `~/Downloads`: si ya existe uno igual, el navegador guarda el nuevo
-como `archivo-1.ext` y el `cp` termina copiando el viejo. Por eso los entregables van versionados.
+**Casos.jsx** — filtros en `rebit_casos_filtros_v3`. El orden por defecto es por urgencia
+de plazo (vencidos primero, cerrados al final).
+
+**components/ui.jsx** — Card, StatCard, Pill, Badge, SevBadge, ReportModal,
+chartGrid/Axis/Tooltip, TH, TD, SortTh, TableCard, Drawer, EmptyState.
+
+**App.jsx** — keyframes `pulse`, `fadeIn`, `drawerIn`. `syncCasos` guarda directo (sin
+debounce): los casos son registros chicos y conviene persistir el plazo apenas cambia.
+
+**theme.js** es la fuente única de diseño; la paleta de informes PDF está bloqueada.
+
+**Entrega** — zip de `src/` + `rm -rf src && unzip` + comandos git. Frann no edita código.
+Los entregables van versionados en el nombre: si en `~/Downloads` ya existe un archivo
+igual, el navegador guarda el nuevo como `archivo-1.ext` y el `cp` copia el viejo.

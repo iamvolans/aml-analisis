@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { toast, uiConfirm } from "../components/feedback";
 import { Badge, Card, Pill } from "../components/ui";
 import { _KEYS, callProxyOrDirect, extractWithClaude, extractWithGPT } from "../lib/ai";
-import { calcMetricas, calcScoring, detectPatrones } from "../lib/aml";
+import { calcMetricas, calcScoring, contarAlta, detectPatrones } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEliminar } from "../lib/auth";
 import { CHECKLIST_ITEMS, ESTADOS_CUENTA, KYB_FACTORS, getEstado } from "../lib/constants";
 import { genINF01, genINF07Cierre, genROS } from "../lib/reports";
@@ -1455,11 +1455,9 @@ function LegajosView(props) {
     var fp = parseFechaAR(p.createdAt);
     var ts = fp ? fp.getTime() : 0;
     if (ts >= st.ultTs) { st.ultTs = ts; st.ultLabel = p.createdAt || null; }
-    if (p.txns && p.txns.length) {
-      var leg = legIndex[p.legajoId];
-      var mp = calcMetricas(p.txns, leg);
-      if (mp) st.alta += detectPatrones(mp, leg).filter(function(s){return s.sev==='ALTA';}).length;
-    }
+    // Criterio único compartido (lib/aml.js): usa p.metricas persistidas, así que
+    // ya no subreporta cuando las txns no están hidratadas en memoria.
+    st.alta += contarAlta(p, legIndex[p.legajoId]);
   });
   // Últ. análisis: período más reciente, o la fecha de análisis externo al sistema
   function ultAnalisis(l) {

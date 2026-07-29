@@ -188,6 +188,27 @@ async function serverLoad() {
   } catch(e) { console.warn('[Sync] Error cargando:', e.message); return null; }
 }
 
+// ─── CASOS (T3) ──────────────────────────────────────────────────────────────
+async function serverLoadCasos() {
+  try {
+    var r = await fetchRetry('/api/sync?action=casos', { headers: { 'x-app-token': APP_TOKEN } }, 2);
+    if (!r.ok) return [];
+    var d = await r.json();
+    return (d && d.casos) || [];
+  } catch(e) { console.warn('[Sync] Error cargando casos:', e.message); return []; }
+}
+
+async function serverSaveCasos(casos, deletedCasoIds) {
+  try {
+    var r = await fetchRetry('/api/sync?action=casos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+      body: JSON.stringify({ casos: casos || [], deletedCasoIds: deletedCasoIds || [] })
+    }, 2);
+    return !!(r && r.ok);
+  } catch(e) { console.warn('[Sync] Error guardando casos:', e.message); return false; }
+}
+
 async function fetchServerConfig() {
   try {
     var r = await fetch('/api/config', { headers: { 'x-app-token': APP_TOKEN } });
@@ -196,4 +217,4 @@ async function fetchServerConfig() {
   } catch(e) { return null; }
 }
 
-export { gzipPayload, fetchRetry, serverSave, serverSaveTxns, serverLoadTxns, serverSaveKV, serverLoadKV, serverLoadKVPrefix, serverLoad, fetchServerConfig };
+export { gzipPayload, fetchRetry, serverSave, serverSaveTxns, serverLoadTxns, serverSaveKV, serverLoadKV, serverLoadKVPrefix, serverLoad, serverLoadCasos, serverSaveCasos, fetchServerConfig };

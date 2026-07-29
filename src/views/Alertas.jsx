@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { SevBadge, SortTh, TableCard, Drawer, EmptyState, TD } from "../components/ui";
-import { calcMetricas, detectPatrones } from "../lib/aml";
+import { senalesActivas } from "../lib/aml";
 import { serverLoadKVPrefix } from "../lib/sync";
 import { T } from "../lib/theme";
 import { parseFechaAR, sevColor, todayStr } from "../lib/utils";
@@ -81,12 +81,7 @@ function AlertasView(props) {
   var allSigs = [];
   periodos.forEach(function(p) {
     var leg = legajos.find(function(l){return l.id===p.legajoId;});
-    var m = p.metricas || (p.txns && p.txns.length ? calcMetricas(p.txns, leg) : null);
-    if (!m) return;
-    var sigs = detectPatrones(m, leg);
-    sigs.forEach(function(s) {
-      var res = (p.sigsResolucion||{})[s.pat];
-      if (res && res.estado === 'RESUELTA') return; // ya resuelta
+    senalesActivas(p, leg).forEach(function(s) {
       allSigs.push(Object.assign({}, s, {
         key: p.id + '_' + s.pat,
         legajoNom: (leg&&leg.razonSocial)||'N/D',

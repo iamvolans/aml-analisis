@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { BarChart, Bar, LineChart, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, Pill, StatCard, chartGrid, chartAxis, chartTooltip } from "../components/ui";
-import { calcMetricas, calcScoring, detectPatrones } from "../lib/aml";
+import { calcScoring, detectPatrones, metricasDe } from "../lib/aml";
 import { ESTADOS_CUENTA, getEstado } from "../lib/constants";
 import { serverLoadKVPrefix } from "../lib/sync";
 import { C, T } from "../lib/theme";
@@ -41,11 +41,7 @@ function DashboardView(props) {
   var cond = legajos.filter(function(l){return l.dictamen==='CONDICIONAL';}).length;
   var rech = legajos.filter(function(l){return l.dictamen==='RECHAZADO';}).length;
   // Helper: obtener métricas de un período — usa pre-computadas si existen, sino calcula desde txns
-  function getMetricasPeriodo(p, leg) {
-    if (p.metricas) return p.metricas;
-    if (p.txns && p.txns.length) return calcMetricas(p.txns, leg);
-    return null;
-  }
+  function getMetricasPeriodo(p, leg) { return metricasDe(p, leg); }
   // Helper: obtener señales activas (no resueltas) de un período
   function getSigsActivas(sigs, sigsResolucion) {
     if (!sigsResolucion) return sigs;

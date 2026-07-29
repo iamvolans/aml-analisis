@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { toast, uiConfirm } from "../components/feedback";
-import { BarChart, Bar, LineChart, Line, ComposedChart, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, Line, ComposedChart, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
-import { Card, Pill, SevBadge, StatCard, chartGrid, chartAxis, chartTooltip } from "../components/ui";
-import { calcMetricas, calcScoring, detectPatrones } from "../lib/aml";
+import { Card, Pill, SevBadge, chartGrid, chartAxis, chartTooltip } from "../components/ui";
+import { calcMetricas, calcScoring, contarAlta, detectPatrones } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEditar } from "../lib/auth";
 import { parseCsv, parseExcelFile } from "../lib/parsers";
 import { genINF02, genNotaDD } from "../lib/reports";
@@ -318,15 +318,7 @@ function AnalisisView(props) {
 
   // Señales ALTA activas de un período — usa las métricas persistidas, así que
   // no depende de que las txns estén hidratadas en memoria.
-  function altaActivas(p) {
-    var mm = p.metricas || (p.txns && p.txns.length ? calcMetricas(p.txns, selLegajo) : null);
-    if (!mm) return 0;
-    return detectPatrones(mm, selLegajo).filter(function(s){
-      if (s.sev !== 'ALTA') return false;
-      var r = (p.sigsResolucion||{})[s.pat];
-      return !r || r.estado !== 'RESUELTA';
-    }).length;
-  }
+  function altaActivas(p) { return contarAlta(p, selLegajo); }
   function txnsDe(p) {
     return (p.txns && p.txns.length > 0) ? p.txns.length : (p.metricas ? (p.metricas.totalTxns||0) : 0);
   }

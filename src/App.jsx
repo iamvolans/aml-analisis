@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, FolderOpen, BarChart3, Bell, Scale, Radar, BookOpen, Users, Download, Upload, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, FolderOpen, BarChart3, Bell, Briefcase, Scale, Radar, BookOpen, Users, Download, Upload, Settings, LogOut } from "lucide-react";
 import { ReportModal } from "./components/ui";
 import { FeedbackHost, toast, uiConfirm } from "./components/feedback";
 import CommandPalette from "./components/palette";
 import { setModuleKeys } from "./lib/ai";
 import { ROL_LABELS, puedeGestionarUsuarios } from "./lib/auth";
 import { APP_TOKEN, _USER_TOKEN, setUserToken } from "./lib/session";
-import { fetchServerConfig, serverLoad, serverSave } from "./lib/sync";
+import { fetchServerConfig, serverLoad, serverLoadCasos, serverSave, serverSaveCasos } from "./lib/sync";
 import { C, T } from "./lib/theme";
 import { todayStr } from "./lib/utils";
 import AlertasView from "./views/Alertas";
+import CasosView from "./views/Casos";
 import AnalisisView from "./views/Analisis";
 import DashboardView from "./views/Dashboard";
 import LegajosView from "./views/Legajos";
@@ -26,6 +27,7 @@ export default function App() {
   var isAuth = !!currentUser;
   var legState = useState([]); var legajos=legState[0]; var setLegajos=legState[1];
   var perState = useState([]); var periodos=perState[0]; var setPeriodos=perState[1];
+  var casState = useState([]); var casos=casState[0]; var setCasos=casState[1];
   var loadState = useState(true); var loading=loadState[0]; var setLoading=loadState[1];
   var viewState = useState('dashboard'); var view=viewState[0]; var setView=viewState[1];
   var repState = useState(null); var reportHTML=repState[0]; var setReportHTML=repState[1];
@@ -103,6 +105,9 @@ export default function App() {
     }).catch(function(){});
 
     // 2. Cargar todo desde Supabase (única fuente de verdad)
+    // Casos (T3) — carga independiente, no bloquea la hidratación principal
+    serverLoadCasos().then(function(cs){ setCasos(cs || []); }).catch(function(){});
+
     serverLoad().then(function(cloudData) {
       if (cloudData && cloudData.legajos !== undefined) {
         var cloudLegs = cloudData.legajos || [];
@@ -145,6 +150,15 @@ export default function App() {
   var syncTimerRef = useRef(null);
   var syncPendingRef = useRef(null);
   
+  // Los casos se guardan directo: son registros chicos y de baja frecuencia,
+  // y conviene que el plazo quede persistido apenas cambia el estado.
+  function syncCasos(lista) {
+    setSyncStatus('saving');
+    serverSaveCasos(lista).then(function(ok){
+      setSyncStatus(ok ? 'ok' : 'error');
+    });
+  }
+
   function syncToCloud(legs, pers, deletedLegajoIds, deletedPeriodoIds) {
     // Acumular datos más recientes
     var pending = syncPendingRef.current || { deletedLegajoIds: [], deletedPeriodoIds: [] };
@@ -238,6 +252,7 @@ export default function App() {
     ['legajos',   FolderOpen,      'Legajos KYB'],
     ['analisis',  BarChart3,       'Análisis AML'],
     ['alertas',   Bell,            'Alertas'],
+    ['casos',     Briefcase,       'Casos'],
     ['normativa', Scale,           'Normativa'],
     ['patrones',  Radar,           'Patrones AML'],
     ['wiki',      BookOpen,        'Wiki']
@@ -497,6 +512,7 @@ export default function App() {
         {view==='legajos' ? <LegajosView key={'leg-'+(legTarget||'')} initSelId={legTarget} legajos={legajos} setLegajos={setLegajos} periodos={periodos} setPeriodos={setPeriodos} onAnalizar={handleAnalizar} onReport={function(html){setReportHTML(html);}} onSync={syncToCloud} currentUser={currentUser}/> : null}
         {view==='analisis' ? <AnalisisView legajos={legajos} periodos={periodos} setPeriodos={setPeriodos} onReport={function(html){setReportHTML(html);}} initLegajo={analTarget.leg} initPeriodo={analTarget.per} onSync={syncToCloud} currentUser={currentUser}/> : null}
         {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos} setPeriodos={setPeriodos} onNavAnalisis={handleAnalizar} currentUser={currentUser}/> : null}
+        {view==='casos' ? <CasosView casos={casos} setCasos={setCasos} legajos={legajos} periodos={periodos} onNavAnalisis={handleAnalizar} onSyncCasos={syncCasos} currentUser={currentUser}/> : null}
         {view==='normativa' ? <NormativaView/> : null}
         {view==='patrones' ? <PatronesView/> : null}
         {view==='wiki' ? <WikiView/> : null}

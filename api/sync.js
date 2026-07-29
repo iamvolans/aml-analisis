@@ -118,6 +118,12 @@ export default async function handler(req, res) {
       return res.json({ items: rows || [] });
     }
 
+    // ── GET /api/sync?action=casos ───────────────────────────────────────────
+    if (req.method === 'GET' && action === 'casos') {
+      const rows = await sb('casos', 'GET', null, '?select=id,data&order=updated_at.desc');
+      return res.json({ casos: (rows || []).map(r => r.data) });
+    }
+
     // ── Parsear body (con soporte gzip) ───────────────────────────────────────
     let body;
     try {
@@ -187,6 +193,39 @@ export default async function handler(req, res) {
       const { k, v } = body || {};
       if (!k) return res.status(400).json({ error: 'Falta k' });
       await sb('kv', 'POST', [{ k, v, updated_at: new Date().toISOString() }]);
+      return res.json({ ok: true });
+    }
+
+    // ── POST /api/sync?action=casos ──────────────────────────────────────────
+    // Upsert de casos + borrado explícito por id. Los casos son registros de
+    // trazabilidad regulatoria: no se borran en cascada con nada.
+    if (req.method === 'POST' && action === 'casos') {
+      const { casos, deletedCasoIds } = body || {};
+      const now = new Date().toISOString();
+      const ops = [];
+
+      if (casos?.length) {
+        const rows = casos.map(c => ({
+          id:        c.id,
+          legajo_id: c.legajoId || null,
+          ref:       c.ref || '',
+          estado:    c.estado || 'NUEVA',
+          prioridad: c.prioridad || 'MEDIA',
+          origen:    c.origen || 'MANUAL',
+          analista:  c.analista || null,
+          data:      c,
+          updated_at: now
+        }));
+        ops.push(sb('casos', 'POST', rows));
+      }
+
+      if (deletedCasoIds?.length) {
+        for (const id of deletedCasoIds) {
+          ops.push(sb('casos', 'DELETE', null, `?id=eq.${id}`));
+        }
+      }
+
+      await Promise.all(ops);
       return res.json({ ok: true });
     }
 

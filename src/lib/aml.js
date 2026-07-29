@@ -139,4 +139,35 @@ function calcScoring(m, sigs) {
   return { scores:sc, promedio:prom, col:col, clasificacion:clasif, accion:accion };
 }
 
-export { calcMetricas, detectPatrones, calcScoring };
+// ─── CRITERIO ÚNICO DE SEÑAL ACTIVA ──────────────────────────────────────────
+// Antes cada vista contaba distinto: Análisis y Alertas desde p.metricas, el
+// Dashboard con fallback a p.scoring.senales, y Legajos exigía txns en memoria
+// (subreportaba). Estos dos helpers son la fuente única de verdad.
+//
+// Orden de preferencia de la fuente de métricas:
+//   1. p.metricas   — persistido en Supabase, disponible siempre
+//   2. p.txns       — solo si están hidratadas en memoria
+// Una señal está ACTIVA si no tiene resolución o su estado no es RESUELTA.
+
+function metricasDe(periodo, legajo) {
+  if (!periodo) return null;
+  if (periodo.metricas) return periodo.metricas;
+  if (periodo.txns && periodo.txns.length) return calcMetricas(periodo.txns, legajo);
+  return null;
+}
+
+function senalesActivas(periodo, legajo) {
+  var m = metricasDe(periodo, legajo);
+  if (!m) return [];
+  var res = (periodo && periodo.sigsResolucion) || {};
+  return detectPatrones(m, legajo).filter(function(s) {
+    var r = res[s.pat];
+    return !r || r.estado !== 'RESUELTA';
+  });
+}
+
+function contarAlta(periodo, legajo) {
+  return senalesActivas(periodo, legajo).filter(function(s){ return s.sev === 'ALTA'; }).length;
+}
+
+export { calcMetricas, detectPatrones, calcScoring, metricasDe, senalesActivas, contarAlta };
