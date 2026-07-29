@@ -34,6 +34,7 @@ export default function App() {
   var analState = useState({leg:null,per:null}); var analTarget=analState[0]; var setAnalTarget=analState[1];
   var palState = useState(false); var paletteOpen=palState[0]; var setPaletteOpen=palState[1];
   var legTgtState = useState(null); var legTarget=legTgtState[0]; var setLegTarget=legTgtState[1];
+  var casoTgtState = useState(null); var casoTarget=casoTgtState[0]; var setCasoTarget=casoTgtState[1];
   // API keys: se cargan del servidor (variables de entorno Vercel) — no de localStorage
   var apiKeyState = useState(''); var apiKey=apiKeyState[0]; var setApiKey=apiKeyState[1];
   var oaiKeyState = useState(''); var oaiKey=oaiKeyState[0]; var setOaiKey=oaiKeyState[1];
@@ -194,6 +195,7 @@ export default function App() {
   }, []);
 
   function handleAnalizar(leg, per) { setAnalTarget({leg:leg,per:per}); setView('analisis'); }
+  function handleVerCaso(casoId) { setCasoTarget(casoId); setView('casos'); }
 
   var importRef = useRef();
 
@@ -508,11 +510,11 @@ export default function App() {
             </button>
           </div>
         )}
-        {view==='dashboard' ? <DashboardView legajos={legajos} periodos={periodos} setLegajos={setLegajos}/> : null}
+        {view==='dashboard' ? <DashboardView casos={casos} onVerCaso={handleVerCaso} legajos={legajos} periodos={periodos} setLegajos={setLegajos}/> : null}
         {view==='legajos' ? <LegajosView key={'leg-'+(legTarget||'')} initSelId={legTarget} legajos={legajos} setLegajos={setLegajos} periodos={periodos} setPeriodos={setPeriodos} onAnalizar={handleAnalizar} onReport={function(html){setReportHTML(html);}} onSync={syncToCloud} currentUser={currentUser}/> : null}
         {view==='analisis' ? <AnalisisView legajos={legajos} periodos={periodos} setPeriodos={setPeriodos} onReport={function(html){setReportHTML(html);}} initLegajo={analTarget.leg} initPeriodo={analTarget.per} onSync={syncToCloud} currentUser={currentUser}/> : null}
-        {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos} setPeriodos={setPeriodos} onNavAnalisis={handleAnalizar} currentUser={currentUser}/> : null}
-        {view==='casos' ? <CasosView casos={casos} setCasos={setCasos} legajos={legajos} periodos={periodos} onNavAnalisis={handleAnalizar} onSyncCasos={syncCasos} currentUser={currentUser}/> : null}
+        {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos} setPeriodos={setPeriodos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onNavAnalisis={handleAnalizar} onVerCaso={handleVerCaso} currentUser={currentUser}/> : null}
+        {view==='casos' ? <CasosView key={'cas-'+(casoTarget||'')} initCasoId={casoTarget} casos={casos} setCasos={setCasos} legajos={legajos} periodos={periodos} onNavAnalisis={handleAnalizar} onSyncCasos={syncCasos} currentUser={currentUser}/> : null}
         {view==='normativa' ? <NormativaView/> : null}
         {view==='patrones' ? <PatronesView/> : null}
         {view==='wiki' ? <WikiView/> : null}

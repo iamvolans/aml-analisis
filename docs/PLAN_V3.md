@@ -138,7 +138,16 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
       plazo, drawer con plazos aplicables, transiciones e historial.
     - v3.8.1: el preview de generación es **selección por señal** (checkbox por fila,
       marcar/desmarcar todas, contador). Antes solo ofrecía crear todas de una.
-  - [ ] **T3b — PRÓXIMA: kanban, asignación y comentarios** (spec abajo)
+  - [x] T3b (v3.9.0): bandeja completa
+    - Vista **kanban** con drag & drop entre columnas (usa `cambiarEstadoCaso`, mismo
+      camino que los botones: sellar fechas sigue teniendo una sola implementación).
+      Toggle lista/kanban persistente en sesión.
+    - **Asignación**: selector de analista desde `perfiles`, botón "Asignarme",
+      filtro "Mis casos" y tira de carga por analista con casos vencidos.
+    - **Hilo de comentarios** por caso, separado del historial de estados.
+    - **Vínculo señal ↔ caso bidireccional**: Alertas muestra columna "Caso" con la
+      referencia si ya existe (y salta a él), o el botón "Abrir caso desde esta señal".
+    - **Widget de plazos críticos en Dashboard**, clickeable hacia el caso.
 - [ ] T4 — Calendario regulatorio
 - [ ] T5 — Screening periódico
 - [ ] T6 — Comportamiento + grafo
@@ -157,19 +166,15 @@ control operativo real.** El resto (RFI 7 días, comité 10 días, toma de caso
 
 Cambiar un número en `SLA` recalcula todos los contadores de la app.
 
-## Spec T3b — Kanban, asignación y comentarios (PRÓXIMA)
+## Spec T4 — Calendario regulatorio y vencimientos (PRÓXIMA)
 
-1. **Vista kanban** de la bandeja: columnas por estado, drag & drop entre columnas
-   (con la misma función `cambiarEstadoCaso`, para que sellar fechas siga siendo
-   un único camino). Toggle lista/kanban persistente en sesión.
-2. **Asignación por analista**: selector de analista desde la tabla `perfiles`,
-   filtro "mis casos", y KPI de carga por analista.
-3. **Hilo de comentarios** por caso (separado del historial de estados), con autor
-   y fecha, persistido en `data.comentarios`.
-4. **Vínculo señal ↔ caso en las dos direcciones**: hoy el caso apunta al período
-   y al patrón; falta que Alertas muestre "ya tiene caso CASO-XXX" en la fila de
-   la señal y permita saltar al caso.
-5. Widget de casos vencidos en el Dashboard.
+1. Reglas de actualización de legajo por segmento (ALTO 12 meses, MEDIO-ALTO 18,
+   MEDIO 24, BAJO 36 — parametrizable, mismo patrón que el objeto `SLA`).
+2. Vencimiento por documento del checklist (DDJJ, estados contables, constancias).
+3. Fechas institucionales: autoevaluación anual, informe del revisor externo,
+   reportes sistemáticos mensuales UIF.
+4. Panel "Vencimientos" + widget "qué vence en 30 días" en Dashboard + generación
+   automática de casos T3 al vencer (reusando `nuevoCaso` con origen nuevo `VENCIMIENTO`).
 
 ## Método de verificación por tanda
 
@@ -214,8 +219,14 @@ Filtros en `sessionStorage` → `rebit_legajos_filtros_v3`.
 
 **Alertas.jsx** — filtros en `rebit_alertas_filtros_v3`, orden independiente por pestaña.
 
-**Casos.jsx** — filtros en `rebit_casos_filtros_v3`. El orden por defecto es por urgencia
-de plazo (vencidos primero, cerrados al final).
+**Casos.jsx** — filtros en `rebit_casos_filtros_v3` (incluye modo lista/kanban y "mis
+casos"). El orden por defecto es por urgencia de plazo (vencidos primero, cerrados al
+final). El kanban usa HTML5 drag & drop; soltar en una columna de cierre sin rol de
+supervisor avisa y no mueve nada.
+
+**Vínculo señal ↔ caso** — la clave es `periodoId + '::' + pat`, con índice único parcial
+en Postgres. Alertas construye `casoPorSenal` en memoria para mostrar la columna "Caso".
+App.jsx expone `handleVerCaso(id)`, que remonta CasosView con `initCasoId` y abre el drawer.
 
 **components/ui.jsx** — Card, StatCard, Pill, Badge, SevBadge, ReportModal,
 chartGrid/Axis/Tooltip, TH, TD, SortTh, TableCard, Drawer, EmptyState.

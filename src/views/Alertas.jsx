@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { SevBadge, SortTh, TableCard, Drawer, EmptyState, TD } from "../components/ui";
+import { nuevoCaso, refCaso } from "../lib/casos";
 import { senalesActivas } from "../lib/aml";
 import { serverLoadKVPrefix } from "../lib/sync";
 import { T } from "../lib/theme";
@@ -22,6 +23,41 @@ function AlertasView(props) {
   var setPeriodos = props.setPeriodos;
   var onNavAnalisis = props.onNavAnalisis; // function(leg, per)
   var currentUser = props.currentUser || {rol:'analista', nombre:'Analista'};
+  var casos = props.casos || [];
+  var setCasos = props.setCasos;
+  var onSyncCasos = props.onSyncCasos;
+  var onVerCaso = props.onVerCaso;
+
+  // Índice de casos ya abiertos por (período, patrón) — vínculo señal ↔ caso
+  var casoPorSenal = {};
+  casos.forEach(function(c){
+    if (c.periodoId && c.pat) casoPorSenal[c.periodoId + '::' + c.pat] = c;
+  });
+  function casoDe(s) { return casoPorSenal[s.periodoId + '::' + s.pat] || null; }
+
+  function abrirCasoDesdeSenal(s) {
+    if (!setCasos || !onSyncCasos) return;
+    var c = nuevoCaso({
+      ref: refCaso(s.legajoNom, casos.length + 1),
+      legajoId: s.legajoId,
+      legajoNom: s.legajoNom,
+      origen: 'SENAL',
+      prioridad: s.sev === 'ALTA' ? 'ALTA' : s.sev === 'MEDIA' ? 'MEDIA' : 'BAJA',
+      titulo: s.titulo,
+      detalle: s.desc + (s.tip ? '\n\nAcción sugerida: ' + s.tip : ''),
+      periodoId: s.periodoId,
+      periodoNom: s.periodoNom,
+      pat: s.pat,
+      sev: s.sev,
+      fechaOperacion: (s.per && s.per.createdAt) || '',
+      analista: currentUser.nombre || 'Analista',
+    });
+    var lista = casos.concat([c]);
+    setCasos(lista);
+    onSyncCasos(lista);
+    setSelSigKey(null);
+    if (onVerCaso) onVerCaso(c.id);
+  }
 
   var tabState = useState(function(){ return leerFiltros().tab || 'senales'; }); var tab=tabState[0]; var setTab=tabState[1];
   var justState = useState({}); var justMap=justState[0]; var setJustMap=justState[1]; // {key: texto}
@@ -240,6 +276,30 @@ function AlertasView(props) {
             </button>
           </div>
 
+          {(function(){
+            var cs = casoDe(selSig);
+            if (cs) {
+              return (
+                <div style={{background:T.BG2,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.md,padding:'12px 14px',marginBottom:12}}>
+                  <div style={{fontSize:11,color:T.TEXT3,marginBottom:7}}>
+                    Esta señal ya tiene un caso abierto: <span style={{fontFamily:T.MONO,color:T.ACCENT,fontWeight:700}}>{cs.ref}</span>
+                  </div>
+                  <button onClick={function(){setSelSigKey(null); if(onVerCaso) onVerCaso(cs.id);}}
+                    style={{width:'100%',background:T.ACCENT_SOFT,color:T.ACCENT,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.sm,padding:'8px 0',cursor:'pointer',fontWeight:600,fontSize:12,fontFamily:T.SANS}}>
+                    Ver el caso →
+                  </button>
+                </div>
+              );
+            }
+            if (!setCasos) return null;
+            return (
+              <button onClick={function(){abrirCasoDesdeSenal(selSig);}}
+                style={{width:'100%',background:'rgba(255,184,48,0.14)',color:T.AMBER,border:'1px solid rgba(255,184,48,0.35)',borderRadius:T.RADIUS.sm,padding:'9px 0',cursor:'pointer',fontWeight:700,fontSize:12,fontFamily:T.SANS,marginBottom:12}}>
+                📁 Abrir caso desde esta señal
+              </button>
+            );
+          })()}
+
           {onNavAnalisis && selSig.leg && selSig.per && (
             <button onClick={function(){setSelSigKey(null);onNavAnalisis(selSig.leg, selSig.per);}}
               style={{width:'100%',background:T.ACCENT_SOFT,color:T.ACCENT,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.sm,padding:'9px 0',cursor:'pointer',fontWeight:600,fontSize:12,fontFamily:T.SANS}}>
@@ -319,6 +379,7 @@ function AlertasView(props) {
                 <SortTh k="titulo" label="Señal" sortBy={sortBy} onSort={toggleSort}/>
                 <SortTh k="legajoNom" label="Cliente" sortBy={sortBy} onSort={toggleSort} extra={{width:200}}/>
                 <SortTh k="periodoNom" label="Período" sortBy={sortBy} onSort={toggleSort} extra={{width:150}}/>
+                <th style={Object.assign({},TD,{width:130,background:T.BG3,position:'sticky',top:0,zIndex:2,color:T.TEXT3,fontSize:10,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',borderBottom:'1px solid '+T.BORDER2})}>Caso</th>
               </tr>
             </thead>
             <tbody>
@@ -331,6 +392,19 @@ function AlertasView(props) {
                     <td style={Object.assign({},TD,{color:T.TEXT,fontWeight:500})}>{s.titulo}</td>
                     <td style={Object.assign({},TD,{color:T.TEXT2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:200})}>{s.legajoNom}</td>
                     <td style={Object.assign({},TD,{color:T.TEXT3,fontFamily:T.MONO,fontSize:11})}>{s.periodoNom}</td>
+                    <td style={Object.assign({},TD,{whiteSpace:'nowrap'})}>
+                      {(function(){
+                        var cs = casoDe(s);
+                        if (!cs) return <span style={{fontSize:10,color:T.TEXT4}}>—</span>;
+                        return (
+                          <button onClick={function(e){e.stopPropagation(); if(onVerCaso) onVerCaso(cs.id);}}
+                            title={'Ver ' + cs.ref}
+                            style={{background:T.ACCENT_SOFT,border:'1px solid '+T.ACCENT_DIM,color:T.ACCENT,borderRadius:T.RADIUS.sm,padding:'2px 8px',cursor:'pointer',fontSize:9,fontWeight:700,fontFamily:T.MONO}}>
+                            {cs.ref}
+                          </button>
+                        );
+                      })()}
+                    </td>
                   </tr>
                 );
               })}

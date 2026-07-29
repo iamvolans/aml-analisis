@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { BarChart, Bar, LineChart, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, Pill, StatCard, chartGrid, chartAxis, chartTooltip } from "../components/ui";
 import { calcScoring, detectPatrones, metricasDe } from "../lib/aml";
+import { getEstadoCaso, slaCritico, colorSLA } from "../lib/casos";
 import { ESTADOS_CUENTA, getEstado } from "../lib/constants";
 import { serverLoadKVPrefix } from "../lib/sync";
 import { C, T } from "../lib/theme";
@@ -9,6 +10,16 @@ import { fmtM, parseFechaAR } from "../lib/utils";
 
 function DashboardView(props) {
   var legajos = props.legajos, periodos = props.periodos, setLegajos = props.setLegajos || function(){};
+  var casos = props.casos || [];
+  var onVerCaso = props.onVerCaso;
+
+  // Casos con plazo vencido o próximo — el panel que un inspector mira primero
+  var casosAbiertos = casos.filter(function(c){ return getEstadoCaso(c.estado).abierto; });
+  var casosUrgentes = casosAbiertos.map(function(c){
+    return { c: c, sla: slaCritico(c) };
+  }).filter(function(x){
+    return x.sla && (x.sla.estado==='VENCIDO' || x.sla.estado==='PROXIMO');
+  }).sort(function(a,b){ return a.sla.dias - b.sla.dias; });
   var dashTabState = useState('operacional'); var dashTab=dashTabState[0]; var setDashTab=dashTabState[1];
 
   // RFIs de TODOS los legajos — cargados desde Supabase KV (claves 'rfi_<legajoId>')
@@ -248,6 +259,32 @@ function DashboardView(props) {
             </table>
           </div>
         )}
+        {casosUrgentes.length > 0 && (
+          <div style={{background:T.BG2,border:'1px solid rgba(255,68,85,0.3)',borderLeft:'3px solid '+T.RED,borderRadius:T.RADIUS.md,padding:'13px 16px',marginBottom:14,boxShadow:T.SHADOW.card}}>
+            <div style={{display:'flex',alignItems:'center',gap:9,marginBottom:10}}>
+              <span style={{fontSize:11,fontWeight:700,color:T.RED,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS}}>Casos con plazo crítico</span>
+              <span style={{fontFamily:T.MONO,fontSize:11,fontWeight:700,color:T.TEXT3}}>{casosUrgentes.length}</span>
+            </div>
+            {casosUrgentes.slice(0,5).map(function(x){
+              var col = colorSLA(x.sla.estado);
+              return (
+                <div key={x.c.id} onClick={function(){ if(onVerCaso) onVerCaso(x.c.id); }}
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderTop:'1px solid '+T.BORDER,cursor:onVerCaso?'pointer':'default'}}>
+                  <span style={{fontFamily:T.MONO,fontSize:10,fontWeight:700,color:T.ACCENT,flexShrink:0}}>{x.c.ref}</span>
+                  <span style={{flex:1,minWidth:0,fontSize:12,color:T.TEXT,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{x.c.titulo||'Sin título'}</span>
+                  <span style={{fontSize:11,color:T.TEXT3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:150}}>{x.c.legajoNom||'—'}</span>
+                  <span style={{color:col,fontSize:11,fontWeight:700,fontFamily:T.MONO,whiteSpace:'nowrap',flexShrink:0}}>
+                    {x.sla.dias < 0 ? '⚠ '+Math.abs(x.sla.dias)+' d vencido' : x.sla.dias===0 ? 'vence hoy' : x.sla.dias+' d'}
+                  </span>
+                </div>
+              );
+            })}
+            {casosUrgentes.length > 5 && (
+              <div style={{fontSize:10,color:T.TEXT3,marginTop:8,fontFamily:T.SANS}}>y {casosUrgentes.length-5} más — verlos en la sección Casos.</div>
+            )}
+          </div>
+        )}
+
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}}>
           {[{label:'Legajos KYB',val:total,col:T.ACCENT},{label:'Períodos AML',val:periodos.length,col:T.VIOLET},{label:'Señales ALTA',val:altas,col:T.RED},{label:'Total señales',val:allSigs.length,col:T.AMBER}].map(function(kpi,i){return(
             <StatCard key={i} label={kpi.label} val={kpi.val} col={kpi.col}/>

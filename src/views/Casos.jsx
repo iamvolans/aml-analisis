@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { SortTh, TableCard, Drawer, EmptyState, StatCard, TD } from "../components/ui";
 import { toast, uiConfirm } from "../components/feedback";
-import { auditLog, puedeAprobar } from "../lib/auth";
+import { auditLog, puedeAprobar, serverGetUsuarios } from "../lib/auth";
 import {
   SLA, ESTADOS_CASO, getEstadoCaso, getOrigen, PRIORIDADES, getPrioridad,
   hitosSLA, slaCritico, colorSLA, fmtFecha,
   nuevoCaso, refCaso, casosPendientesDeCrear, cambiarEstadoCaso
 } from "../lib/casos";
 import { T } from "../lib/theme";
+import { todayStr } from "../lib/utils";
 
 var FILTROS_KEY = 'rebit_casos_filtros_v3';
 function leerFiltros() {
@@ -27,18 +28,35 @@ function CasosView(props) {
   var periodos = props.periodos || [];
   var onNavAnalisis = props.onNavAnalisis;
   var currentUser = props.currentUser || {rol:'analista', nombre:'Analista'};
+  var initCasoId = props.initCasoId || null;
 
   var searchState = useState(function(){ return leerFiltros().search || ''; }); var search=searchState[0]; var setSearch=searchState[1];
   var fEstState = useState(function(){ return leerFiltros().est || 'ABIERTOS'; }); var fEst=fEstState[0]; var setFEst=fEstState[1];
   var fPriState = useState(function(){ return leerFiltros().pri || 'TODAS'; }); var fPri=fPriState[0]; var setFPri=fPriState[1];
   var fLegState = useState(function(){ return leerFiltros().leg || 'TODOS'; }); var fLeg=fLegState[0]; var setFLeg=fLegState[1];
   var sortState = useState(function(){ return leerFiltros().sort || {k:'sla',d:1}; }); var sortBy=sortState[0]; var setSortBy=sortState[1];
+  var modoState = useState(function(){ return leerFiltros().modo || 'lista'; }); var modo=modoState[0]; var setModo=modoState[1];
+  var misState = useState(function(){ return !!leerFiltros().mis; }); var soloMis=misState[0]; var setSoloMis=misState[1];
 
   useEffect(function(){
-    guardarFiltros({ search:search, est:fEst, pri:fPri, leg:fLeg, sort:sortBy });
-  }, [search, fEst, fPri, fLeg, sortBy]);
+    guardarFiltros({ search:search, est:fEst, pri:fPri, leg:fLeg, sort:sortBy, modo:modo, mis:soloMis });
+  }, [search, fEst, fPri, fLeg, sortBy, modo, soloMis]);
 
-  var selState = useState(null); var selId=selState[0]; var setSelId=selState[1];
+  var selState = useState(initCasoId); var selId=selState[0]; var setSelId=selState[1];
+  var comentState = useState(''); var coment=comentState[0]; var setComent=comentState[1];
+  var dragState = useState(null); var arrastrando=dragState[0]; var setArrastrando=dragState[1];
+
+  // Analistas disponibles para asignar — desde la tabla perfiles
+  var usuariosState = useState([]); var usuarios=usuariosState[0]; var setUsuarios=usuariosState[1];
+  useEffect(function(){
+    var cancelado = false;
+    serverGetUsuarios().then(function(r){
+      if (cancelado) return;
+      var lista = (r && r.usuarios) || [];
+      setUsuarios(lista.filter(function(u){ return u.activo !== false; }));
+    }).catch(function(){});
+    return function(){ cancelado = true; };
+  }, []);
   var notaState = useState(''); var nota=notaState[0]; var setNota=notaState[1];
   var previewState = useState(null); var preview=previewState[0]; var setPreview=previewState[1];
   var previewSelState = useState([]); var previewSel=previewSelState[0]; var setPreviewSel=previewSelState[1];
@@ -75,6 +93,27 @@ function CasosView(props) {
     auditLog(currentUser, 'cambiar_estado_caso', 'caso', caso.id, {
       ref: caso.ref, estadoAnterior: caso.estado, estadoNuevo: nuevoEstado, empresa: caso.legajoNom
     });
+  }
+
+  function asignarA(caso, nombre) {
+    var actualizado = Object.assign({}, caso, { analista: nombre || '' });
+    actualizarCaso(actualizado);
+    auditLog(currentUser, 'asignar_caso', 'caso', caso.id, { ref: caso.ref, analista: nombre || '(sin asignar)' });
+  }
+
+  function comentar(caso, texto) {
+    if (!texto || !texto.trim()) return;
+    var ahora = new Date();
+    var actualizado = Object.assign({}, caso, {
+      comentarios: (caso.comentarios||[]).concat([{
+        texto: texto.trim(),
+        autor: currentUser.nombre || 'Analista',
+        fecha: todayStr(),
+        hora: ahora.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})
+      }])
+    });
+    actualizarCaso(actualizado);
+    setComent('');
   }
 
   function asignarme(caso) {
@@ -131,10 +170,11 @@ function CasosView(props) {
     var okEst = fEst==='TODOS' ? true : fEst==='ABIERTOS' ? est.abierto : fEst==='CERRADOS' ? !est.abierto : c.estado===fEst;
     var okPri = fPri==='TODAS' || c.prioridad===fPri;
     var okLeg = fLeg==='TODOS' || c.legajoId===fLeg;
+    var okMis = !soloMis || c.analista === (currentUser.nombre||'Analista');
     var okQ = !q || [c.ref, c.titulo, c.legajoNom, c.pat, c.analista].some(function(x){
       return (x||'').toString().toLowerCase().indexOf(q) >= 0;
     });
-    return okEst && okPri && okLeg && okQ;
+    return okEst && okPri && okLeg && okQ && okMis;
   }).sort(function(a,b){
     var k=sortBy.k, d=sortBy.d, va, vb;
     if (k==='sla') {
@@ -153,6 +193,19 @@ function CasosView(props) {
   var vencidos = abiertos.filter(function(c){ var s=slaCritico(c); return s && s.estado==='VENCIDO'; });
   var proximos = abiertos.filter(function(c){ var s=slaCritico(c); return s && s.estado==='PROXIMO'; });
   var sinAsignar = abiertos.filter(function(c){ return !c.analista; });
+
+  // Carga por analista sobre los casos abiertos
+  var carga = {};
+  abiertos.forEach(function(c){
+    var k = c.analista || '(sin asignar)';
+    if (!carga[k]) carga[k] = { total:0, vencidos:0 };
+    carga[k].total++;
+    var sc = slaCritico(c);
+    if (sc && sc.estado==='VENCIDO') carga[k].vencidos++;
+  });
+  var cargaLista = Object.keys(carga).map(function(k){
+    return { nombre:k, total:carga[k].total, vencidos:carga[k].vencidos };
+  }).sort(function(a,b){ return b.total - a.total; });
 
   var inputSt = {border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'7px 10px',fontSize:12,color:T.TEXT,fontFamily:T.SANS};
   var hayFiltro = search || fEst!=='ABIERTOS' || fPri!=='TODAS' || fLeg!=='TODOS';
@@ -217,13 +270,23 @@ function CasosView(props) {
               <input value={nota} onChange={function(e){setNota(e.target.value);}}
                 placeholder="Nota del cambio (queda en el historial)"
                 style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'7px 10px',fontSize:12,marginBottom:9,boxSizing:'border-box'}}/>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                {!sel.analista && (
+              <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:9,flexWrap:'wrap'}}>
+                <span style={{fontSize:11,color:T.TEXT3}}>Analista:</span>
+                <select value={sel.analista||''} onChange={function(e){asignarA(sel, e.target.value);}}
+                  style={{border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'5px 9px',fontSize:11,color:T.TEXT,fontFamily:T.SANS,flex:'1 1 150px'}}>
+                  <option value="">— Sin asignar —</option>
+                  {usuarios.map(function(u){return <option key={u.id||u.email} value={u.nombre||u.email}>{u.nombre||u.email}</option>;})}
+                  {sel.analista && !usuarios.some(function(u){return (u.nombre||u.email)===sel.analista;}) &&
+                    <option value={sel.analista}>{sel.analista}</option>}
+                </select>
+                {sel.analista !== (currentUser.nombre||'Analista') && (
                   <button onClick={function(){asignarme(sel);}}
-                    style={{background:T.ACCENT_SOFT,color:T.ACCENT,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.sm,padding:'6px 12px',cursor:'pointer',fontSize:11,fontWeight:600,fontFamily:T.SANS}}>
+                    style={{background:T.ACCENT_SOFT,color:T.ACCENT,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.sm,padding:'5px 11px',cursor:'pointer',fontSize:11,fontWeight:600,fontFamily:T.SANS,whiteSpace:'nowrap'}}>
                     Asignarme
                   </button>
                 )}
+              </div>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
                 {ESTADOS_CASO.filter(function(e){ return e.id!==sel.estado; }).map(function(e){
                   // Cerrar con o sin ROS es decisión de comité
                   var restringido = (e.id==='CERRADA_SIN_ROS' || e.id==='ROS_PRESENTADO') && !puedeDecidir;
@@ -242,6 +305,33 @@ function CasosView(props) {
                   El plazo de reporte arranca cuando el caso se eleva a comité (ahí se sella la fecha de calificación).
                 </div>
               )}
+            </div>
+
+            {/* Comentarios */}
+            <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,padding:'14px 16px',marginBottom:14}}>
+              <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>
+                Comentarios ({(sel.comentarios||[]).length})
+              </div>
+              {(sel.comentarios||[]).length === 0 && (
+                <div style={{fontSize:11,color:T.TEXT4,marginBottom:10}}>Sin comentarios todavía.</div>
+              )}
+              {(sel.comentarios||[]).map(function(cm,i){
+                return (
+                  <div key={i} style={{borderLeft:'2px solid '+T.BORDER2,paddingLeft:11,marginBottom:11}}>
+                    <div style={{fontSize:10,color:T.TEXT3,marginBottom:2}}>
+                      <span style={{color:T.ACCENT,fontWeight:600}}>{cm.autor}</span> · {cm.fecha} {cm.hora}
+                    </div>
+                    <div style={{fontSize:12,color:T.TEXT2,lineHeight:1.55,whiteSpace:'pre-wrap'}}>{cm.texto}</div>
+                  </div>
+                );
+              })}
+              <textarea value={coment} onChange={function(e){setComent(e.target.value);}} rows={3}
+                placeholder="Agregar un comentario al caso…"
+                style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'8px 10px',fontSize:12,resize:'vertical',lineHeight:1.55,boxSizing:'border-box',marginTop:4}}/>
+              <button onClick={function(){comentar(sel, coment);}} disabled={!coment.trim()}
+                style={{marginTop:7,background:coment.trim()?T.ACCENT_SOFT:T.BG3,color:coment.trim()?T.ACCENT:T.TEXT4,border:'1px solid '+(coment.trim()?T.ACCENT_DIM:T.BORDER),borderRadius:T.RADIUS.sm,padding:'6px 14px',cursor:coment.trim()?'pointer':'not-allowed',fontSize:11,fontWeight:600,fontFamily:T.SANS}}>
+                Comentar
+              </button>
             </div>
 
             {/* Historial */}
@@ -374,14 +464,107 @@ function CasosView(props) {
           <option value="TODOS">Todos los clientes</option>
           {legajos.map(function(l){return <option key={l.id} value={l.id}>{l.razonSocial||'Sin nombre'}</option>;})}
         </select>
+        <button onClick={function(){setSoloMis(!soloMis);}}
+          title="Mostrar solo los casos asignados a mí"
+          style={{background:soloMis?T.ACCENT_SOFT:'transparent',color:soloMis?T.ACCENT:T.TEXT2,border:'1px solid '+(soloMis?T.ACCENT_DIM:T.BORDER),borderRadius:T.RADIUS.sm,padding:'7px 12px',cursor:'pointer',fontSize:12,fontWeight:soloMis?600:500,fontFamily:T.SANS,whiteSpace:'nowrap'}}>
+          👤 Mis casos
+        </button>
         {hayFiltro && (
-          <button onClick={function(){setSearch('');setFEst('ABIERTOS');setFPri('TODAS');setFLeg('TODOS');}}
+          <button onClick={function(){setSearch('');setFEst('ABIERTOS');setFPri('TODAS');setFLeg('TODOS');setSoloMis(false);}}
             style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.sm,padding:'7px 11px',cursor:'pointer',fontSize:12,color:T.TEXT2,fontFamily:T.SANS}}>✕ Limpiar</button>
         )}
+        <div style={{display:'flex',gap:2,background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.sm,padding:3,marginLeft:'auto'}}>
+          {[['lista','☰ Lista'],['kanban','▦ Kanban']].map(function(m){
+            var on = modo===m[0];
+            return (
+              <button key={m[0]} onClick={function(){setModo(m[0]);}}
+                style={{border:'none',borderRadius:T.RADIUS.sm-1,padding:'5px 11px',cursor:'pointer',fontSize:11,fontWeight:on?600:500,background:on?T.ACCENT_SOFT:'transparent',color:on?T.ACCENT:T.TEXT2,fontFamily:T.SANS,transition:T.TRANS}}>
+                {m[1]}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Tabla */}
-      {casos.length === 0 ? (
+      {/* Carga por analista */}
+      {cargaLista.length > 0 && (
+        <div style={{display:'flex',gap:7,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
+          <span style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS}}>Carga abierta:</span>
+          {cargaLista.map(function(a){
+            var sinAsig = a.nombre==='(sin asignar)';
+            return (
+              <span key={a.nombre} style={{background:T.BG2,border:'1px solid '+(a.vencidos?'rgba(255,68,85,0.35)':T.BORDER),borderRadius:T.RADIUS.pill,padding:'3px 11px',fontSize:11,color:sinAsig?T.TEXT4:T.TEXT2,fontFamily:T.SANS}}>
+                {a.nombre} <span style={{fontFamily:T.MONO,fontWeight:700,color:T.TEXT}}>{a.total}</span>
+                {a.vencidos>0 && <span style={{fontFamily:T.MONO,fontWeight:700,color:T.RED,marginLeft:5}}>⚠{a.vencidos}</span>}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══ KANBAN ═══════════════════════════════════════════════════════════ */}
+      {modo==='kanban' && casos.length > 0 && (
+        <div style={{display:'flex',gap:10,alignItems:'flex-start',overflowX:'auto',paddingBottom:8}}>
+          {ESTADOS_CASO.map(function(col){
+            var enCol = filtrados.filter(function(c){ return c.estado===col.id; });
+            var esDestino = arrastrando && arrastrando.estado !== col.id;
+            return (
+              <div key={col.id}
+                onDragOver={function(e){ if(esDestino) e.preventDefault(); }}
+                onDrop={function(e){
+                  e.preventDefault();
+                  if (!arrastrando || arrastrando.estado===col.id) return;
+                  var restringido = (col.id==='CERRADA_SIN_ROS'||col.id==='ROS_PRESENTADO') && !puedeDecidir;
+                  if (restringido) { toast('Cerrar un caso requiere rol supervisor u oficial de cumplimiento.'); setArrastrando(null); return; }
+                  transicionar(arrastrando, col.id);
+                  setArrastrando(null);
+                }}
+                style={{flex:'1 1 210px',minWidth:210,background:T.BG2,border:'1px solid '+(esDestino?T.ACCENT_DIM:T.BORDER),borderRadius:T.RADIUS.md,padding:9,transition:T.TRANS}}>
+
+                <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:9,paddingBottom:8,borderBottom:'1px solid '+T.BORDER}}>
+                  <span style={{width:7,height:7,borderRadius:'50%',background:col.col,flexShrink:0}}/>
+                  <span style={{fontSize:11,fontWeight:600,color:col.col,flex:1}}>{col.label}</span>
+                  <span style={{fontFamily:T.MONO,fontSize:11,fontWeight:700,color:T.TEXT3}}>{enCol.length}</span>
+                </div>
+
+                {enCol.length === 0 && (
+                  <div style={{fontSize:10,color:T.TEXT4,textAlign:'center',padding:'16px 0'}}>—</div>
+                )}
+
+                {enCol.map(function(c){
+                  var pri = getPrioridad(c.prioridad);
+                  var sc = slaCritico(c);
+                  var scol = sc ? colorSLA(sc.estado) : T.TEXT4;
+                  return (
+                    <div key={c.id} draggable
+                      onDragStart={function(){ setArrastrando(c); }}
+                      onDragEnd={function(){ setArrastrando(null); }}
+                      onClick={function(){ setSelId(c.id); setNota(''); setComent(''); }}
+                      style={{background:T.BG3,border:'1px solid '+T.BORDER,borderLeft:'3px solid '+pri.col,borderRadius:T.RADIUS.sm,padding:'9px 10px',marginBottom:7,cursor:'grab',opacity:arrastrando&&arrastrando.id===c.id?0.4:1,transition:T.TRANS}}>
+                      <div style={{fontFamily:T.MONO,fontSize:9,color:T.ACCENT,fontWeight:600,marginBottom:3}}>{c.ref}</div>
+                      <div style={{fontSize:11,color:T.TEXT,fontWeight:500,lineHeight:1.35,marginBottom:5}}>{c.titulo||'Sin título'}</div>
+                      <div style={{fontSize:10,color:T.TEXT3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',marginBottom:5}}>{c.legajoNom||'—'}</div>
+                      <div style={{display:'flex',alignItems:'center',gap:6}}>
+                        {sc && (
+                          <span style={{color:scol,fontSize:9,fontWeight:700,fontFamily:T.MONO}}>
+                            {sc.dias < 0 ? '⚠ '+Math.abs(sc.dias)+' d' : sc.dias===0 ? 'hoy' : sc.dias+' d'}
+                          </span>
+                        )}
+                        <span style={{marginLeft:'auto',fontSize:9,color:c.analista?T.TEXT3:T.TEXT4,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:100}}>
+                          {c.analista||'sin asignar'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══ LISTA ════════════════════════════════════════════════════════════ */}
+      {modo==='lista' && (casos.length === 0 ? (
         <EmptyState icon="📁" title="Todavía no hay casos"
           sub="Usá “Generar desde señales” para abrir casos a partir de las señales ALTA activas, o creá uno manual."/>
       ) : filtrados.length === 0 ? (
@@ -432,6 +615,11 @@ function CasosView(props) {
             })}
           </tbody>
         </TableCard>
+      ))}
+
+      {modo==='kanban' && casos.length===0 && (
+        <EmptyState icon="📁" title="Todavía no hay casos"
+          sub="Usá “Generar desde señales” para abrir casos a partir de las señales ALTA activas, o creá uno manual."/>
       )}
 
       <div style={{fontSize:10,color:T.TEXT4,marginTop:12,lineHeight:1.6,fontFamily:T.SANS}}>

@@ -154,6 +154,7 @@ function nuevoCaso(campos) {
     fechaCalificacion: '',   // se sella al calificar como sospechoso
     fechaRfi: '',            // se sella al pasar a RFI_ENVIADO
     fechaCierre: '',
+    comentarios: [],
     historial: [{
       estado: 'NUEVA',
       fecha: todayStr(),
