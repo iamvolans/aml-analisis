@@ -147,9 +147,9 @@ function AlertasView(props) {
           return (
             <button key={t[0]} onClick={function(){setTab(t[0]);}}
               style={{flex:1,padding:'7px 8px',border:'none',borderRadius:6,cursor:'pointer',
-                background:on?'white':'transparent',
-                fontWeight:on?700:400,fontSize:12,color:on?C.AO:'#666',
-                boxShadow:on?'0 1px 4px rgba(0,0,0,0.08)':'none',transition:'all 0.12s'}}>
+                background:on?T.ACCENT_SOFT:'transparent',
+                fontWeight:on?600:400,fontSize:12,color:on?T.ACCENT:T.TEXT2,
+                transition:T.TRANS}}>
               {t[1]}
               {hasCnt && <span style={{marginLeft:6,background:on?(t[0]==='senales'?C.ROJO:C.NARANJA):'#ddd',color:'white',borderRadius:10,padding:'0 6px',fontSize:11,fontWeight:700}}>{t[2]}</span>}
             </button>
@@ -169,7 +169,7 @@ function AlertasView(props) {
           ) : allSigs.map(function(s,i){
             var key = s.periodoId+'_'+s.pat;
             var bord = s.sev==='ALTA'?C.ROJO:s.sev==='MEDIA'?C.NARANJA:C.AMARILLO;
-            var bg   = s.sev==='ALTA'?'#FFF8F8':s.sev==='MEDIA'?'#FFFBF5':'#FFFDE7';
+            var bg   = s.sev==='ALTA'?'rgba(255,71,87,0.06)':s.sev==='MEDIA'?'rgba(255,140,66,0.06)':'rgba(255,176,32,0.05)';
             return (
               <div key={i} style={{background:bg,border:'1px solid '+T.BORDER,borderRadius:8,padding:'12px 16px',marginBottom:10,borderLeft:'4px solid '+bord}}>
                 {/* Cabecera */}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { toast, uiConfirm } from "../components/feedback";
 import { Badge, Card, Pill } from "../components/ui";
 import { _KEYS, callProxyOrDirect, extractWithClaude, extractWithGPT } from "../lib/ai";
 import { calcMetricas, calcScoring, detectPatrones } from "../lib/aml";
@@ -13,7 +14,7 @@ import AnalisisView from "./Analisis";
 
 function LegajosView(props) {
   var legajos=props.legajos, setLegajos=props.setLegajos, periodos=props.periodos, setPeriodos=props.setPeriodos, onAnalizar=props.onAnalizar, onReport=props.onReport, onSync=props.onSync||function(){}, currentUser=props.currentUser||{rol:'analista'};
-  var selState = useState(null); var selId = selState[0]; var setSelId = selState[1];
+  var selState = useState(props.initSelId||null); var selId = selState[0]; var setSelId = selState[1];
   var editState = useState(false); var editing = editState[0]; var setEditing = editState[1];
   var formState = useState(null); var form = formState[0]; var setForm = formState[1];
   var uploadingState = useState(false); var uploading = uploadingState[0]; var setUploading = uploadingState[1];
@@ -51,10 +52,10 @@ function LegajosView(props) {
       checklist:cl, kybScores:kybSc, redFlags:[], observaciones:[], docsIA:[], createdAt:todayStr(), estadoCuenta:'EN_ONBOARDING', estadoCuentaUpdatedAt:todayStr(), estadoHistorial:[{estado:'EN_ONBOARDING', fecha:todayStr(), hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}), analista:'Sistema'}] };
   }
   function saveList(updated) { setLegajos(updated); onSync(updated, periodos); }
-  function handleSave() {
+  async function handleSave() {
     console.log('[Rebit] Guardando legajo:', form.razonSocial, form.cuit, form);
     if (!form.razonSocial && !form.cuit) {
-      if (!window.confirm('Este legajo no tiene Razón Social ni CUIT cargados.\n\nSi ya subiste los documentos pero los campos están vacíos, puede que la extracción IA haya fallado — verificá tu API key.\n\n¿Guardar igual?')) return;
+      if (!(await uiConfirm('Este legajo no tiene Razón Social ni CUIT cargados.\n\nSi ya subiste los documentos pero los campos están vacíos, puede que la extracción IA haya fallado — verificá tu API key.\n\n¿Guardar igual?', {danger:false, confirmLabel:'Guardar igual'}))) return;
     }
     var exists = legajos.find(function(l){return l.id===form.id;});
     var updated = exists ? legajos.map(function(l){return l.id===form.id?form:l;}) : legajos.concat([form]);
@@ -166,7 +167,7 @@ function LegajosView(props) {
     // Validar tamaño total — API acepta hasta ~100MB total de documentos
     var totalMB = files.reduce(function(s,f){return s+f.size;},0) / (1024*1024);
     if (totalMB > 90) {
-      alert('Los documentos seleccionados pesan ' + totalMB.toFixed(1) + 'MB en total.\nEl límite es 90MB por análisis. Seleccioná menos documentos o usá versiones más livianas.');
+      toast('Los documentos seleccionados pesan ' + totalMB.toFixed(1) + 'MB en total.\nEl límite es 90MB por análisis. Seleccioná menos documentos o usá versiones más livianas.');
       return;
     }
 
@@ -230,7 +231,7 @@ function LegajosView(props) {
       // Informar documentos omitidos si los hubo (proceso resiliente)
       if (extracted && extracted._docsFallidos && extracted._docsFallidos.length > 0) {
         var omitidos = extracted._docsFallidos;
-        alert('⚠ Extracción completada parcialmente.\n\n'
+        toast('⚠ Extracción completada parcialmente.\n\n'
           + (files.length - omitidos.length) + ' de ' + files.length + ' documentos procesados correctamente.\n\n'
           + 'Documentos omitidos por timeout (podés reintentarlos subiéndolos solos):\n• '
           + omitidos.join('\n• '));
@@ -284,13 +285,13 @@ function LegajosView(props) {
       var isBilling = msg.indexOf('quota') >= 0 || msg.indexOf('billing') >= 0 || msg.indexOf('balance') >= 0 || (msg.indexOf('credit') >= 0 && msg.indexOf('credit') < 50);
       var isModelAccess = msg.indexOf('does not have access to model') >= 0 || msg.indexOf('model_not_found') >= 0;
       if (isRateLimit) {
-        alert('⏱ Límite de velocidad del API (Rate Limit)\n\n' + msg + '\n\n─────────────────\nEl API de Claude tiene un límite de 30,000 tokens por minuto en cuentas nuevas.\nCon 25 PDFs grandes se supera ese límite fácilmente.\n\nSoluciones:\n• Subí menos documentos a la vez (empezá con 3-5 PDFs)\n• Esperá 60 segundos y volvé a intentar\n• Considerá upgradear el plan en console.anthropic.com');
+        toast('⏱ Límite de velocidad del API (Rate Limit)\n\n' + msg + '\n\n─────────────────\nEl API de Claude tiene un límite de 30,000 tokens por minuto en cuentas nuevas.\nCon 25 PDFs grandes se supera ese límite fácilmente.\n\nSoluciones:\n• Subí menos documentos a la vez (empezá con 3-5 PDFs)\n• Esperá 60 segundos y volvé a intentar\n• Considerá upgradear el plan en console.anthropic.com');
       } else if (isBilling) {
-        alert('💳 Sin créditos en la API\n\n' + msg + '\n\n─────────────────\nPara resolverlo:\n• Anthropic → console.anthropic.com/settings/billing\n• OpenAI → platform.openai.com/settings/billing');
+        toast('💳 Sin créditos en la API\n\n' + msg + '\n\n─────────────────\nPara resolverlo:\n• Anthropic → console.anthropic.com/settings/billing\n• OpenAI → platform.openai.com/settings/billing');
       } else if (isModelAccess) {
-        alert('🔒 El proyecto no tiene acceso al modelo solicitado.\n\n' + msg + '\n\n─────────────────\nVerificá la configuración en platform.openai.com/settings o console.anthropic.com');
+        toast('🔒 El proyecto no tiene acceso al modelo solicitado.\n\n' + msg + '\n\n─────────────────\nVerificá la configuración en platform.openai.com/settings o console.anthropic.com');
       } else {
-        alert('❌ Error en la extracción IA:\n\n' + msg + '\n\nPodés cargar el legajo manualmente usando la tab 📋 Datos.');
+        toast('❌ Error en la extracción IA:\n\n' + msg + '\n\nPodés cargar el legajo manualmente usando la tab 📋 Datos.');
       }
     }
     setUploading(false); e.target.value = '';
@@ -351,7 +352,7 @@ function LegajosView(props) {
           </div> : null}
 
           {/* ZONA DE UPLOAD cuando ya hay resultado o está cargando */}
-          {(iaFields || uploading) ? <div onClick={function(){if(!uploading)fileRef.current.click();}} style={{border:'2px dashed '+C.AC,borderRadius:8,padding:'20px',textAlign:'center',cursor:uploading?'wait':'pointer',background:uploading?'#F8FBFE':'#F0FAF4',marginBottom:12}}>
+          {(iaFields || uploading) ? <div onClick={function(){if(!uploading)fileRef.current.click();}} style={{border:'2px dashed '+C.AC,borderRadius:8,padding:'20px',textAlign:'center',cursor:uploading?'wait':'pointer',background:uploading?T.BG2:'#F0FAF4',marginBottom:12}}>
             <div style={{fontSize:24,marginBottom:4}}>{uploading?'⏳':'✅'}</div>
             <div style={{fontSize:13,color:T.CYAN,fontWeight:700}}>{uploading?uploadMsg:'Documentos analizados · Clic para re-analizar con nuevos docs'}</div>
           </div> : null}
@@ -619,8 +620,8 @@ function LegajosView(props) {
                 fld('limitesHistorial', hist);
               }
 
-              function removeLim() {
-                if (!window.confirm('¿Eliminar este registro de aumento de límite?')) return;
+              async function removeLim() {
+                if (!(await uiConfirm('¿Eliminar este registro de aumento de límite?', {danger:true, confirmLabel:'Eliminar'}))) return;
                 var hist = safeArr(form.limitesHistorial).filter(function(x,xi){ return xi !== li; });
                 fld('limitesHistorial', hist);
               }
@@ -772,7 +773,7 @@ function LegajosView(props) {
             🤖 IA detectó {iaFields.rfCount} red flag(s) en los documentos. Revisá, editá o agregá los tuyos.
           </div>}
           <p style={{fontSize:12,color:T.TEXT2,marginBottom:8}}>Red flags (uno por linea):</p>
-          <textarea value={safeArr(form.redFlags).join('\n')} onChange={function(e){fld('redFlags',e.target.value.split('\n').filter(function(s){return s.trim();}));}} rows={6} style={{width:'100%',border:'1px solid '+(iaFields&&iaFields.rfCount>0?C.ROJO:'#ddd'),borderRadius:4,padding:'8px 10px',fontSize:13,resize:'vertical',background:iaFields&&iaFields.rfCount>0?'#FFF8F8':'white'}} placeholder="Ingresa red flags..."/>
+          <textarea value={safeArr(form.redFlags).join('\n')} onChange={function(e){fld('redFlags',e.target.value.split('\n').filter(function(s){return s.trim();}));}} rows={6} style={{width:'100%',border:'1px solid '+(iaFields&&iaFields.rfCount>0?C.ROJO:T.BORDER2),borderRadius:6,padding:'8px 10px',fontSize:13,resize:'vertical',color:T.TEXT,background:iaFields&&iaFields.rfCount>0?'rgba(255,71,87,0.07)':T.BG4}} placeholder="Ingresa red flags..."/>
           <p style={{fontSize:12,color:T.TEXT2,margin:'12px 0 6px'}}>Observaciones del analista:</p>
           <textarea value={safeArr(form.observaciones).join('\n')} onChange={function(e){fld('observaciones',e.target.value.split('\n').filter(function(s){return s.trim();}));}} rows={4} style={{width:'100%',border:'1px solid '+T.BORDER,borderRadius:4,padding:'8px 10px',fontSize:13,resize:'vertical'}} placeholder="Observaciones adicionales..."/>
         </div> : null}
@@ -844,7 +845,7 @@ function LegajosView(props) {
             }
 
             async function ejecutarScreening() {
-              if (nombresArr.length === 0) { alert('El legajo debe tener al menos Razón Social para realizar el screening.'); return; }
+              if (nombresArr.length === 0) { toast('El legajo debe tener al menos Razón Social para realizar el screening.'); return; }
               setScreeningLoading(true);
               try {
                 var prompt = 'Sos un especialista en compliance AML/CFT para un PSP argentino regulado por UIF/BCRA.\n\n'
@@ -893,7 +894,7 @@ function LegajosView(props) {
                 };
                 fld('screening', nuevoScreening);
               } catch(e) {
-                alert('Error al realizar el screening: ' + e.message);
+                toast('Error al realizar el screening: ' + e.message);
               }
               setScreeningLoading(false);
             }
@@ -905,7 +906,7 @@ function LegajosView(props) {
             async function ejecutarAdverseMedia() {
               var empresa = form.razonSocial || '';
               var presidente = form.presidente || form.representanteLegal || '';
-              if (!empresa) { alert('El legajo debe tener Razón Social para realizar Adverse Media Search.'); return; }
+              if (!empresa) { toast('El legajo debe tener Razón Social para realizar Adverse Media Search.'); return; }
               setAdverseLoading(true);
               try {
                 var sujetos = [empresa];
@@ -952,7 +953,7 @@ function LegajosView(props) {
                 fld('adverseMedia', result);
                 setAdverseResult(result);
               } catch(e) {
-                alert('Error en Adverse Media Search: ' + e.message);
+                toast('Error en Adverse Media Search: ' + e.message);
               }
               setAdverseLoading(false);
             }
@@ -1159,7 +1160,7 @@ function LegajosView(props) {
             }} style={{background:'rgba(139,103,192,0.2)',color:'#B39DDB',border:'1px solid rgba(139,103,192,0.3)',borderRadius:3,padding:'8px 14px',cursor:'pointer',fontWeight:700,fontSize:13}}>📋 ROS Borrador</button>}
             <button onClick={function(){setCierreOpen(true);setCierreMot('');setCierreIA('');}} style={{background:T.RED,color:'white',border:'none',borderRadius:4,padding:'8px 14px',cursor:'pointer',fontWeight:700,fontSize:13}}>🔒 Cierre</button>
             <button onClick={function(){setForm(JSON.parse(JSON.stringify(sel)));setEditing(true);setTab('datos');}} style={btnG}>✏️ Editar</button>
-            {puedeEliminar(currentUser.rol) && <button onClick={function(){if(window.confirm('Eliminar?')){saveList(legajos.filter(function(l){return l.id!==sel.id;}));setSelId(null);}}} style={btnR}>🗑</button>}
+            {puedeEliminar(currentUser.rol) && <button onClick={async function(){if(await uiConfirm('Eliminar?', {danger:true, confirmLabel:'Eliminar'})){saveList(legajos.filter(function(l){return l.id!==sel.id;}));setSelId(null);}}} style={btnR}>🗑</button>}
           </div>
 
           {/* MODAL ROS BORRADOR */}
@@ -1304,7 +1305,7 @@ function LegajosView(props) {
                       var apiKey2 = _KEYS.anthropic || '';
                       var oaiKey2 = _KEYS.openai || '';
                       var provider2 = _KEYS.provider || 'claude';
-                      if (!apiKey2 && !oaiKey2) { alert('Configurá una API key en ⚙️'); setCierreLoading(false); return; }
+                      if (!apiKey2 && !oaiKey2) { toast('Configurá una API key en ⚙️'); setCierreLoading(false); return; }
                       var contexto = 'Empresa: '+sel.razonSocial+' | CUIT: '+(sel.cuit||'N/D')+' | Actividad: '+(sel.actividad||'N/D')+' | Segmento: '+(sel.segmento||'MEDIO')+' | Dictamen: '+(sel.dictamen||'N/D')+' | Red Flags KYB: '+(safeArr(sel.redFlags).join('; ')||'ninguna')+' | Períodos AML analizados: '+lPers2.length+(lastM2?' | Último período ('+( lastP.nombre)+'): Vol IN '+fmtM(lastM2.tIn)+', Vol OUT '+fmtM(lastM2.tOut)+', '+lastSigs2.length+' señales ('+lastSigs2.filter(function(s){return s.sev==='ALTA';}).length+' ALTA), Score AML '+(lastSc2?lastSc2.promedio.toFixed(2)+'/5 '+lastSc2.clasificacion:'N/D'):'');
                       var promptCierre = 'Sos analista senior Compliance de GOAT S.A./Rebit (PSP argentino). Redactá un análisis ejecutivo profesional de máximo 3 párrafos fundamentando el cierre de cuenta del siguiente cliente. Sé objetivo, técnico y basate estrictamente en los datos. Cita los indicadores concretos. Evaluá si corresponde considerar un ROS ante UIF. No uses bullets, escribe en prosa.\n\nDatos del cliente:\n'+contexto+'\n\nMotivo declarado de cierre: '+cierreTipo+'\nDetalle: '+(cierreMot||'Sin detalle adicional.');
                       try {
@@ -1409,10 +1410,10 @@ function LegajosView(props) {
   }
   function selectAll() { setSelected(filteredLegs.map(function(l){return l.id;})); }
   function clearSel() { setSelected([]); }
-  function deleteSelected() {
+  async function deleteSelected() {
     if (!selected.length) return;
     var names = selected.map(function(id){ var l=legajos.find(function(x){return x.id===id;}); return l ? '• '+(l.razonSocial||'Sin nombre') : ''; }).join('\n');
-    if (!window.confirm('Eliminar ' + selected.length + ' legajo(s)?\n\n' + names + '\n\nEsta acción no se puede deshacer.')) return;
+    if (!(await uiConfirm('Eliminar ' + selected.length + ' legajo(s)?\n\n' + names + '\n\nEsta acción no se puede deshacer.', {danger:true, confirmLabel:'Eliminar'}))) return;
     var newLegs = legajos.filter(function(l){return selected.indexOf(l.id)<0;});
     var newPers = periodos.filter(function(p){return selected.indexOf(p.legajoId)<0;});
     saveList(newLegs); setPeriodos(newPers);
@@ -1432,8 +1433,8 @@ function LegajosView(props) {
     a.href=url; a.download='legajo-'+(l.razonSocial||l.id).replace(/[^a-z0-9]/gi,'_')+'.json';
     a.click(); URL.revokeObjectURL(url);
   }
-  function deleteSingle(l) {
-    if (!window.confirm('Eliminar "' + (l.razonSocial||'Sin nombre') + '"?\nEsta acción no se puede deshacer.')) return;
+  async function deleteSingle(l) {
+    if (!(await uiConfirm('Eliminar "' + (l.razonSocial||'Sin nombre') + '"?\nEsta acción no se puede deshacer.', {danger:true, confirmLabel:'Eliminar'}))) return;
     var newLegs = legajos.filter(function(x){return x.id!==l.id;});
     var newPers = periodos.filter(function(p){return p.legajoId!==l.id;});
     saveList(newLegs); setPeriodos(newPers);
@@ -1535,7 +1536,7 @@ function LegajosView(props) {
                               <div
                                 key={eOpt.id}
                                 onClick={function(ev){ev.stopPropagation();if(!isCurrent){cambioRapidoEstado(l,eOpt.id);}setMenuOpen(null);}}
-                                style={{padding:'8px 12px',cursor:isCurrent?'default':'pointer',fontSize:12,display:'flex',gap:8,alignItems:'center',borderRadius:4,background:isCurrent?eOpt.bg:'white',opacity:isCurrent?0.7:1}}
+                                style={{padding:'8px 12px',cursor:isCurrent?'default':'pointer',fontSize:12,display:'flex',gap:8,alignItems:'center',borderRadius:4,background:isCurrent?eOpt.bg:T.BG4,opacity:isCurrent?0.7:1}}
                               >
                                 <span style={{width:8,height:8,borderRadius:'50%',background:eOpt.color,display:'inline-block',flexShrink:0}}></span>
                                 <span style={{color:eOpt.color,fontWeight:isCurrent?700:400}}>{eOpt.label}</span>

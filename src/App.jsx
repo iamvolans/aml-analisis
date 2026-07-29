@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { LayoutDashboard, FolderOpen, BarChart3, Bell, Scale, Radar, BookOpen, Users, Download, Upload, Settings, LogOut } from "lucide-react";
 import { ReportModal } from "./components/ui";
+import { FeedbackHost, toast, uiConfirm } from "./components/feedback";
+import CommandPalette from "./components/palette";
 import { setModuleKeys } from "./lib/ai";
 import { ROL_LABELS, puedeGestionarUsuarios } from "./lib/auth";
 import { APP_TOKEN, _USER_TOKEN, setUserToken } from "./lib/session";
@@ -28,6 +30,8 @@ export default function App() {
   var viewState = useState('dashboard'); var view=viewState[0]; var setView=viewState[1];
   var repState = useState(null); var reportHTML=repState[0]; var setReportHTML=repState[1];
   var analState = useState({leg:null,per:null}); var analTarget=analState[0]; var setAnalTarget=analState[1];
+  var palState = useState(false); var paletteOpen=palState[0]; var setPaletteOpen=palState[1];
+  var legTgtState = useState(null); var legTarget=legTgtState[0]; var setLegTarget=legTgtState[1];
   // API keys: se cargan del servidor (variables de entorno Vercel) — no de localStorage
   var apiKeyState = useState(''); var apiKey=apiKeyState[0]; var setApiKey=apiKeyState[1];
   var oaiKeyState = useState(''); var oaiKey=oaiKeyState[0]; var setOaiKey=oaiKeyState[1];
@@ -164,6 +168,15 @@ export default function App() {
 
   var activeKeyOk = provider==='openai' ? (serverKeys.openai || !!oaiKey.trim()) : (serverKeys.anthropic || !!apiKey.trim());
 
+  // Cmd+K / Ctrl+K → Command Palette
+  useEffect(function() {
+    function onKey(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletteOpen(function(o){return !o;}); }
+    }
+    window.addEventListener('keydown', onKey);
+    return function(){ window.removeEventListener('keydown', onKey); };
+  }, []);
+
   function handleAnalizar(leg, per) { setAnalTarget({leg:leg,per:per}); setView('analisis'); }
 
   var importRef = useRef();
@@ -183,17 +196,18 @@ export default function App() {
   function handleImport(e) {
     var f = e.target.files[0]; if (!f) return;
     var r = new FileReader();
-    r.onload = function() {
+    r.onload = async function() {
       try {
         var data = JSON.parse(r.result);
         var importedLegs = data.legajos || [];
         var importedPers = data.periodos || [];
-        if (!importedLegs.length && !importedPers.length) { alert('El archivo no contiene datos validos.'); return; }
-        var merge = window.confirm(
+        if (!importedLegs.length && !importedPers.length) { toast('El archivo no contiene datos validos.'); return; }
+        var merge = await uiConfirm(
           'Archivo: ' + (data.exportedAt ? new Date(data.exportedAt).toLocaleDateString('es-AR') : 'desconocido') + '\n' +
           importedLegs.length + ' legajos y ' + importedPers.length + ' periodos encontrados.\n\n' +
-          'OK = AGREGAR a los datos existentes\nCancelar = REEMPLAZAR todo'
-        );
+          '¿Cómo querés importarlos?',
+          {title:'Importar backup', confirmLabel:'Agregar a existentes', cancelLabel:'Reemplazar todo', danger:false});
+        if (merge === null) return; // Esc = cancelar importación
         var newLegs, newPers;
         if (merge) {
           var existingLegIds = legajos.map(function(l){return l.id;});
@@ -202,16 +216,16 @@ export default function App() {
           var addPers = importedPers.filter(function(p){return existingPerIds.indexOf(p.id)<0;});
           newLegs = legajos.concat(addLegs);
           newPers = periodos.concat(addPers);
-          alert('Importados: ' + addLegs.length + ' legajos nuevos y ' + addPers.length + ' periodos nuevos. (' + (importedLegs.length - addLegs.length) + ' duplicados omitidos)');
+          toast('Importados: ' + addLegs.length + ' legajos nuevos y ' + addPers.length + ' periodos nuevos. (' + (importedLegs.length - addLegs.length) + ' duplicados omitidos)');
         } else {
           newLegs = importedLegs;
           newPers = importedPers;
-          alert('Datos reemplazados: ' + newLegs.length + ' legajos, ' + newPers.length + ' periodos.');
+          toast('Datos reemplazados: ' + newLegs.length + ' legajos, ' + newPers.length + ' periodos.');
         }
         setLegajos(newLegs);
         setPeriodos(newPers);
         syncToCloud(newLegs, newPers);
-      } catch(err) { alert('Error al leer el archivo: ' + err.message); }
+      } catch(err) { toast('Error al leer el archivo: ' + err.message); }
     };
     r.readAsText(f, 'UTF-8');
     e.target.value = '';
@@ -390,6 +404,16 @@ export default function App() {
           </div>
         </div>
 
+        {/* Búsqueda global */}
+        <div style={{padding:'0 10px 8px'}}>
+          <button onClick={function(){setPaletteOpen(true);}}
+            style={{display:'flex',gap:8,alignItems:'center',width:'100%',padding:'8px 12px',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm+2,background:T.BG3,color:T.TEXT3,cursor:'pointer',fontSize:12,fontFamily:T.SANS,transition:T.TRANS}}>
+            <span style={{fontSize:12}}>🔍</span>
+            <span style={{flex:1,textAlign:'left'}}>Buscar…</span>
+            <span style={{fontSize:9,fontFamily:T.MONO,border:'1px solid '+T.BORDER2,borderRadius:4,padding:'1px 5px',color:T.TEXT4}}>⌘K</span>
+          </button>
+        </div>
+
         {/* Navegación */}
         <nav style={{flex:1,padding:'4px 10px',overflowY:'auto'}}>
           {NAV.map(function(n){
@@ -439,7 +463,7 @@ export default function App() {
                 <div style={{color:T.TEXT,fontSize:12,fontWeight:600,fontFamily:T.SANS,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{currentUser.nombre}</div>
                 <div style={{color:T.TEXT3,fontSize:10,fontFamily:T.SANS}}>{ROL_LABELS[currentUser.rol]||currentUser.rol}</div>
               </div>
-              <button onClick={function(){if(window.confirm('¿Cerrar sesión?')){setCurrentUser(null);}}} title="Cerrar sesión"
+              <button onClick={async function(){if(await uiConfirm('¿Cerrar sesión?', {danger:false, confirmLabel:'Cerrar sesión'})){setCurrentUser(null);}}} title="Cerrar sesión"
                 style={{background:'none',border:'none',color:T.TEXT3,cursor:'pointer',padding:4,display:'flex'}}>
                 <LogOut size={14}/>
               </button>
@@ -468,7 +492,7 @@ export default function App() {
           </div>
         )}
         {view==='dashboard' ? <DashboardView legajos={legajos} periodos={periodos} setLegajos={setLegajos}/> : null}
-        {view==='legajos' ? <LegajosView legajos={legajos} setLegajos={setLegajos} periodos={periodos} setPeriodos={setPeriodos} onAnalizar={handleAnalizar} onReport={function(html){setReportHTML(html);}} onSync={syncToCloud} currentUser={currentUser}/> : null}
+        {view==='legajos' ? <LegajosView key={'leg-'+(legTarget||'')} initSelId={legTarget} legajos={legajos} setLegajos={setLegajos} periodos={periodos} setPeriodos={setPeriodos} onAnalizar={handleAnalizar} onReport={function(html){setReportHTML(html);}} onSync={syncToCloud} currentUser={currentUser}/> : null}
         {view==='analisis' ? <AnalisisView legajos={legajos} periodos={periodos} setPeriodos={setPeriodos} onReport={function(html){setReportHTML(html);}} initLegajo={analTarget.leg} initPeriodo={analTarget.per} onSync={syncToCloud} currentUser={currentUser}/> : null}
         {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos} setPeriodos={setPeriodos} onNavAnalisis={handleAnalizar} currentUser={currentUser}/> : null}
         {view==='normativa' ? <NormativaView/> : null}
@@ -476,6 +500,12 @@ export default function App() {
         {view==='wiki' ? <WikiView/> : null}
         {view==='usuarios' && currentUser && puedeGestionarUsuarios(currentUser.rol) ? <UsuariosView currentUser={currentUser}/> : null}
       </div>
+
+      <FeedbackHost/>
+      <CommandPalette open={paletteOpen} onClose={function(){setPaletteOpen(false);}}
+        legajos={legajos} nav={NAV}
+        onNavigate={function(v){setView(v);}}
+        onOpenLegajo={function(l){setLegTarget(l.id);setView('legajos');}}/>
     </div>
   );
 }

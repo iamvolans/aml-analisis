@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { toast, uiConfirm } from "../components/feedback";
 import { BarChart, Bar, LineChart, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
 import { Card, SevBadge } from "../components/ui";
@@ -179,8 +180,8 @@ function AnalisisView(props) {
     auditLog(currentUser,'cambiar_estado_rfi','rfi',rfiId,{nuevoEstado:nuevoEstado,empresa:selLegajo&&selLegajo.razonSocial});
   }
 
-  function eliminarRfi(rfiId) {
-    if (!window.confirm('Eliminar este RFI y todo su historial de intercambios?')) return;
+  async function eliminarRfi(rfiId) {
+    if (!(await uiConfirm('Eliminar este RFI y todo su historial de intercambios?', {danger:true, confirmLabel:'Eliminar'}))) return;
     saveRfis(rfis.filter(function(r){return r.id!==rfiId;}));
     if (rfiMode===rfiId) setRfiMode(null);
   }
@@ -257,16 +258,16 @@ function AnalisisView(props) {
       } else if (ext === 'xls' || ext === 'xlsx' || ext === 'ods') {
         txns = await parseExcelFile(f);
       } else {
-        alert('Formato no soportado. Usá CSV, XLS o XLSX.');
+        toast('Formato no soportado. Usá CSV, XLS o XLSX.');
         setLoadingFile(false); e.target.value=''; return;
       }
       if (txns.length === 0) {
-        alert('⚠ No se encontraron transacciones en el archivo.\n\nVerificá que el archivo tenga columnas de: fecha, tipo (IN/OUT o débito/crédito), monto, y opcionalmente contraparte.\n\nSi el archivo tiene otro formato de columnas, abrilo en Excel y guardalo como CSV separado por comas.');
+        toast('⚠ No se encontraron transacciones en el archivo.\n\nVerificá que el archivo tenga columnas de: fecha, tipo (IN/OUT o débito/crédito), monto, y opcionalmente contraparte.\n\nSi el archivo tiene otro formato de columnas, abrilo en Excel y guardalo como CSV separado por comas.');
         setLoadingFile(false); e.target.value=''; return;
       }
       setCsv({name:f.name, txns:txns});
     } catch(err) {
-      alert('Error al leer el archivo: ' + err.message);
+      toast('Error al leer el archivo: ' + err.message);
     }
     setLoadingFile(false); e.target.value='';
   }
@@ -318,7 +319,7 @@ function AnalisisView(props) {
         </div>
         {selLegajo && lP.length >= 2 && (
           <div style={{display:'flex',gap:2,background:T.BG3,borderRadius:4,padding:3,flexShrink:0,border:'1px solid '+T.BORDER}}>
-            <button onClick={function(){setTendencias(false);}} style={{padding:'6px 14px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:!tendencias?700:400,background:!tendencias?C.AO:'transparent',color:!tendencias?'white':C.AO,fontSize:12}}>🔍 Período individual</button>
+            <button onClick={function(){setTendencias(false);}} style={{padding:'6px 14px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:!tendencias?700:400,background:!tendencias?T.ACCENT:'transparent',color:!tendencias?'#fff':T.TEXT2,fontSize:12}}>🔍 Período individual</button>
             <button onClick={function(){setTendencias(true);setSelPeriodo(null);}} style={{padding:'6px 14px',border:'none',borderRadius:4,cursor:'pointer',fontWeight:tendencias?700:400,background:tendencias?'#7D3C98':'transparent',color:tendencias?'white':C.AO,fontSize:12}}>📊 Tendencias ({lP.length} períodos)</button>
           </div>
         )}
@@ -351,8 +352,8 @@ function AnalisisView(props) {
             )}
           {selPeriodo && (
               <button
-                onClick={function(){
-                  if (!window.confirm('Eliminar período "' + selPeriodo.nombre + '"?\n\nEsto elimina el período y sus transacciones. No se puede deshacer.')) return;
+                onClick={async function(){
+                  if (!(await uiConfirm('Eliminar período "' + selPeriodo.nombre + '"?\n\nEsto elimina el período y sus transacciones. No se puede deshacer.', {danger:true, confirmLabel:'Eliminar período'}))) return;
                   var updatedPers = periodos.filter(function(p){return p.id!==selPeriodo.id;});
                   props.setPeriodos(updatedPers);
                   fetch('/api/sync?action=txns', {
@@ -562,7 +563,7 @@ function AnalisisView(props) {
           <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:3}}>Nombre del periodo</label>
           <input value={periodoNombre} onChange={function(e){setPeriodoNombre(e.target.value);}} placeholder="Ej: Enero 2026" style={{width:'100%',maxWidth:300,border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 9px',fontSize:13}}/>
         </div>
-        <div onClick={function(){if(!loadingFile)fileRef.current.click();}} style={{border:'2px dashed '+C.AC,borderRadius:8,padding:'22px 20px',textAlign:'center',cursor:loadingFile?'wait':'pointer',background:csv?'#EBF9F0':'#F8FBFE',marginBottom:10}}>
+        <div onClick={function(){if(!loadingFile)fileRef.current.click();}} style={{border:'2px dashed '+C.AC,borderRadius:8,padding:'22px 20px',textAlign:'center',cursor:loadingFile?'wait':'pointer',background:csv?'rgba(0,214,143,0.06)':T.BG2,marginBottom:10}}>
           <div style={{fontSize:24,marginBottom:4}}>{loadingFile?'⏳':csv?'✅':'📊'}</div>
           <div style={{fontSize:13,color:T.CYAN,fontWeight:700}}>{loadingFile?'Procesando archivo...':csv?csv.name+' — '+csv.txns.length+' transacciones detectadas':'📂 Subir archivo de transacciones'}</div>
           <div style={{fontSize:11,color:T.TEXT2,marginTop:3}}>Formatos: <strong>CSV, XLS, XLSX</strong> · Columnas: fecha, tipo (IN/OUT o débito/crédito), monto, contraparte</div>
@@ -793,7 +794,7 @@ function AnalisisView(props) {
                 }
                 texto += 'ACCIONES E INFORMACIÓN REQUERIDA:\n';
                 nota.acciones.forEach(function(a,i){ texto += (i+1) + '. ' + a + '\n\n'; });
-                navigator.clipboard.writeText(texto).then(function(){ alert('Nota copiada al portapapeles'); }).catch(function(){ alert('No se pudo copiar'); });
+                navigator.clipboard.writeText(texto).then(function(){ toast('Nota copiada al portapapeles'); }).catch(function(){ toast('No se pudo copiar'); });
               }} style={{background:'rgba(93,78,140,0.2)',color:'#B39DDB',border:'1px solid rgba(93,78,140,0.4)',borderRadius:3,padding:'6px 14px',cursor:'pointer',fontSize:12,fontWeight:700,flexShrink:0}}>
                 📋 Copiar nota
               </button>
@@ -1029,7 +1030,7 @@ function AnalisisView(props) {
                         <div style={{fontSize:11,color:T.TEXT2}}>{memo.fecha} · {memo.hora}</div>
                       </div>
                     </div>
-                    <button onClick={function(){if(window.confirm('Eliminar esta anotación?'))deleteMemo(memo.id);}} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'3px 8px',cursor:'pointer',fontSize:11,color:T.TEXT3}}>✕</button>
+                    <button onClick={async function(){if(await uiConfirm('Eliminar esta anotación?', {danger:true, confirmLabel:'Eliminar'}))deleteMemo(memo.id);}} style={{background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'3px 8px',cursor:'pointer',fontSize:11,color:T.TEXT3}}>✕</button>
                   </div>
                   <div style={{fontSize:12,color:T.TEXT,lineHeight:1.7,whiteSpace:'pre-wrap',paddingLeft:36,fontFamily:esCompliance?'monospace':'inherit'}}>{memo.texto}</div>
                 </div>
@@ -1131,7 +1132,7 @@ function AnalisisView(props) {
                       <span style={{fontSize:10,color:T.TEXT3,alignSelf:'center',marginRight:4}}>Estado:</span>
                       {RFI_ESTADOS.map(function(e){
                         var isCur = rfi.estado===e.id;
-                        return <button key={e.id} onClick={function(){cambiarEstadoRfi(rfi.id,e.id);}} style={{background:isCur?e.bg:'white',color:isCur?e.color:T.TEXT2,borderRadius:8,padding:'2px 10px',cursor:'pointer',fontSize:10,fontWeight:isCur?700:400}}>{e.label}</button>;
+                        return <button key={e.id} onClick={function(){cambiarEstadoRfi(rfi.id,e.id);}} style={{background:isCur?e.bg:T.BG4,color:isCur?e.color:T.TEXT2,borderRadius:8,padding:'2px 10px',cursor:'pointer',fontSize:10,fontWeight:isCur?700:400}}>{e.label}</button>;
                       })}
                       <button onClick={function(){eliminarRfi(rfi.id);}} style={{marginLeft:'auto',background:'none',border:'1px solid '+T.BORDER,borderRadius:4,padding:'2px 8px',cursor:'pointer',fontSize:10,color:T.TEXT3}}>🗑 Eliminar</button>
                     </div>
