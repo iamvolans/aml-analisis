@@ -23,6 +23,16 @@ function LegajosView(props) {
   var iaFieldsState = useState(null); var iaFields = iaFieldsState[0]; var setIaFields = iaFieldsState[1];
   var tabState = useState('datos'); var tab = tabState[0]; var setTab = tabState[1];
   var searchState = useState(''); var search=searchState[0]; var setSearch=searchState[1];
+  var sortState = useState({k:'razonSocial',d:1}); var sortBy=sortState[0]; var setSortBy=sortState[1];
+
+  // Drawer: Esc cierra el detalle (nunca en edición, para no perder datos)
+  useEffect(function() {
+    function onKey(e) {
+      if (e.key === 'Escape' && selId && !editing) setSelId(null);
+    }
+    window.addEventListener('keydown', onKey);
+    return function(){ window.removeEventListener('keydown', onKey); };
+  }, [selId, editing]);
   var filtroSegState = useState('TODOS'); var filtroSeg=filtroSegState[0]; var setFiltroSeg=filtroSegState[1];
   var filtroDictState = useState('TODOS'); var filtroDict=filtroDictState[0]; var setFiltroDict=filtroDictState[1];
   var filtroEstState = useState('TODOS'); var filtroEst=filtroEstState[0]; var setFiltroEst=filtroEstState[1];
@@ -789,10 +799,10 @@ function LegajosView(props) {
                   var est = getEstado(h.estado||'EN_ONBOARDING');
                   var isLast = i===0;
                   return (
-                    <div key={i} style={{display:'flex',gap:14,padding:'10px 0',borderBottom:i<hist.length-1?'1px solid #eee':'none'}}>
+                    <div key={i} style={{display:'flex',gap:14,padding:'10px 0',borderBottom:'none'}}>
                       <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,flexShrink:0}}>
-                        <div style={{width:12,height:12,borderRadius:'50%',background:est.color,border:'2px solid '+est.color,marginTop:3}}></div>
-                        {i<hist.length-1 && <div style={{width:1,flex:1,background:T.BORDER,marginTop:2}}></div>}
+                        <div style={{width:12,height:12,borderRadius:'50%',background:est.color,marginTop:3,boxShadow:isLast?('0 0 0 4px '+T.ACCENT_SOFT+', 0 0 10px '+est.color):'none'}}></div>
+                        {i<hist.length-1 && <div style={{width:2,flex:1,background:T.BORDER2,marginTop:2,borderRadius:2}}></div>}
                       </div>
                       <div style={{flex:1}}>
                         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
@@ -1121,8 +1131,11 @@ function LegajosView(props) {
     var scV2 = KYB_FACTORS.map(function(f){return Number((sel.kybScores||{})[f])||0;}).filter(function(v){return v>0;});
     var scP2 = scV2.length>0?(scV2.reduce(function(a,b){return a+b;},0)/scV2.length).toFixed(2):'N/D';
     return (
-      <div style={{padding:22}}>
-        <button onClick={function(){setSelId(null);}} style={{background:'none',border:'none',color:T.CYAN,cursor:'pointer',fontSize:13,marginBottom:12}}>← Volver a lista</button>
+      <div onClick={function(){setSelId(null);}}
+        style={{position:'fixed',inset:0,background:'rgba(4,7,12,0.55)',backdropFilter:'blur(1px)',zIndex:1500,display:'flex',justifyContent:'flex-end'}}>
+      <div onClick={function(e){e.stopPropagation();}}
+        style={{width:780,maxWidth:'94vw',height:'100vh',overflowY:'auto',background:T.BG,borderLeft:'1px solid '+T.BORDER2,boxShadow:T.SHADOW.pop,padding:22}}>
+        <button onClick={function(){setSelId(null);}} style={{background:'none',border:'none',color:T.TEXT3,cursor:'pointer',fontSize:13,marginBottom:12}}>← Volver a lista</button>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
           <div>
             <h2 style={{color:T.TEXT,fontSize:18,fontWeight:700,margin:0}}>{sel.razonSocial||'Sin nombre'}</h2>
@@ -1394,6 +1407,7 @@ function LegajosView(props) {
           })}
         </Card>
       </div>
+      </div>
     );
   }
 
@@ -1404,6 +1418,21 @@ function LegajosView(props) {
     var matchEst = filtroEst==='TODOS' || (l.estadoCuenta||'EN_ONBOARDING')===filtroEst;
     return matchSearch && matchSeg && matchDict && matchEst;
   });
+
+  var SEG_ORD = {BAJO:0, MEDIO:1, 'MEDIO-ALTO':2, ALTO:3};
+  var sortedLegs = filteredLegs.slice().sort(function(a, b) {
+    var k = sortBy.k, d = sortBy.d, va, vb;
+    if (k === 'segmento') { va = SEG_ORD[a.segmento]||0; vb = SEG_ORD[b.segmento]||0; }
+    else if (k === 'periodos') {
+      va = periodos.filter(function(p){return p.legajoId===a.id;}).length;
+      vb = periodos.filter(function(p){return p.legajoId===b.id;}).length;
+    }
+    else { va = (a[k]||'').toString().toLowerCase(); vb = (b[k]||'').toString().toLowerCase(); }
+    return va < vb ? -d : va > vb ? d : 0;
+  });
+  function toggleSort(k) {
+    setSortBy(function(prev){ return prev.k === k ? {k:k, d:-prev.d} : {k:k, d:1}; });
+  }
 
   function toggleSelect(id) {
     setSelected(function(prev){ return prev.indexOf(id)>=0 ? prev.filter(function(x){return x!==id;}) : prev.concat([id]); });
@@ -1481,9 +1510,24 @@ function LegajosView(props) {
       </div>
 
       {legajos.length===0 && <Card title=""><p style={{color:T.TEXT2,textAlign:'center',padding:'20px 0'}}>No hay legajos. Creá el primero con "+ Nuevo legajo".</p></Card>}
+      {filteredLegs.length > 0 && (
+        <div style={{display:'flex',gap:4,alignItems:'center',padding:'6px 16px',marginBottom:8,fontFamily:T.SANS}}>
+          <span style={{fontSize:10,color:T.TEXT4,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginRight:6}}>Ordenar</span>
+          {[['razonSocial','Razón social'],['cuit','CUIT'],['segmento','Segmento'],['dictamen','Dictamen'],['estadoCuenta','Estado'],['periodos','Períodos']].map(function(c){
+            var on = sortBy.k === c[0];
+            return (
+              <button key={c[0]} onClick={function(){toggleSort(c[0]);}}
+                style={{padding:'5px 11px',border:'1px solid '+(on?T.ACCENT_DIM:T.BORDER),borderRadius:99,background:on?T.ACCENT_SOFT:'transparent',color:on?T.ACCENT:T.TEXT3,cursor:'pointer',fontSize:11,fontWeight:on?600:500,fontFamily:T.SANS,transition:T.TRANS}}>
+                {c[1]}{on ? (sortBy.d === 1 ? ' ↑' : ' ↓') : ''}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {filteredLegs.length===0 && legajos.length>0 && <Card title=""><p style={{color:T.TEXT2,textAlign:'center',padding:'16px 0'}}>Sin resultados para los filtros aplicados.</p></Card>}
 
-      {filteredLegs.map(function(l,i){
+      {sortedLegs.map(function(l,i){
         var lp = periodos.filter(function(p){return p.legajoId===l.id;});
         var allSigsL = [];
         lp.forEach(function(p){
@@ -1497,7 +1541,7 @@ function LegajosView(props) {
         var isMenuOpen = menuOpen===l.id;
 
         return (
-          <div key={l.id} style={{background:T.BG2,border:'2px solid '+(isSelected?C.AC:'#E8EEF4'),borderRadius:6,padding:'12px 16px',marginBottom:8,boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
+          <div key={l.id} style={{background:T.BG2,border:'1px solid '+(isSelected?T.ACCENT:T.BORDER),borderRadius:T.RADIUS.md,padding:'12px 16px',marginBottom:8,boxShadow:isSelected?('0 0 0 2px '+T.ACCENT_SOFT):T.SHADOW.card,transition:T.TRANS}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
 
               {/* LEFT: checkbox + info */}
