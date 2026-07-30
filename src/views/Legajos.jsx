@@ -11,6 +11,7 @@ import { gzipPayload, serverLoadKV } from "../lib/sync";
 import { C, T } from "../lib/theme";
 import { fileToBase64, fmtM, parseFechaAR, safeArr, segColor, todayStr, uid } from "../lib/utils";
 import { VIGENCIA_DOCS, vencimientosDeLegajo } from "../lib/vencimientos";
+import { listarDocumentos, subirDocumento, urlDescarga, borrarDocumento, fmtTamano, MAX_MB } from "../lib/documentos";
 
 // El <input type="date"> habla ISO; el resto de la app guarda es-AR (DD/MM/AAAA)
 function aISO(fechaAR) {
@@ -43,6 +44,57 @@ function LegajosView(props) {
   var ultScreening = props.ultScreening || null;
   var casos = props.casos || [];
 
+  // ── Documentos adjuntos (T7b) ──────────────────────────────────────────────
+  var docsState = useState([]); var docs=docsState[0]; var setDocs=docsState[1];
+  var subiendoState = useState(''); var subiendo=subiendoState[0]; var setSubiendo=subiendoState[1];
+  var docFileRef = useRef(null);
+  var docTipoRef = useRef('');
+
+  // Se cargan al abrir un legajo (editando o en el drawer)
+  var legajoAbiertoId = (form && form.id) || (sel && sel.id) || null;
+  useEffect(function(){
+    if (!legajoAbiertoId) { setDocs([]); return; }
+    var vivo = true;
+    listarDocumentos(legajoAbiertoId).then(function(d){ if (vivo) setDocs(d); });
+    return function(){ vivo = false; };
+  }, [legajoAbiertoId]);
+
+  async function onSubirDoc(file, tipo) {
+    if (!file || !legajoAbiertoId) return;
+    setSubiendo(tipo || 'general');
+    try {
+      // Si el ítem ya tiene fecha cargada a mano, se respeta; si no, queda vacía
+      // y se puede completar después desde el propio checklist.
+      var fechaDoc = ((form && form.checklistFechas) || {})[tipo] || '';
+      await subirDocumento({
+        file: file, legajoId: legajoAbiertoId, tipo: tipo || '',
+        fechaDoc: fechaDoc, usuario: currentUser.nombre || 'N/D'
+      });
+      var frescos = await listarDocumentos(legajoAbiertoId);
+      setDocs(frescos);
+      auditLog(currentUser, 'subir_documento', 'legajo', legajoAbiertoId, { tipo: tipo || 'general', archivo: file.name });
+      toast('✓ ' + file.name + ' adjuntado.');
+    } catch(e) {
+      toast(e.message);
+    }
+    setSubiendo('');
+  }
+
+  async function onDescargarDoc(d) {
+    try {
+      var url = await urlDescarga(d.path);
+      window.open(url, '_blank', 'noopener');
+    } catch(e) { toast(e.message); }
+  }
+
+  async function onBorrarDoc(d) {
+    if (!(await uiConfirm('Eliminar "' + d.nombre + '" (versión ' + d.version + ')?\n\nSe borra el archivo y su registro. No se puede deshacer.', {danger:true, confirmLabel:'Eliminar'}))) return;
+    var ok = await borrarDocumento(d.id, d.path);
+    if (!ok) { toast('No se pudo eliminar.'); return; }
+    setDocs(await listarDocumentos(legajoAbiertoId));
+    auditLog(currentUser, 'eliminar_documento', 'legajo', legajoAbiertoId, { archivo: d.nombre, version: d.version });
+  }
+
   // ── Export de legajo completo (T7) ─────────────────────────────────────────
   // Los RFIs viven en KV y no están en memoria: se cargan al momento de generar
   // para que el expediente no salga incompleto sin avisar.
@@ -63,8 +115,12 @@ function LegajosView(props) {
         senalesPorPeriodo[p.id] = senalesActivas(p, leg, periodos);
       });
 
+      // Los adjuntos pueden no estar cargados si se exporta desde la tabla
+      var docsLeg = docs.length && docs[0].legajo_id === leg.id ? docs : await listarDocumentos(leg.id);
+
       var html = genLegajoCompleto({
         legajo: leg,
+        documentos: docsLeg,
         periodos: periodos,
         casos: casos,
         rfis: rfis,
@@ -804,6 +860,9 @@ function LegajosView(props) {
         </div> : null}
 
         {tab === 'checklist' ? <div>
+          <input ref={docFileRef} type="file" style={{display:'none'}}
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+            onChange={function(e){ var f=e.target.files&&e.target.files[0]; if(f) onSubirDoc(f, docTipoRef.current); e.target.value=''; }}/>
           {iaFields && iaFields.okChecklist > 0 && <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:4,padding:'8px 12px',marginBottom:10,fontSize:11,color:T.CYAN}}>
             🤖 IA evaluó la presencia de documentos. <strong>{iaFields.okChecklist} marcados como OK</strong>{iaFields.bloqChecklist>0?<span>, <strong style={{color:T.RED}}>{iaFields.bloqChecklist} como Bloqueante</strong></span>:null}. Revisá y ajustá según tu criterio.
           </div>}
@@ -812,7 +871,8 @@ function LegajosView(props) {
             var stC = val==='OK'?C.VERDE:val==='Bloqueante'?C.ROJO:'#888';
             var isIA = iaFields && iaFields.okChecklist > 0;
             return(
-              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:i%2===0?T.BG3:T.BG2,borderBottom:'1px solid '+T.BORDER,fontSize:13,borderLeft:val==='OK'?'3px solid '+C.VERDE:val==='Bloqueante'?'3px solid '+C.ROJO:'3px solid transparent'}}>
+              <div key={i} style={{padding:'8px 10px',background:i%2===0?T.BG3:T.BG2,borderBottom:'1px solid '+T.BORDER,fontSize:13,borderLeft:val==='OK'?'3px solid '+C.VERDE:val==='Bloqueante'?'3px solid '+C.ROJO:'3px solid transparent'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
                   <span style={{color:T.TEXT}}>{item}</span>
                   {isIA && val !== 'Pendiente' && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 4px',fontSize:9,fontWeight:700}}>IA</span>}
@@ -827,7 +887,45 @@ function LegajosView(props) {
                   <select value={val} onChange={function(e){setClItem(item,e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:3,padding:'4px 8px',fontSize:11,color:stC,fontWeight:600,background:val!=='Pendiente'?'rgba(59,109,170,0.1)':T.BG4,fontFamily:T.MONO}}>
                     <option>Pendiente</option><option>OK</option><option>Bloqueante</option><option>N/A</option>
                   </select>
+                  <button
+                    onClick={function(){ docTipoRef.current = item; if (docFileRef.current) docFileRef.current.click(); }}
+                    disabled={!!subiendo || !form.id}
+                    title={form.id ? ('Adjuntar archivo para "' + item + '" (máx. ' + MAX_MB + ' MB)') : 'Guardá el legajo antes de adjuntar archivos'}
+                    style={{background:'transparent',border:'1px solid '+T.BORDER2,borderRadius:3,padding:'3px 8px',cursor:(subiendo||!form.id)?'not-allowed':'pointer',fontSize:11,color:T.TEXT3}}>
+                    {subiendo===item ? '⏳' : '📎'}
+                  </button>
                 </div>
+              </div>
+
+              {/* Adjuntos de este ítem */}
+              {(function(){
+                var delItem = docs.filter(function(d){ return d.tipo === item; })
+                  .sort(function(a,b){ return b.version - a.version; });
+                if (!delItem.length) return null;
+                return (
+                  <div style={{marginTop:6,paddingLeft:2}}>
+                    {delItem.map(function(d){
+                      return (
+                        <div key={d.id} style={{display:'flex',alignItems:'center',gap:7,padding:'3px 0',fontSize:11,opacity:d.vigente?1:0.5}}>
+                          <span style={{color:d.vigente?T.GREEN:T.TEXT4,fontSize:10}}>{d.vigente?'●':'○'}</span>
+                          <span onClick={function(){onDescargarDoc(d);}}
+                            style={{color:T.ACCENT,cursor:'pointer',textDecoration:'underline',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:240}}>
+                            {d.nombre}
+                          </span>
+                          <span style={{fontFamily:T.MONO,fontSize:9,color:T.TEXT4,whiteSpace:'nowrap'}}>
+                            v{d.version} · {fmtTamano(d.tamano)} · {new Date(d.subido_at).toLocaleDateString('es-AR')} · {d.subido_por}
+                            {d.vigente ? '' : ' · reemplazado'}
+                          </span>
+                          {puedeEliminar(currentUser.rol) && (
+                            <button onClick={function(){onBorrarDoc(d);}}
+                              style={{marginLeft:'auto',background:'transparent',border:'none',color:T.TEXT4,cursor:'pointer',fontSize:11}}>✕</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               </div>
             );
           })}

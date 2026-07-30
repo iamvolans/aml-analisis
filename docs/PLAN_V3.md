@@ -213,8 +213,18 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
     - Botón "📑 Legajo completo" en el drawer del legajo. Los RFIs se cargan desde KV al
       momento de generar para que el expediente no salga incompleto en silencio.
     - Escapado de HTML en todos los campos de usuario.
-  - [ ] **T7b — PRÓXIMA: gestión documental** (Supabase Storage, tabla `documentos`,
-        versionado y adjuntos por legajo que alimentan las fechas de T4)
+  - [x] T7b (v3.15.0): **gestión documental**
+    - Bucket privado `documentos` en Supabase Storage + tabla `documentos`
+      (`sql/T7_documentos.sql`).
+    - `api/documentos.js`: el navegador nunca ve la service key ni sube a través de la
+      función. El servidor firma una URL de subida de vida corta (10 min) y el archivo va
+      **directo del navegador a Storage**, así no aplica el límite de body de Vercel.
+      Descarga por URL firmada de 5 minutos; el bucket no es público.
+    - **Versionado**: subir el mismo tipo de documento no pisa el anterior. La versión
+      nueva queda vigente y las previas se conservan marcadas como reemplazadas.
+    - Adjunto por ítem del checklist, con nombre, versión, tamaño, quién lo subió y cuándo.
+    - El export de legajo completo suma la sección 10 (documentación respaldatoria) y
+      la columna "Archivo adjunto" en el checklist.
   - [ ] **T7c — BLOQUEADA: reporte sistemático mensual** (ver abajo)
 - [ ] T8 — Hardening final
 
@@ -256,15 +266,24 @@ Para desbloquear hace falta que Germán aporte, de la resolución vigente:
 Con eso el generador sale rápido: los datos ya están todos en `periodos[].txns` y en las
 métricas. Lo que falta es el mapeo, no la información.
 
-## Spec T7b — Gestión documental (PRÓXIMA)
+## Spec T8 — Hardening técnico final (PRÓXIMA)
 
-1. **Supabase Storage**: bucket privado, adjuntar PDFs al legajo con nombre, tipo y fecha.
-2. Tabla `documentos`: id, legajo_id, tipo (ítem del checklist), nombre, path en Storage,
-   fecha del documento, versión, subido_por, subido_at.
-3. **Versionado**: subir un documento del mismo tipo no pisa el anterior, lo versiona.
-4. La fecha del documento pasa a alimentar `checklistFechas` automáticamente, así el
-   calendario de T4 deja de depender de que alguien la cargue a mano.
-5. Los adjuntos se listan en el export de legajo completo (sección nueva).
+1. Migrar `/api/sync` de app-token a autenticación por usuario (último pendiente de
+   seguridad; `api/documentos.js` hereda la misma limitación y hay que migrarlo junto).
+2. Tests unitarios de `aml.js` con vitest: `calcMetricas`, `detectPatrones`, `calcScoring`
+   y `lineaBase` son funciones puras — es el corazón regulatorio y el testeo es trivial.
+3. Entorno de staging en Vercel (branch `staging` → deploy preview).
+4. Code-splitting por vista (bundle ~1,3 MB → carga inicial <400 KB).
+5. Migrar `Legajos.jsx` a las primitivas compartidas `SortTh`/`TableCard` (deuda #2).
+6. README v3 y CHANGELOG.
+7. Evaluar las 3 vulnerabilidades npm (deuda #4).
+
+## Nota T7b — fecha del documento
+
+La fecha se sigue cargando a mano en el checklist: al adjuntar un archivo se usa la fecha
+ya cargada para ese ítem, si existe. **Extraerla del PDF automáticamente quedó fuera de
+alcance**: requeriría OCR o parseo por tipo de documento, y una fecha mal inferida en un
+control de vencimientos es peor que una vacía. El campo queda visible y editable.
 
 ## Notas de T6 — comportamiento y red
 

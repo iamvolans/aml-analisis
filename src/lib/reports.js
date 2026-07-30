@@ -929,6 +929,7 @@ function genLegajoCompleto(datos) {
   var vencs     = datos.vencimientos || [];
   var usuario   = datos.usuario || { nombre: 'N/D', rol: 'N/D' };
   var senalesPorPeriodo = datos.senalesPorPeriodo || {};
+  var documentos = datos.documentos || [];
 
   var ahora   = new Date();
   var fecha   = ahora.toLocaleDateString('es-AR');
@@ -1012,11 +1013,17 @@ function genLegajoCompleto(datos) {
   h += '<div class="pb"></div>' + sec(2, 'CHECKLIST DOCUMENTAL')
     + callout(bloqC ? 'err' : pendC ? 'warn' : 'ok',
         okC + ' de ' + CHECKLIST_ITEMS.length + ' ítems verificados · ' + pendC + ' pendientes · ' + bloqC + ' bloqueantes.')
-    + tbl(th(['Documento','Estado','Fecha del documento']),
+    + tbl(th(['Documento','Estado','Fecha del documento','Archivo adjunto']),
         CHECKLIST_ITEMS.map(function(item){
           var v = cl[item] || 'Pendiente';
           var col = v==='OK' ? '#27AE60' : v==='Bloqueante' ? '#E74C3C' : v==='N/A' ? '#888' : '#F39C12';
-          return td([esc(item), infBadge(v, col), clF[item] ? esc(clF[item]) : '<span style="color:#999">no registrada</span>']);
+          var adj = documentos.filter(function(d){ return d.tipo === item && d.vigente; })[0];
+          return td([
+            esc(item), infBadge(v, col),
+            clF[item] ? esc(clF[item]) : '<span style="color:#999">no registrada</span>',
+            adj ? esc(adj.nombre) + ' <span style="font-size:8pt;color:#888">(v' + adj.version + ')</span>'
+                : '<span style="color:#999">sin adjunto</span>'
+          ]);
         }).join(''));
 
   // ── 3. Evaluación de riesgo ──────────────────────────────────────────────
@@ -1199,14 +1206,35 @@ function genLegajoCompleto(datos) {
         }).join(''));
   }
 
+  // ── 10. Documentación respaldatoria ──────────────────────────────────────
+  h += sec(10, 'DOCUMENTACIÓN RESPALDATORIA ARCHIVADA');
+  if (!documentos.length) {
+    h += callout('warn', 'No hay archivos adjuntos registrados para este legajo.');
+  } else {
+    var vig = documentos.filter(function(d){ return d.vigente; });
+    h += callout('info', documentos.length + ' archivo(s) archivado(s), de los cuales ' + vig.length + ' son la versión vigente. Los reemplazados se conservan como antecedente.')
+      + tbl(th(['Archivo','Acredita','Versión','Fecha del documento','Tamaño','Archivado por','Archivado el','Vigente']),
+          documentos.map(function(d){
+            return td([
+              esc(d.nombre), dash(d.tipo), 'v' + (d.version||1), dash(d.fecha_doc),
+              d.tamano ? (Number(d.tamano) < 1048576 ? Math.round(Number(d.tamano)/1024)+' KB' : (Number(d.tamano)/1048576).toFixed(1)+' MB') : '—',
+              dash(d.subido_por),
+              d.subido_at ? new Date(d.subido_at).toLocaleString('es-AR') : '—',
+              d.vigente ? infBadge('Sí', '#27AE60') : infBadge('Reemplazado', '#888')
+            ]);
+          }).join(''));
+  }
+
   // ── Cierre ───────────────────────────────────────────────────────────────
-  h += '<div class="pb"></div>' + sec(10, 'CONSTANCIA DE EMISIÓN')
+  h += '<div class="pb"></div>' + sec(11, 'CONSTANCIA DE EMISIÓN')
     + '<div style="font-size:9pt;line-height:1.7;margin:10px 0">'
     + 'El presente documento consolida la información registrada en el sistema de gestión de compliance de GOAT S.A. / Rebit '
     + 'respecto del cliente <strong>' + esc(empresa) + '</strong> (CUIT ' + dash(legajo.cuit) + '), al ' + fecha + ' ' + hora + '.<br/><br/>'
     + 'Las secciones de screening y de señales transaccionales reflejan el resultado de procedimientos automatizados y determinísticos, '
     + 'reproducibles a partir de los listados y períodos indicados. Las resoluciones de señales y los cambios de estado registran el '
-    + 'responsable y la fecha en que fueron asentados.'
+    + 'responsable y la fecha en que fueron asentados.<br/><br/>'
+    + 'La documentación respaldatoria listada en la sección 10 se conserva archivada en el repositorio '
+    + 'documental del sistema y se encuentra disponible ante requerimiento.'
     + '</div>'
     + '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:22px">'
     + '<tr>'
