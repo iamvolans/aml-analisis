@@ -148,7 +148,18 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
     - **Vínculo señal ↔ caso bidireccional**: Alertas muestra columna "Caso" con la
       referencia si ya existe (y salta a él), o el botón "Abrir caso desde esta señal".
     - **Widget de plazos críticos en Dashboard**, clickeable hacia el caso.
-- [ ] T4 — Calendario regulatorio
+- [x] **T4 — Calendario regulatorio ✅ (v3.10.0)**
+  - `lib/vencimientos.js`: tres familias de vencimientos — actualización de legajo por
+    segmento, vigencia de documentos del checklist, y obligaciones institucionales
+    recurrentes. Todo parametrizable en un solo archivo.
+  - Vista `Vencimientos`: KPIs, filtros persistentes, tabla ordenable, columna "Caso"
+    con el vínculo al caso generado, aviso visible de fechas sin validar.
+  - Captura de fecha por documento en el checklist de Legajos (`checklistFechas`).
+    Sin fecha cargada, el motor estima desde la última actualización del legajo y lo
+    marca como "estimado" — no simula precisión que no tiene.
+  - Generación de casos desde vencidos (origen `VENCIMIENTO`), con el mismo preview
+    seleccionable que las señales y dedupe por `vencKey` (índice único en Postgres).
+  - Widget "vence en los próximos 30 días" en Dashboard.
 - [ ] T5 — Screening periódico
 - [ ] T6 — Comportamiento + grafo
 - [ ] T7 — Reportería + documental
@@ -156,25 +167,40 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
 
 ## ⚠️ Pendiente de validación normativa (BLOQUEANTE para uso operativo)
 
-Los plazos por defecto en `src/lib/casos.js` (objeto `SLA`) reflejan el régimen
-general de la Ley 25.246 y resoluciones UIF tal como se conocían al construir el
-módulo: 15 días corridos para reportar desde la calificación, tope de 150 días
-desde la operación, 48 horas para FT. **Germán debe validar cada valor contra la
-resolución UIF vigente aplicable a PSPCP antes de que el panel se use como
-control operativo real.** El resto (RFI 7 días, comité 10 días, toma de caso
-2 días) es política interna de Rebit y se define puertas adentro.
+Hay dos conjuntos de parámetros cargados con valores por defecto que **Germán debe
+validar contra la normativa vigente aplicable a PSPCP** antes de que estos paneles se
+usen como control operativo real:
 
-Cambiar un número en `SLA` recalcula todos los contadores de la app.
+**1. Plazos de caso — `src/lib/casos.js`, objeto `SLA`.**
+Reflejan el régimen general de la Ley 25.246 y resoluciones UIF tal como se conocían al
+construir el módulo: 15 días corridos para reportar desde la calificación, tope de 150
+días desde la operación, 48 horas para FT. Los otros tres (RFI 7 días, comité 10, toma
+de caso 2) son política interna de Rebit.
 
-## Spec T4 — Calendario regulatorio y vencimientos (PRÓXIMA)
+**2. Calendario regulatorio — `src/lib/vencimientos.js`.**
+- `ACTUALIZACION_LEGAJO`: frecuencia de refresco del KYB por segmento (12/18/24/36
+  meses). Debe coincidir con lo que declara el Manual PLAFT de GOAT S.A.
+- `VIGENCIA_DOCS`: vigencia en meses de cada documento del checklist.
+- `INSTITUCIONALES`: fechas de autoevaluación anual, informe del revisor externo y
+  reporte sistemático mensual. Las tres están marcadas `validado:false` y el panel las
+  muestra con un cartel de advertencia hasta que se confirmen. Al validarlas, cambiar
+  el flag a `true` y el aviso desaparece.
 
-1. Reglas de actualización de legajo por segmento (ALTO 12 meses, MEDIO-ALTO 18,
-   MEDIO 24, BAJO 36 — parametrizable, mismo patrón que el objeto `SLA`).
-2. Vencimiento por documento del checklist (DDJJ, estados contables, constancias).
-3. Fechas institucionales: autoevaluación anual, informe del revisor externo,
-   reportes sistemáticos mensuales UIF.
-4. Panel "Vencimientos" + widget "qué vence en 30 días" en Dashboard + generación
-   automática de casos T3 al vencer (reusando `nuevoCaso` con origen nuevo `VENCIMIENTO`).
+Cambiar cualquiera de estos valores recalcula todos los contadores de la app.
+
+## Spec T5 — Screening periódico automático (PRÓXIMA)
+
+1. **REPET local**: descarga del listado oficial UIF y matching determinístico local
+   (nombre normalizado + fuzzy), en lugar de depender de IA con web search. Más barato,
+   más rápido y 100% auditable — un inspector puede reproducir el match.
+2. Tabla `screening_runs`: cada corrida guarda fecha, listas consultadas, hits y
+   snapshot de evidencia.
+3. Vercel Cron semanal que re-screenea la cartera activa.
+4. Coincidencia nueva → caso automático con prioridad alta (origen `SCREENING`, que ya
+   existe en el modelo).
+
+Nota de arranque: el punto 1 es el que da valor regulatorio real; el cron (punto 3)
+puede quedar para el final de la tanda.
 
 ## Método de verificación por tanda
 
@@ -218,6 +244,12 @@ Filtros en `sessionStorage` → `rebit_legajos_filtros_v3`.
 **Analisis.jsx** — `ESTADOS_PERIODO` / `getEstadoPeriodo()` en scope de módulo.
 
 **Alertas.jsx** — filtros en `rebit_alertas_filtros_v3`, orden independiente por pestaña.
+
+**vencimientos.js** — `sumarMeses` respeta fin de mes (31/01 + 1 mes = 28/02, y en
+bisiesto 29/02). La fecha base de actualización de un legajo es la más reciente entre
+el último período, el último cambio de estado y el alta: derivada de datos existentes,
+sin migración. Los documentos sin fecha en `checklistFechas` se estiman desde esa base
+y se marcan como estimados en la UI.
 
 **Casos.jsx** — filtros en `rebit_casos_filtros_v3` (incluye modo lista/kanban y "mis
 casos"). El orden por defecto es por urgencia de plazo (vencidos primero, cerrados al

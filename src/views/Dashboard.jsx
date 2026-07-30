@@ -3,6 +3,7 @@ import { BarChart, Bar, LineChart, Line, Cell, XAxis, YAxis, CartesianGrid, Tool
 import { Card, Pill, StatCard, chartGrid, chartAxis, chartTooltip } from "../components/ui";
 import { calcScoring, detectPatrones, metricasDe } from "../lib/aml";
 import { getEstadoCaso, slaCritico, colorSLA } from "../lib/casos";
+import { todosLosVencimientos, fmtFecha, colorVenc } from "../lib/vencimientos";
 import { ESTADOS_CUENTA, getEstado } from "../lib/constants";
 import { serverLoadKVPrefix } from "../lib/sync";
 import { C, T } from "../lib/theme";
@@ -12,6 +13,7 @@ function DashboardView(props) {
   var legajos = props.legajos, periodos = props.periodos, setLegajos = props.setLegajos || function(){};
   var casos = props.casos || [];
   var onVerCaso = props.onVerCaso;
+  var onNavigate = props.onNavigate;
 
   // Casos con plazo vencido o próximo — el panel que un inspector mira primero
   var casosAbiertos = casos.filter(function(c){ return getEstadoCaso(c.estado).abierto; });
@@ -20,6 +22,11 @@ function DashboardView(props) {
   }).filter(function(x){
     return x.sla && (x.sla.estado==='VENCIDO' || x.sla.estado==='PROXIMO');
   }).sort(function(a,b){ return a.sla.dias - b.sla.dias; });
+
+  // Calendario regulatorio (T4) — qué vence en los próximos 30 días
+  var vencProximos = todosLosVencimientos(legajos, periodos).filter(function(v){
+    return v.estado==='VENCIDO' || v.estado==='PROXIMO';
+  });
   var dashTabState = useState('operacional'); var dashTab=dashTabState[0]; var setDashTab=dashTabState[1];
 
   // RFIs de TODOS los legajos — cargados desde Supabase KV (claves 'rfi_<legajoId>')
@@ -281,6 +288,40 @@ function DashboardView(props) {
             })}
             {casosUrgentes.length > 5 && (
               <div style={{fontSize:10,color:T.TEXT3,marginTop:8,fontFamily:T.SANS}}>y {casosUrgentes.length-5} más — verlos en la sección Casos.</div>
+            )}
+          </div>
+        )}
+
+        {vencProximos.length > 0 && (
+          <div style={{background:T.BG2,border:'1px solid rgba(255,184,48,0.3)',borderLeft:'3px solid '+T.AMBER,borderRadius:T.RADIUS.md,padding:'13px 16px',marginBottom:14,boxShadow:T.SHADOW.card}}>
+            <div style={{display:'flex',alignItems:'center',gap:9,marginBottom:10}}>
+              <span style={{fontSize:11,fontWeight:700,color:T.AMBER,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS}}>Vence en los próximos 30 días</span>
+              <span style={{fontFamily:T.MONO,fontSize:11,fontWeight:700,color:T.TEXT3}}>{vencProximos.length}</span>
+              {onNavigate && (
+                <button onClick={function(){onNavigate('vencimientos');}}
+                  style={{marginLeft:'auto',background:'transparent',border:'1px solid '+T.BORDER2,color:T.TEXT2,borderRadius:T.RADIUS.sm,padding:'3px 10px',cursor:'pointer',fontSize:10,fontWeight:600,fontFamily:T.SANS}}>
+                  Ver calendario →
+                </button>
+              )}
+            </div>
+            {vencProximos.slice(0,5).map(function(v){
+              var col = colorVenc(v.estado);
+              return (
+                <div key={v.clave} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderTop:'1px solid '+T.BORDER}}>
+                  <span style={{fontSize:9,color:T.TEXT4,fontFamily:T.MONO,flexShrink:0,width:74}}>
+                    {v.tipo==='LEGAJO'?'LEGAJO':v.tipo==='DOCUMENTO'?'DOCUMENTO':'INSTITUC.'}
+                  </span>
+                  <span style={{flex:1,minWidth:0,fontSize:12,color:T.TEXT,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{v.label}</span>
+                  <span style={{fontSize:11,color:T.TEXT3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:150}}>{v.legajoNom||'—'}</span>
+                  <span style={{fontFamily:T.MONO,fontSize:10,color:T.TEXT4,whiteSpace:'nowrap',flexShrink:0}}>{fmtFecha(v.limite)}</span>
+                  <span style={{color:col,fontSize:11,fontWeight:700,fontFamily:T.MONO,whiteSpace:'nowrap',flexShrink:0,width:78,textAlign:'right'}}>
+                    {v.dias < 0 ? '⚠ '+Math.abs(v.dias)+' d' : v.dias===0 ? 'hoy' : 'en '+v.dias+' d'}
+                  </span>
+                </div>
+              );
+            })}
+            {vencProximos.length > 5 && (
+              <div style={{fontSize:10,color:T.TEXT3,marginTop:8,fontFamily:T.SANS}}>y {vencProximos.length-5} más.</div>
             )}
           </div>
         )}

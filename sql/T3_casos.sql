@@ -40,3 +40,15 @@ alter table public.casos enable row level security;
 select
   (select count(*) from public.casos) as casos_existentes,
   (select count(*) from pg_indexes where tablename = 'casos') as indices;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- T4 — Dedupe de casos originados en vencimientos del calendario regulatorio
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Un caso por vencimiento. Igual que casos_senal_uniq, es un índice parcial
+-- sobre una expresión del jsonb. Idempotente.
+
+create unique index if not exists casos_venc_uniq
+  on public.casos ((data->>'vencKey'))
+  where data->>'vencKey' is not null and data->>'vencKey' <> '';
+
+select count(*) as indices_casos from pg_indexes where tablename = 'casos';

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, FolderOpen, BarChart3, Bell, Briefcase, Scale, Radar, BookOpen, Users, Download, Upload, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, FolderOpen, BarChart3, Bell, Briefcase, CalendarClock, Scale, Radar, BookOpen, Users, Download, Upload, Settings, LogOut } from "lucide-react";
 import { ReportModal } from "./components/ui";
 import { FeedbackHost, toast, uiConfirm } from "./components/feedback";
 import CommandPalette from "./components/palette";
@@ -11,6 +11,7 @@ import { C, T } from "./lib/theme";
 import { todayStr } from "./lib/utils";
 import AlertasView from "./views/Alertas";
 import CasosView from "./views/Casos";
+import VencimientosView from "./views/Vencimientos";
 import AnalisisView from "./views/Analisis";
 import DashboardView from "./views/Dashboard";
 import LegajosView from "./views/Legajos";
@@ -255,6 +256,7 @@ export default function App() {
     ['analisis',  BarChart3,       'Análisis AML'],
     ['alertas',   Bell,            'Alertas'],
     ['casos',     Briefcase,       'Casos'],
+    ['vencimientos', CalendarClock, 'Vencimientos'],
     ['normativa', Scale,           'Normativa'],
     ['patrones',  Radar,           'Patrones AML'],
     ['wiki',      BookOpen,        'Wiki']
@@ -510,10 +512,11 @@ export default function App() {
             </button>
           </div>
         )}
-        {view==='dashboard' ? <DashboardView casos={casos} onVerCaso={handleVerCaso} legajos={legajos} periodos={periodos} setLegajos={setLegajos}/> : null}
+        {view==='dashboard' ? <DashboardView casos={casos} onVerCaso={handleVerCaso} onNavigate={function(v){setView(v);}} legajos={legajos} periodos={periodos} setLegajos={setLegajos}/> : null}
         {view==='legajos' ? <LegajosView key={'leg-'+(legTarget||'')} initSelId={legTarget} legajos={legajos} setLegajos={setLegajos} periodos={periodos} setPeriodos={setPeriodos} onAnalizar={handleAnalizar} onReport={function(html){setReportHTML(html);}} onSync={syncToCloud} currentUser={currentUser}/> : null}
         {view==='analisis' ? <AnalisisView legajos={legajos} periodos={periodos} setPeriodos={setPeriodos} onReport={function(html){setReportHTML(html);}} initLegajo={analTarget.leg} initPeriodo={analTarget.per} onSync={syncToCloud} currentUser={currentUser}/> : null}
         {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos} setPeriodos={setPeriodos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onNavAnalisis={handleAnalizar} onVerCaso={handleVerCaso} currentUser={currentUser}/> : null}
+        {view==='vencimientos' ? <VencimientosView legajos={legajos} periodos={periodos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onVerCaso={handleVerCaso} onOpenLegajo={function(id){setLegTarget(id);setView('legajos');}} currentUser={currentUser}/> : null}
         {view==='casos' ? <CasosView key={'cas-'+(casoTarget||'')} initCasoId={casoTarget} casos={casos} setCasos={setCasos} legajos={legajos} periodos={periodos} onNavAnalisis={handleAnalizar} onSyncCasos={syncCasos} currentUser={currentUser}/> : null}
         {view==='normativa' ? <NormativaView/> : null}
         {view==='patrones' ? <PatronesView/> : null}

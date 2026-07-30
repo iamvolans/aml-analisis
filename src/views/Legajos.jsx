@@ -10,6 +10,20 @@ import { APP_TOKEN } from "../lib/session";
 import { gzipPayload } from "../lib/sync";
 import { C, T } from "../lib/theme";
 import { fileToBase64, fmtM, parseFechaAR, safeArr, segColor, todayStr, uid } from "../lib/utils";
+import { VIGENCIA_DOCS } from "../lib/vencimientos";
+
+// El <input type="date"> habla ISO; el resto de la app guarda es-AR (DD/MM/AAAA)
+function aISO(fechaAR) {
+  var f = parseFechaAR(fechaAR);
+  if (!f) return '';
+  return f.getFullYear() + '-' + String(f.getMonth()+1).padStart(2,'0') + '-' + String(f.getDate()).padStart(2,'0');
+}
+function deISO(iso) {
+  if (!iso) return '';
+  var p = iso.split('-');
+  if (p.length !== 3) return '';
+  return Number(p[2]) + '/' + Number(p[1]) + '/' + p[0];
+}
 
 // ── Filtros persistentes en la sesión ────────────────────────────────────────
 // El shell remonta LegajosView cada vez que se navega (key={'leg-'+legTarget}),
@@ -94,6 +108,10 @@ function LegajosView(props) {
   }
 
   function fld(key, val) { setForm(function(prev){ var n=Object.assign({},prev); n[key]=val; return n; }); }
+  // Fecha de emisión/actualización del documento — alimenta el calendario de
+  // vencimientos (T4). Si no se carga, el motor usa la última actualización del
+  // legajo como estimación y lo marca como tal.
+  function setClFecha(item, val) { setForm(function(prev){ var n=Object.assign({},prev); n.checklistFechas=Object.assign({},prev.checklistFechas||{}); if(val){n.checklistFechas[item]=val;}else{delete n.checklistFechas[item];} return n; }); }
   function setClItem(item, val) { setForm(function(prev){ var n=Object.assign({},prev); n.checklist=Object.assign({},prev.checklist||{}); n.checklist[item]=val; return n; }); }
   function setKybSc(factor, val) { setForm(function(prev){ var n=Object.assign({},prev); n.kybScores=Object.assign({},prev.kybScores||{}); n.kybScores[factor]=Number(val); return n; }); }
 
@@ -757,9 +775,17 @@ function LegajosView(props) {
                   <span style={{color:T.TEXT}}>{item}</span>
                   {isIA && val !== 'Pendiente' && <span style={{background:C.AC,color:'white',borderRadius:3,padding:'1px 4px',fontSize:9,fontWeight:700}}>IA</span>}
                 </div>
-                <select value={val} onChange={function(e){setClItem(item,e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:3,padding:'4px 8px',fontSize:11,color:stC,fontWeight:600,background:val!=='Pendiente'?'rgba(59,109,170,0.1)':T.BG4,fontFamily:T.MONO}}>
-                  <option>Pendiente</option><option>OK</option><option>Bloqueante</option><option>N/A</option>
-                </select>
+                <div style={{display:'flex',alignItems:'center',gap:7}}>
+                  {val==='OK' && VIGENCIA_DOCS[item] ? (
+                    <input type="date" value={aISO((form.checklistFechas||{})[item])}
+                      onChange={function(e){setClFecha(item, deISO(e.target.value));}}
+                      title={'Fecha del documento — vigencia ' + VIGENCIA_DOCS[item] + ' meses'}
+                      style={{border:'1px solid '+T.BORDER,borderRadius:3,padding:'3px 6px',fontSize:10,color:T.TEXT2,fontFamily:T.MONO,background:T.BG4}}/>
+                  ) : null}
+                  <select value={val} onChange={function(e){setClItem(item,e.target.value);}} style={{border:'1px solid '+T.BORDER,borderRadius:3,padding:'4px 8px',fontSize:11,color:stC,fontWeight:600,background:val!=='Pendiente'?'rgba(59,109,170,0.1)':T.BG4,fontFamily:T.MONO}}>
+                    <option>Pendiente</option><option>OK</option><option>Bloqueante</option><option>N/A</option>
+                  </select>
+                </div>
               </div>
             );
           })}

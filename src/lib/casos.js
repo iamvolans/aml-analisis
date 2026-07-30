@@ -49,6 +49,7 @@ var ORIGENES = [
   { id:'SCREENING',  label:'Screening',  icon:'🛡' },
   { id:'RFI',        label:'RFI',        icon:'📧' },
   { id:'MANUAL',     label:'Manual',     icon:'✍️' },
+  { id:'VENCIMIENTO',label:'Vencimiento', icon:'📅' },
 ];
 function getOrigen(id) { return ORIGENES.find(function(o){return o.id===id;}) || ORIGENES[3]; }
 
@@ -154,6 +155,7 @@ function nuevoCaso(campos) {
     fechaCalificacion: '',   // se sella al calificar como sospechoso
     fechaRfi: '',            // se sella al pasar a RFI_ENVIADO
     fechaCierre: '',
+    vencKey: '',            // clave del vencimiento que originó el caso (T4)
     comentarios: [],
     historial: [{
       estado: 'NUEVA',
