@@ -209,6 +209,68 @@ async function serverSaveCasos(casos, deletedCasoIds) {
   } catch(e) { console.warn('[Sync] Error guardando casos:', e.message); return false; }
 }
 
+// ─── SCREENING (T5) ──────────────────────────────────────────────────────────
+async function serverLoadListas(soloMeta) {
+  try {
+    var url = '/api/sync?action=screening_listas' + (soloMeta ? '&meta=1' : '');
+    var r = await fetchRetry(url, { headers: { 'x-app-token': APP_TOKEN } }, 2);
+    if (!r.ok) return [];
+    var d = await r.json();
+    return (d && d.listas) || [];
+  } catch(e) { console.warn('[Sync] Error cargando listas:', e.message); return []; }
+}
+
+async function serverSaveLista(lista) {
+  try {
+    var r = await fetchRetry('/api/sync?action=screening_listas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+      body: JSON.stringify({ lista: lista })
+    }, 2);
+    return !!(r && r.ok);
+  } catch(e) { console.warn('[Sync] Error guardando lista:', e.message); return false; }
+}
+
+async function serverDeleteLista(id) {
+  try {
+    var r = await fetchRetry('/api/sync?action=screening_listas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+      body: JSON.stringify({ deletedListaId: id })
+    }, 2);
+    return !!(r && r.ok);
+  } catch(e) { return false; }
+}
+
+async function serverLoadRuns() {
+  try {
+    var r = await fetchRetry('/api/sync?action=screening_runs', { headers: { 'x-app-token': APP_TOKEN } }, 2);
+    if (!r.ok) return [];
+    var d = await r.json();
+    return (d && d.runs) || [];
+  } catch(e) { return []; }
+}
+
+async function serverLoadRun(id) {
+  try {
+    var r = await fetchRetry('/api/sync?action=screening_runs&id=' + encodeURIComponent(id), { headers: { 'x-app-token': APP_TOKEN } }, 2);
+    if (!r.ok) return null;
+    var d = await r.json();
+    return (d && d.run) || null;
+  } catch(e) { return null; }
+}
+
+async function serverSaveRun(run) {
+  try {
+    var r = await fetchRetry('/api/sync?action=screening_runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+      body: JSON.stringify({ run: run })
+    }, 2);
+    return !!(r && r.ok);
+  } catch(e) { console.warn('[Sync] Error guardando corrida:', e.message); return false; }
+}
+
 async function fetchServerConfig() {
   try {
     var r = await fetch('/api/config', { headers: { 'x-app-token': APP_TOKEN } });
@@ -217,4 +279,4 @@ async function fetchServerConfig() {
   } catch(e) { return null; }
 }
 
-export { gzipPayload, fetchRetry, serverSave, serverSaveTxns, serverLoadTxns, serverSaveKV, serverLoadKV, serverLoadKVPrefix, serverLoad, serverLoadCasos, serverSaveCasos, fetchServerConfig };
+export { gzipPayload, fetchRetry, serverSave, serverSaveTxns, serverLoadTxns, serverSaveKV, serverLoadKV, serverLoadKVPrefix, serverLoad, serverLoadCasos, serverSaveCasos, serverLoadListas, serverSaveLista, serverDeleteLista, serverLoadRuns, serverLoadRun, serverSaveRun, fetchServerConfig };

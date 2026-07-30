@@ -160,7 +160,18 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
   - Generación de casos desde vencidos (origen `VENCIMIENTO`), con el mismo preview
     seleccionable que las señales y dedupe por `vencKey` (índice único en Postgres).
   - Widget "vence en los próximos 30 días" en Dashboard.
-- [ ] T5 — Screening periódico
+- [~] **T5 — Screening — EN CURSO**
+  - [x] T5a (v3.11.0): motor determinístico + gestión de listas + corridas manuales
+    - `lib/screening.js`: normalización (tildes, puntuación, sufijos societarios),
+      match por documento, exacto, exacto-sin-sufijo y aproximado (token_set_ratio
+      con penalización por cobertura). Indexado por bloques de prefijo/sufijo de token.
+    - Tablas `screening_listas` y `screening_runs` (`sql/T5_screening.sql`).
+    - Vista `Screening`: carga de listados CSV/XLSX/JSON con detección automática de
+      columnas, corrida sobre cartera activa o completa, resultados con nivel y
+      puntaje, drawer de comparación lado a lado, descarte de falsos positivos con
+      motivo, historial de corridas y caso desde coincidencia.
+  - [ ] **T5b — PRÓXIMA: Vercel Cron semanal + integración con la pestaña Screening
+        del legajo** (spec abajo)
 - [ ] T6 — Comportamiento + grafo
 - [ ] T7 — Reportería + documental
 - [ ] T8 — Hardening final
@@ -188,19 +199,39 @@ de caso 2) son política interna de Rebit.
 
 Cambiar cualquiera de estos valores recalcula todos los contadores de la app.
 
-## Spec T5 — Screening periódico automático (PRÓXIMA)
+## Spec T5b — Cron semanal e integración (PRÓXIMA)
 
-1. **REPET local**: descarga del listado oficial UIF y matching determinístico local
-   (nombre normalizado + fuzzy), en lugar de depender de IA con web search. Más barato,
-   más rápido y 100% auditable — un inspector puede reproducir el match.
-2. Tabla `screening_runs`: cada corrida guarda fecha, listas consultadas, hits y
-   snapshot de evidencia.
-3. Vercel Cron semanal que re-screenea la cartera activa.
-4. Coincidencia nueva → caso automático con prioridad alta (origen `SCREENING`, que ya
-   existe en el modelo).
+1. **Vercel Cron semanal** (`vercel.json` + `api/cron-screening.js`) que corre el
+   screening sobre la cartera activa y guarda la corrida. Requiere mover el motor a un
+   punto importable desde el server (hoy `lib/screening.js` es puro JS sin dependencias
+   de navegador, así que se puede importar tal cual).
+2. Coincidencia **nueva respecto de la corrida anterior** → caso automático. Hoy la
+   creación es manual desde el drawer; el cron necesita el diff contra la última corrida
+   para no regenerar lo mismo cada semana.
+3. Reemplazar la pestaña Screening del legajo (hoy son links manuales a sitios externos)
+   por el resultado real del motor para ese cliente.
+4. Aviso en Dashboard si la última corrida tiene más de N días.
 
-Nota de arranque: el punto 1 es el que da valor regulatorio real; el cron (punto 3)
-puede quedar para el final de la tanda.
+## Notas del motor de screening (T5a)
+
+**Precisión medida** sobre un set de 12 pares construido a mano:
+exactos y variantes societarias en 100%; plurales y tipeos ("TRANSPORTES/TRANSPORTE")
+en 95%; nombre contenido en otro más largo degradado a MEDIA (94%) para que el analista
+lo distinga de una coincidencia exacta; y rechazo correcto de Norte/Sur (71.8%),
+Nación/Provincia (42.5%) y pares no relacionados (0%).
+
+**Rendimiento**: 300 legajos × 20.000 entradas en 0,7 s. Sin el indexado por bloques
+eran 16 s con solo 5.000 entradas.
+
+**Límite conocido**: el indexado agrupa por los primeros y últimos 4 caracteres de cada
+token. Un tipeo que altere a la vez el principio y el final de todos los tokens de un
+nombre no entra al bloque y no se detecta. Es el compromiso estándar en resolución de
+entidades; sin él el screening no corre en tiempo razonable en el navegador.
+
+**Nombres cortos y comunes**: "Juan Perez" contra "Perez, Juan Carlos" da 96,4% (ALTA)
+porque los dos tokens quedan cubiertos. Es sensibilidad deliberada — en screening PLAFT
+conviene pecar de sensible — y se compensa con el match por documento y el descarte
+razonado. Si genera demasiado ruido en producción, subir `UMBRALES.ALTA`.
 
 ## Método de verificación por tanda
 
@@ -244,6 +275,11 @@ Filtros en `sessionStorage` → `rebit_legajos_filtros_v3`.
 **Analisis.jsx** — `ESTADOS_PERIODO` / `getEstadoPeriodo()` en scope de módulo.
 
 **Alertas.jsx** — filtros en `rebit_alertas_filtros_v3`, orden independiente por pestaña.
+
+**screening.js** — no tiene dependencias de navegador: es JS puro, importable también
+desde una función serverless (lo va a necesitar el cron de T5b). Los descartes viven en
+KV bajo `screening_descartes` y se aplican dentro de `correrScreening`, así que un falso
+positivo descartado no reaparece en corridas futuras.
 
 **vencimientos.js** — `sumarMeses` respeta fin de mes (31/01 + 1 mes = 28/02, y en
 bisiesto 29/02). La fecha base de actualización de un legajo es la más reciente entre

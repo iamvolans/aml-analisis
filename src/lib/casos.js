@@ -156,6 +156,7 @@ function nuevoCaso(campos) {
     fechaRfi: '',            // se sella al pasar a RFI_ENVIADO
     fechaCierre: '',
     vencKey: '',            // clave del vencimiento que originó el caso (T4)
+    screeningKey: '',       // clave del hit de screening que originó el caso (T5)
     comentarios: [],
     historial: [{
       estado: 'NUEVA',

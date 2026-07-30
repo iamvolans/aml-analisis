@@ -124,6 +124,27 @@ export default async function handler(req, res) {
       return res.json({ casos: (rows || []).map(r => r.data) });
     }
 
+    // ── GET /api/sync?action=screening_listas ────────────────────────────────
+    if (req.method === 'GET' && action === 'screening_listas') {
+      const meta = req.query.meta === '1';
+      const cols = meta ? 'id,nombre,fuente,version,cantidad,updated_at'
+                        : 'id,nombre,fuente,version,cantidad,entradas,updated_at';
+      const rows = await sb('screening_listas', 'GET', null, `?select=${cols}&order=updated_at.desc`);
+      return res.json({ listas: rows || [] });
+    }
+
+    // ── GET /api/sync?action=screening_runs ──────────────────────────────────
+    // Por defecto solo el resumen: el detalle de hits puede ser grande.
+    if (req.method === 'GET' && action === 'screening_runs') {
+      const runId = req.query.id;
+      if (runId) {
+        const rows = await sb('screening_runs', 'GET', null, `?select=id,data&id=eq.${runId}`);
+        return res.json({ run: rows && rows[0] ? rows[0].data : null });
+      }
+      const rows = await sb('screening_runs', 'GET', null, '?select=id,fecha,alcance,resumen&order=fecha.desc&limit=50');
+      return res.json({ runs: rows || [] });
+    }
+
     // ── Parsear body (con soporte gzip) ───────────────────────────────────────
     let body;
     try {
@@ -226,6 +247,40 @@ export default async function handler(req, res) {
       }
 
       await Promise.all(ops);
+      return res.json({ ok: true });
+    }
+
+    // ── POST /api/sync?action=screening_listas ───────────────────────────────
+    if (req.method === 'POST' && action === 'screening_listas') {
+      const { lista, deletedListaId } = body || {};
+      if (deletedListaId) {
+        await sb('screening_listas', 'DELETE', null, `?id=eq.${deletedListaId}`);
+        return res.json({ ok: true });
+      }
+      if (!lista?.id) return res.status(400).json({ error: 'Falta lista.id' });
+      await sb('screening_listas', 'POST', [{
+        id:       lista.id,
+        nombre:   lista.nombre || lista.id,
+        fuente:   lista.fuente || '',
+        version:  lista.version || '',
+        cantidad: (lista.entradas || []).length,
+        entradas: lista.entradas || [],
+        updated_at: new Date().toISOString()
+      }]);
+      return res.json({ ok: true });
+    }
+
+    // ── POST /api/sync?action=screening_runs ─────────────────────────────────
+    if (req.method === 'POST' && action === 'screening_runs') {
+      const { run } = body || {};
+      if (!run?.id) return res.status(400).json({ error: 'Falta run.id' });
+      await sb('screening_runs', 'POST', [{
+        id:      run.id,
+        fecha:   run.fecha || new Date().toISOString(),
+        alcance: run.alcance || '',
+        resumen: run.resumen || {},
+        data:    run
+      }]);
       return res.json({ ok: true });
     }
 
