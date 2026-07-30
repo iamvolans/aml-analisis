@@ -202,7 +202,20 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
   - `lib/grafo.js` + vista `Red`: contrapartes que operan con varios legajos de la
     cartera, grafo SVG determinístico, tabla, drawer con detalle por cliente y caso
     desde una red detectada.
-- [ ] T7 — Reportería + documental
+- [~] **T7 — Reportería + documental — EN CURSO**
+  - [x] T7a (v3.14.0): **export de legajo completo**
+    - `genLegajoCompleto()` en `lib/reports.js`: expediente consolidado de 10 secciones
+      con identificación, checklist con fechas de documento, scoring KYB, screening
+      (corrida, versión de cada listado, umbrales aplicados, coincidencias), períodos con
+      métricas y señales incluyendo quién resolvió cada una y cuándo, casos con
+      trazabilidad completa y comentarios, RFIs, vencimientos, historial de estado de
+      cuenta y constancia de emisión con firmas.
+    - Botón "📑 Legajo completo" en el drawer del legajo. Los RFIs se cargan desde KV al
+      momento de generar para que el expediente no salga incompleto en silencio.
+    - Escapado de HTML en todos los campos de usuario.
+  - [ ] **T7b — PRÓXIMA: gestión documental** (Supabase Storage, tabla `documentos`,
+        versionado y adjuntos por legajo que alimentan las fechas de T4)
+  - [ ] **T7c — BLOQUEADA: reporte sistemático mensual** (ver abajo)
 - [ ] T8 — Hardening final
 
 ## ⚠️ Pendiente de validación normativa (BLOQUEANTE para uso operativo)
@@ -228,15 +241,30 @@ de caso 2) son política interna de Rebit.
 
 Cambiar cualquiera de estos valores recalcula todos los contadores de la app.
 
-## Spec T7 — Reportería regulatoria y gestión documental (PRÓXIMA)
+## T7c — Reporte sistemático mensual: BLOQUEADA, falta el layout oficial
 
-1. Generador de **reporte sistemático mensual** desde las txns cargadas.
-2. **Export de legajo completo**: PDF único con datos + checklist + screening con
-   timestamps + períodos + señales + RFIs + informes emitidos. El legajo que pide un
-   inspector, en un click.
-3. **Supabase Storage** para documentos: adjuntar PDFs al legajo, versionado y fecha de
-   vencimiento por documento — que alimenta el calendario de T4, donde hoy la fecha se
-   carga a mano en el checklist.
+El RSM tiene un formato de campos definido por resolución. **No lo conozco con certeza
+para PSPCP y no voy a inventar el layout de un reporte regulado**: un archivo con la
+estructura equivocada es peor que no tenerlo, porque parece presentable.
+
+Para desbloquear hace falta que Germán aporte, de la resolución vigente:
+- La lista exacta de campos, su orden y su tipo.
+- El formato de archivo esperado (TXT de ancho fijo, CSV, XML) y el separador.
+- El criterio de inclusión: qué operaciones entran, con qué umbral y en qué período.
+- Un ejemplo de archivo aceptado, si existe.
+
+Con eso el generador sale rápido: los datos ya están todos en `periodos[].txns` y en las
+métricas. Lo que falta es el mapeo, no la información.
+
+## Spec T7b — Gestión documental (PRÓXIMA)
+
+1. **Supabase Storage**: bucket privado, adjuntar PDFs al legajo con nombre, tipo y fecha.
+2. Tabla `documentos`: id, legajo_id, tipo (ítem del checklist), nombre, path en Storage,
+   fecha del documento, versión, subido_por, subido_at.
+3. **Versionado**: subir un documento del mismo tipo no pisa el anterior, lo versiona.
+4. La fecha del documento pasa a alimentar `checklistFechas` automáticamente, así el
+   calendario de T4 deja de depender de que alguien la cargue a mano.
+5. Los adjuntos se listan en el export de legajo completo (sección nueva).
 
 ## Notas de T6 — comportamiento y red
 
@@ -336,6 +364,11 @@ fuera de comillas en la cabecera. Es necesario: las listas de sanciones suelen t
 "APELLIDO, NOMBRE" en archivos separados por punto y coma, y asumir la coma parte los
 nombres al medio. Las cabeceras se comparan sin tildes y con no-alfanuméricos colapsados
 a `_`, así que "Número de Documento" y "Nro. de Documento" caen en el mismo alias.
+
+**genLegajoCompleto** — recibe todo por un único objeto `datos` en vez de diez parámetros
+posicionales, así agregar una sección no rompe los call sites. Escapa HTML en cada campo
+de usuario (probado con `<script>` en la razón social). Verificado también con un legajo
+casi vacío: no imprime "undefined" ni "[object Object]" en ningún lado.
 
 **screening.js** — no tiene dependencias de navegador: es JS puro, importable también
 desde una función serverless (lo usa el cron de T5b). Los descartes viven en

@@ -2,15 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { toast, uiConfirm } from "../components/feedback";
 import { Badge, Card, Pill } from "../components/ui";
 import { _KEYS, callProxyOrDirect, extractWithClaude, extractWithGPT } from "../lib/ai";
-import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase } from "../lib/aml";
+import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase, senalesActivas } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEliminar } from "../lib/auth";
 import { CHECKLIST_ITEMS, ESTADOS_CUENTA, KYB_FACTORS, getEstado } from "../lib/constants";
-import { genINF01, genINF07Cierre, genROS } from "../lib/reports";
+import { genINF01, genINF07Cierre, genLegajoCompleto, genROS } from "../lib/reports";
 import { APP_TOKEN } from "../lib/session";
-import { gzipPayload } from "../lib/sync";
+import { gzipPayload, serverLoadKV } from "../lib/sync";
 import { C, T } from "../lib/theme";
 import { fileToBase64, fmtM, parseFechaAR, safeArr, segColor, todayStr, uid } from "../lib/utils";
-import { VIGENCIA_DOCS } from "../lib/vencimientos";
+import { VIGENCIA_DOCS, vencimientosDeLegajo } from "../lib/vencimientos";
 
 // El <input type="date"> habla ISO; el resto de la app guarda es-AR (DD/MM/AAAA)
 function aISO(fechaAR) {
@@ -41,6 +41,47 @@ function guardarFiltros(f) {
 function LegajosView(props) {
   var legajos=props.legajos, setLegajos=props.setLegajos, periodos=props.periodos, setPeriodos=props.setPeriodos, onAnalizar=props.onAnalizar, onReport=props.onReport, onSync=props.onSync||function(){}, currentUser=props.currentUser||{rol:'analista'};
   var ultScreening = props.ultScreening || null;
+  var casos = props.casos || [];
+
+  // ── Export de legajo completo (T7) ─────────────────────────────────────────
+  // Los RFIs viven en KV y no están en memoria: se cargan al momento de generar
+  // para que el expediente no salga incompleto sin avisar.
+  var expState = useState(false); var exportando=expState[0]; var setExportando=expState[1];
+
+  async function exportarLegajoCompleto(leg) {
+    setExportando(true);
+    try {
+      var rfis = [];
+      try {
+        var kv = await serverLoadKV('rfi_' + leg.id);
+        if (Array.isArray(kv)) rfis = kv;
+      } catch(e) { /* sin RFIs registrados */ }
+
+      // Señales por período, con el mismo criterio único que el resto de la app
+      var senalesPorPeriodo = {};
+      periodos.filter(function(p){ return p.legajoId === leg.id; }).forEach(function(p){
+        senalesPorPeriodo[p.id] = senalesActivas(p, leg, periodos);
+      });
+
+      var html = genLegajoCompleto({
+        legajo: leg,
+        periodos: periodos,
+        casos: casos,
+        rfis: rfis,
+        screening: ultScreening,
+        vencimientos: vencimientosDeLegajo(leg, periodos),
+        usuario: currentUser,
+        senalesPorPeriodo: senalesPorPeriodo,
+      });
+      onReport(html);
+      auditLog(currentUser, 'exportar_legajo_completo', 'legajo', leg.id, {
+        razonSocial: leg.razonSocial, periodos: Object.keys(senalesPorPeriodo).length, casos: casos.filter(function(c){return c.legajoId===leg.id;}).length
+      });
+    } catch(e) {
+      toast('No se pudo generar el legajo: ' + e.message);
+    }
+    setExportando(false);
+  }
   var selState = useState(props.initSelId||null); var selId = selState[0]; var setSelId = selState[1];
   var editState = useState(false); var editing = editState[0]; var setEditing = editState[1];
   var formState = useState(null); var form = formState[0]; var setForm = formState[1];
@@ -1253,6 +1294,11 @@ function LegajosView(props) {
               onReport(genINF01(sel, periodos, []));
               auditLog(currentUser,'generar_inf01','legajo',sel.id,{razonSocial:sel.razonSocial,cuit:sel.cuit});
             }} style={btnB}>📄 INF-01</button>
+            <button onClick={function(){ exportarLegajoCompleto(sel); }} disabled={exportando}
+              title="Expediente consolidado: identificación, checklist, scoring, screening con versiones de listado, períodos y señales con su resolución, casos con trazabilidad, RFIs, vencimientos e historial"
+              style={{background:exportando?T.BG3:'rgba(139,124,246,0.16)',color:exportando?T.TEXT4:T.VIOLET,border:'1px solid '+(exportando?T.BORDER:'rgba(139,124,246,0.4)'),borderRadius:T.RADIUS.sm,padding:'7px 14px',cursor:exportando?'wait':'pointer',fontWeight:700,fontSize:12,fontFamily:T.SANS}}>
+              {exportando ? '⏳ Generando…' : '📑 Legajo completo'}
+            </button>
             {puedeAprobar(currentUser.rol) && <button onClick={function(){
               // Abrir modal ROS — preseleccionar períodos con señales ALTA
               var lp = periodos.filter(function(p){return p.legajoId===sel.id;});

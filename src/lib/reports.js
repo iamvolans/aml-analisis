@@ -912,4 +912,313 @@ function genNotaDD(legajo, periodo, m, sigs, sc) {
   };
 }
 
-export { pStyles, piH, r2, r3, rpH, rpF, infSec, infBadge, infCallout, infTr2, infTr3, infTbl, infTh, infTd, genINF01, genINF02, genINF07Cierre, genROS, genNotaDD };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEGAJO COMPLETO — el expediente que pide un inspector (T7)
+// ═══════════════════════════════════════════════════════════════════════════
+// A diferencia del resto de los informes, que analizan UN período o UN aspecto,
+// este consolida todo lo que el sistema sabe del cliente con sus timestamps y
+// responsables: quién marcó qué, cuándo, y contra qué versión de qué listado.
+// Sin trazabilidad no es un legajo, es un resumen.
+function genLegajoCompleto(datos) {
+  var legajo    = datos.legajo || {};
+  var periodos  = (datos.periodos || []).filter(function(p){ return p.legajoId === legajo.id; });
+  var casos     = (datos.casos || []).filter(function(c){ return c.legajoId === legajo.id; });
+  var rfis      = datos.rfis || [];
+  var screening = datos.screening || null;
+  var vencs     = datos.vencimientos || [];
+  var usuario   = datos.usuario || { nombre: 'N/D', rol: 'N/D' };
+  var senalesPorPeriodo = datos.senalesPorPeriodo || {};
+
+  var ahora   = new Date();
+  var fecha   = ahora.toLocaleDateString('es-AR');
+  var hora    = ahora.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+  var empresa = legajo.razonSocial || 'Sin razón social';
+  var cl      = legajo.checklist || {};
+  var clF     = legajo.checklistFechas || {};
+
+  function esc(x) {
+    return String(x === null || x === undefined ? '' : x)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function nl2br(x) { return esc(x).replace(/\n/g, '<br/>'); }
+  function dash(x) { return (x === null || x === undefined || x === '') ? '—' : esc(x); }
+
+  var sec = infSec, tr2 = infTr2, tbl = infTbl, th = infTh, td = infTd, callout = infCallout;
+
+  // ── Portada ──────────────────────────────────────────────────────────────
+  var h = '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">'
+    + '<title>Legajo completo — ' + esc(empresa) + '</title>'
+    + '<style>' + pStyles()
+    + 'h2{page-break-after:avoid;}table{page-break-inside:auto;}tr{page-break-inside:avoid;}'
+    + '.pb{page-break-before:always;}'
+    + '</style></head><body>';
+
+  h += '<div style="border:2px solid #1B2A4A;border-radius:4px;padding:26px 24px;margin-bottom:18px">'
+    + '<div style="font-size:8.5pt;color:#4A6A8A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">GOAT S.A. — Rebit · Compliance &amp; PLAFT</div>'
+    + '<div style="font-size:17pt;font-weight:700;color:#1B2A4A;margin-bottom:3px">LEGAJO COMPLETO DE CLIENTE</div>'
+    + '<div style="font-size:13pt;color:#2C4A7C;margin-bottom:16px">' + esc(empresa) + '</div>'
+    + '<table style="font-size:9pt">'
+    + tr2('CUIT', dash(legajo.cuit))
+    + tr2('Segmento de riesgo', dash(legajo.segmento))
+    + tr2('Dictamen vigente', dash(legajo.dictamen))
+    + tr2('Estado de cuenta', dash(legajo.estadoCuenta))
+    + tr2('Fecha de alta en el sistema', dash(legajo.createdAt))
+    + tr2('Períodos transaccionales analizados', String(periodos.length))
+    + tr2('Casos de compliance asociados', String(casos.length))
+    + '</table>'
+    + '<div style="margin-top:16px;padding-top:12px;border-top:1px solid #D6E4F0;font-size:8.5pt;color:#555">'
+    + 'Documento generado el <strong>' + fecha + ' a las ' + hora + '</strong> por <strong>' + esc(usuario.nombre) + '</strong> (' + esc(usuario.rol) + ').<br/>'
+    + 'Refleja el estado del legajo en el sistema al momento de la emisión. Cada sección indica la fecha y el responsable del dato cuando el registro lo contiene.'
+    + '</div></div>';
+
+  // ── 1. Identificación ────────────────────────────────────────────────────
+  h += sec(1, 'IDENTIFICACIÓN DEL SUJETO')
+    + '<table>'
+    + tr2('Razón social', dash(legajo.razonSocial))
+    + tr2('CUIT', dash(legajo.cuit))
+    + tr2('Tipo societario', dash(legajo.tipoSociedad))
+    + tr2('País de constitución', dash(legajo.paisConstitucion))
+    + tr2('Actividad declarada', dash(legajo.actividad))
+    + tr2('Domicilio', dash(legajo.domicilio))
+    + tr2('Presidente / Gerente', dash(legajo.presidente))
+    + tr2('Representante legal', dash(legajo.representanteLegal))
+    + tr2('Beneficiario final (&gt;10%)', dash(legajo.beneficiarioFinal))
+    + tr2('Personas vinculadas', dash(legajo.vinculados))
+    + tr2('Grupo económico', dash(legajo.grupoEconomico))
+    + tr2('Cotiza en bolsa', legajo.cotizaBolsa ? 'Sí' : 'No')
+    + '</table>'
+    + '<table>'
+    + tr2('Facturación mensual declarada', legajo.facturacionMensual ? fmtM(Number(legajo.facturacionMensual)) : '—')
+    + tr2('Límite diario asignado', legajo.limiteDiario ? fmtM(Number(legajo.limiteDiario)) : '—')
+    + tr2('Límite mensual asignado', legajo.limiteMensual ? fmtM(Number(legajo.limiteMensual)) : '—')
+    + '</table>';
+
+  var histLim = safeArr(legajo.limitesHistorial);
+  if (histLim.length) {
+    h += '<div style="font-size:8.5pt;color:#4A6A8A;margin-top:10px">Historial de modificación de límites</div>'
+      + tbl(th(['Fecha','Diario','Mensual','Motivo','Autorizado por']),
+          histLim.map(function(x){
+            return td([dash(x.fecha), x.diario?fmtM(Number(x.diario)):'—', x.mensual?fmtM(Number(x.mensual)):'—', dash(x.motivo), dash(x.autor)]);
+          }).join(''));
+  }
+
+  // ── 2. Checklist documental ──────────────────────────────────────────────
+  var okC = 0, bloqC = 0, pendC = 0;
+  CHECKLIST_ITEMS.forEach(function(item){
+    var v = cl[item] || 'Pendiente';
+    if (v === 'OK') okC++; else if (v === 'Bloqueante') bloqC++; else if (v === 'Pendiente') pendC++;
+  });
+  h += '<div class="pb"></div>' + sec(2, 'CHECKLIST DOCUMENTAL')
+    + callout(bloqC ? 'err' : pendC ? 'warn' : 'ok',
+        okC + ' de ' + CHECKLIST_ITEMS.length + ' ítems verificados · ' + pendC + ' pendientes · ' + bloqC + ' bloqueantes.')
+    + tbl(th(['Documento','Estado','Fecha del documento']),
+        CHECKLIST_ITEMS.map(function(item){
+          var v = cl[item] || 'Pendiente';
+          var col = v==='OK' ? '#27AE60' : v==='Bloqueante' ? '#E74C3C' : v==='N/A' ? '#888' : '#F39C12';
+          return td([esc(item), infBadge(v, col), clF[item] ? esc(clF[item]) : '<span style="color:#999">no registrada</span>']);
+        }).join(''));
+
+  // ── 3. Evaluación de riesgo ──────────────────────────────────────────────
+  var kybSc = legajo.kybScores || {};
+  var vals = KYB_FACTORS.map(function(f){ return Number(kybSc[f])||0; }).filter(function(v){ return v>0; });
+  var prom = vals.length ? (vals.reduce(function(a,b){return a+b;},0)/vals.length).toFixed(2) : 'N/D';
+  h += sec(3, 'EVALUACIÓN DE RIESGO KYB')
+    + tbl(th(['Factor','Puntaje']),
+        KYB_FACTORS.map(function(f){
+          var v = Number(kybSc[f])||0;
+          var col = v>=4?'#E74C3C':v>=3?'#F39C12':v>=2?'#F1C40F':'#27AE60';
+          return td([esc(f), v ? infBadge(v + '/5', col) : '—']);
+        }).join(''))
+    + '<table>' + tr2('Score KYB promedio', prom + ' / 5')
+    + tr2('Segmento asignado', dash(legajo.segmento))
+    + tr2('Dictamen', dash(legajo.dictamen)) + '</table>';
+
+  var rf = safeArr(legajo.redFlags);
+  if (rf.length) {
+    h += '<div style="font-size:8.5pt;color:#4A6A8A;margin-top:10px">Señales de alerta registradas en el legajo</div>'
+      + '<ul style="font-size:9pt;margin:6px 0 0 18px">'
+      + rf.map(function(x){ return '<li>' + esc(typeof x === 'string' ? x : (x.texto || JSON.stringify(x))) + '</li>'; }).join('')
+      + '</ul>';
+  }
+  var obs = safeArr(legajo.observaciones);
+  if (obs.length) {
+    h += '<div style="font-size:8.5pt;color:#4A6A8A;margin-top:10px">Observaciones</div>'
+      + '<ul style="font-size:9pt;margin:6px 0 0 18px">'
+      + obs.map(function(x){ return '<li>' + esc(typeof x === 'string' ? x : (x.texto || JSON.stringify(x))) + '</li>'; }).join('')
+      + '</ul>';
+  }
+
+  // ── 4. Screening ─────────────────────────────────────────────────────────
+  h += '<div class="pb"></div>' + sec(4, 'SCREENING CONTRA LISTAS RESTRICTIVAS');
+  if (!screening) {
+    h += callout('warn', 'No hay corridas de screening registradas en el sistema al momento de la emisión.');
+  } else {
+    var mios = (screening.hits || []).filter(function(x){ return x.legajoId === legajo.id; });
+    h += '<table>'
+      + tr2('Fecha y hora de la corrida', new Date(screening.fecha).toLocaleString('es-AR'))
+      + tr2('Alcance', dash(screening.alcance))
+      + tr2('Ejecutada por', dash(screening.ejecutadoPor))
+      + tr2('Método', 'Matching determinístico local (documento exacto, nombre exacto, nombre sin sufijo societario, aproximación tolerante a variantes)')
+      + tr2('Umbrales aplicados', 'ALTA ≥' + Math.round((screening.umbrales&&screening.umbrales.ALTA||0.95)*100) + '% · MEDIA ≥' + Math.round((screening.umbrales&&screening.umbrales.MEDIA||0.85)*100) + '% · BAJA ≥' + Math.round((screening.umbrales&&screening.umbrales.BAJA||0.78)*100) + '%')
+      + '</table>'
+      + '<div style="font-size:8.5pt;color:#4A6A8A;margin-top:10px">Listados consultados y su versión</div>'
+      + tbl(th(['Lista','Fuente','Versión cargada','Entradas']),
+          (screening.listas||[]).map(function(l){
+            return td([dash(l.nombre), dash(l.fuente), dash(l.version), String(l.cantidad||0)]);
+          }).join('') || td(['—','—','—','—']));
+    if (!mios.length) {
+      h += callout('ok', 'Sin coincidencias para este legajo en la corrida indicada. Se evaluaron razón social, representante legal, presidente, beneficiario final y personas vinculadas.');
+    } else {
+      h += callout('err', mios.length + ' coincidencia(s) detectada(s). Requieren análisis documentado.')
+        + tbl(th(['Nivel','Puntaje','Sujeto evaluado','Rol','Entrada del listado','Lista','Criterio']),
+            mios.map(function(x){
+              var col = x.nivel==='ALTA'?'#E74C3C':x.nivel==='MEDIA'?'#F39C12':'#888';
+              return td([infBadge(x.nivel, col), (x.score*100).toFixed(1)+'%', esc(x.sujeto), esc(x.rol), esc(x.entradaNom), esc(x.lista), esc(x.criterio)]);
+            }).join(''));
+    }
+  }
+
+  // ── 5. Períodos transaccionales ──────────────────────────────────────────
+  h += '<div class="pb"></div>' + sec(5, 'PERÍODOS TRANSACCIONALES ANALIZADOS');
+  if (!periodos.length) {
+    h += callout('warn', 'No hay períodos transaccionales cargados para este legajo.');
+  } else {
+    h += tbl(th(['Período','Carga','Estado','Operaciones','Volumen IN','Volumen OUT','Señales activas']),
+        periodos.map(function(p){
+          var m = p.metricas;
+          var sg = senalesPorPeriodo[p.id] || [];
+          var alta = sg.filter(function(x){return x.sev==='ALTA';}).length;
+          return td([
+            esc(p.nombre), dash(p.createdAt), dash(p.estadoPeriodo),
+            m ? String(m.totalTxns) : '—',
+            m ? fmtM(m.tIn) : '—',
+            m ? fmtM(m.tOut) : '—',
+            sg.length ? (sg.length + (alta ? ' (' + alta + ' ALTA)' : '')) : '0'
+          ]);
+        }).join(''));
+
+    periodos.forEach(function(p){
+      var m = p.metricas;
+      if (!m) return;
+      var sg = senalesPorPeriodo[p.id] || [];
+      var res = p.sigsResolucion || {};
+      h += '<h3 style="font-size:9.5pt;color:#2C4A7C;margin:16px 0 4px;border-bottom:1px solid #D6E4F0;padding-bottom:4px">Período: ' + esc(p.nombre) + '</h3>'
+        + '<table>'
+        + tr2('Operaciones', String(m.totalTxns) + ' (' + m.countIn + ' IN / ' + m.countOut + ' OUT)')
+        + tr2('Volumen total', fmtM(m.tVol))
+        + tr2('Balance neto', fmtM(m.balanceNeto))
+        + tr2('Ticket promedio', fmtM(m.avg))
+        + tr2('Contrapartes únicas', m.uniqueCpIn + ' IN / ' + m.uniqueCpOut + ' OUT')
+        + tr2('Concentración top-1', m.top1In.toFixed(1) + '% IN · ' + m.top1Out.toFixed(1) + '% OUT')
+        + (m.pctAtypicalHour !== null && m.pctAtypicalHour !== undefined ? tr2('Operaciones en horario atípico', m.pctAtypicalHour.toFixed(1) + '%') : '')
+        + '</table>';
+      if (sg.length) {
+        h += tbl(th(['Patrón','Sev.','Señal','Estado','Resolución']),
+          sg.map(function(x){
+            var r = res[x.pat];
+            var col = x.sev==='ALTA'?'#E74C3C':x.sev==='MEDIA'?'#F39C12':'#888';
+            var est = (r && r.estado === 'RESUELTA')
+              ? infBadge('RESUELTA', '#27AE60')
+              : infBadge('ACTIVA', '#E74C3C');
+            var det = (r && r.estado === 'RESUELTA')
+              ? esc(r.explicacion || '') + '<br/><span style="font-size:8pt;color:#888">' + esc(r.aprobadoPor||'') + ' · ' + esc(r.aprobadoAt||'') + '</span>'
+              : '<span style="color:#999">sin resolver</span>';
+            return td([esc(x.pat), infBadge(x.sev, col), esc(x.titulo), est, det]);
+          }).join(''));
+      } else {
+        h += callout('ok', 'Sin señales detectadas en este período.');
+      }
+    });
+  }
+
+  // ── 6. Casos de compliance ───────────────────────────────────────────────
+  h += '<div class="pb"></div>' + sec(6, 'CASOS DE COMPLIANCE');
+  if (!casos.length) {
+    h += callout('info', 'No hay casos abiertos ni cerrados asociados a este legajo.');
+  } else {
+    h += tbl(th(['Referencia','Caso','Origen','Estado','Prioridad','Analista','Apertura','Cierre']),
+        casos.map(function(c){
+          return td([esc(c.ref), esc(c.titulo), esc(c.origen), esc(c.estado), esc(c.prioridad),
+                     dash(c.analista), dash(c.fechaApertura), dash(c.fechaCierre)]);
+        }).join(''));
+    casos.forEach(function(c){
+      h += '<h3 style="font-size:9.5pt;color:#2C4A7C;margin:16px 0 4px;border-bottom:1px solid #D6E4F0;padding-bottom:4px">' + esc(c.ref) + ' — ' + esc(c.titulo) + '</h3>';
+      if (c.detalle) h += '<div style="font-size:9pt;margin:6px 0">' + nl2br(c.detalle) + '</div>';
+      var hist = safeArr(c.historial);
+      if (hist.length) {
+        h += '<div style="font-size:8.5pt;color:#4A6A8A;margin-top:8px">Trazabilidad del caso</div>'
+          + tbl(th(['Fecha','Hora','Estado','Responsable','Nota']),
+              hist.map(function(x){ return td([dash(x.fecha), dash(x.hora), dash(x.estado), dash(x.autor), dash(x.nota)]); }).join(''));
+      }
+      var coms = safeArr(c.comentarios);
+      if (coms.length) {
+        h += '<div style="font-size:8.5pt;color:#4A6A8A;margin-top:8px">Comentarios del analista</div>'
+          + tbl(th(['Fecha','Autor','Comentario']),
+              coms.map(function(x){ return td([esc(x.fecha)+' '+esc(x.hora||''), esc(x.autor), nl2br(x.texto)]); }).join(''));
+      }
+    });
+  }
+
+  // ── 7. RFIs ──────────────────────────────────────────────────────────────
+  h += sec(7, 'REQUERIMIENTOS DE INFORMACIÓN (RFI)');
+  if (!rfis.length) {
+    h += callout('info', 'No se registran RFIs emitidos a este cliente.');
+  } else {
+    h += tbl(th(['Referencia','Asunto','Estado','Emitido','Respondido']),
+        rfis.map(function(r){
+          return td([dash(r.refNum), dash(r.asunto), dash(r.estado), dash(r.createdAt), dash(r.respondidoAt)]);
+        }).join(''));
+  }
+
+  // ── 8. Vencimientos ──────────────────────────────────────────────────────
+  h += sec(8, 'VENCIMIENTOS APLICABLES');
+  var vLeg = vencs.filter(function(v){ return v.legajoId === legajo.id; });
+  if (!vLeg.length) {
+    h += callout('info', 'Sin puntos de control de vencimiento calculados para este legajo.');
+  } else {
+    h += tbl(th(['Concepto','Tipo','Vence','Estado']),
+        vLeg.map(function(v){
+          var col = v.estado==='VENCIDO'?'#E74C3C':v.estado==='PROXIMO'?'#F39C12':'#27AE60';
+          var etiqueta = v.estado==='VENCIDO' ? 'VENCIDO hace ' + Math.abs(v.dias) + ' d'
+                       : v.estado==='PROXIMO' ? 'vence en ' + v.dias + ' d' : 'en regla';
+          return td([esc(v.label) + (v.estimado ? ' <span style="font-size:8pt;color:#F39C12">(fecha estimada)</span>' : ''),
+                     esc(v.tipo), v.limite ? v.limite.toLocaleDateString('es-AR') : '—', infBadge(etiqueta, col)]);
+        }).join(''));
+  }
+
+  // ── 9. Historial de estado de cuenta ─────────────────────────────────────
+  h += sec(9, 'HISTORIAL DE ESTADO DE CUENTA');
+  var eh = safeArr(legajo.estadoHistorial);
+  if (!eh.length) {
+    h += callout('info', 'Sin cambios de estado registrados.');
+  } else {
+    h += tbl(th(['Fecha','Hora','Estado','Responsable','Motivo']),
+        eh.slice().reverse().map(function(x){
+          return td([dash(x.fecha), dash(x.hora), dash(x.estado), dash(x.analista), dash(x.motivo)]);
+        }).join(''));
+  }
+
+  // ── Cierre ───────────────────────────────────────────────────────────────
+  h += '<div class="pb"></div>' + sec(10, 'CONSTANCIA DE EMISIÓN')
+    + '<div style="font-size:9pt;line-height:1.7;margin:10px 0">'
+    + 'El presente documento consolida la información registrada en el sistema de gestión de compliance de GOAT S.A. / Rebit '
+    + 'respecto del cliente <strong>' + esc(empresa) + '</strong> (CUIT ' + dash(legajo.cuit) + '), al ' + fecha + ' ' + hora + '.<br/><br/>'
+    + 'Las secciones de screening y de señales transaccionales reflejan el resultado de procedimientos automatizados y determinísticos, '
+    + 'reproducibles a partir de los listados y períodos indicados. Las resoluciones de señales y los cambios de estado registran el '
+    + 'responsable y la fecha en que fueron asentados.'
+    + '</div>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:22px">'
+    + '<tr>'
+    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Analista de Compliance</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
+    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Oficial de Cumplimiento</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
+    + '</tr></table>'
+    + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
+    + '<span>Confidencial — Uso interno y ante requerimiento de autoridad competente</span>'
+    + '<span>GOAT S.A. / Rebit — Legajo completo — emitido ' + fecha + ' ' + hora + '</span>'
+    + '</div></body></html>';
+
+  return h;
+}
+
+export { pStyles, piH, r2, r3, rpH, rpF, infSec, infBadge, infCallout, infTr2, infTr3, infTbl, infTh, infTd, genINF01, genINF02, genINF07Cierre, genROS, genNotaDD, genLegajoCompleto };
