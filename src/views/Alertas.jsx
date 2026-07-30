@@ -117,7 +117,7 @@ function AlertasView(props) {
   var allSigs = [];
   periodos.forEach(function(p) {
     var leg = legajos.find(function(l){return l.id===p.legajoId;});
-    senalesActivas(p, leg).forEach(function(s) {
+    senalesActivas(p, leg, periodos).forEach(function(s) {
       allSigs.push(Object.assign({}, s, {
         key: p.id + '_' + s.pat,
         legajoNom: (leg&&leg.razonSocial)||'N/D',

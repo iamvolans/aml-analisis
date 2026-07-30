@@ -1,6 +1,6 @@
 {
   "name": "rebit-aml-tool",
-  "version": "3.12.0",
+  "version": "3.13.1",
   "private": true,
   "scripts": {
     "dev": "vite",

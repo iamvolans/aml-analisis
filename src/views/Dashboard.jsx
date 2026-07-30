@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { BarChart, Bar, LineChart, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, Pill, StatCard, chartGrid, chartAxis, chartTooltip } from "../components/ui";
-import { calcScoring, detectPatrones, metricasDe } from "../lib/aml";
+import { calcScoring, detectPatrones, lineaBase, metricasDe } from "../lib/aml";
 import { getEstadoCaso, slaCritico, colorSLA } from "../lib/casos";
 import { todosLosVencimientos, fmtFecha, colorVenc } from "../lib/vencimientos";
 import { ESTADOS_CUENTA, getEstado } from "../lib/constants";
@@ -80,7 +80,7 @@ function DashboardView(props) {
     var leg = legajos.find(function(l){return l.id===p.legajoId;});
     var m = getMetricasPeriodo(p, leg);
     if (m) {
-      var sigs = detectPatrones(m, leg);
+      var sigs = detectPatrones(m, leg, lineaBase(p, leg, periodos));
       var activas2 = getSigsActivas(sigs, p.sigsResolucion);
       activas2.forEach(function(s){allSigs.push(s);});
     }
@@ -107,7 +107,7 @@ function DashboardView(props) {
     var sA = 0;
     lp.forEach(function(p){
       var m = getMetricasPeriodo(p, l);
-      if(m){ var sigs=detectPatrones(m,l); sA+=getSigsActivas(sigs,p.sigsResolucion).filter(function(s){return s.sev==='ALTA';}).length; }
+      if(m){ var sigs=detectPatrones(m,l,lineaBase(p,l,periodos)); sA+=getSigsActivas(sigs,p.sigsResolucion).filter(function(s){return s.sev==='ALTA';}).length; }
     });
     return {l:l, altas:sA, periodos:lp.length};
   }).filter(function(x){return x.altas>0;}).sort(function(a,b){return b.altas-a.altas;}).slice(0,5);
@@ -198,7 +198,7 @@ function DashboardView(props) {
     if (!evolucionMap[key]) evolucionMap[key] = {nombre:label, tIn:0, tOut:0, sigs:0, sortKey: extracted ? extracted.key : 999999};
     evolucionMap[key].tIn  += (m.tIn  || 0);
     evolucionMap[key].tOut += (m.tOut || 0);
-    var sigsActivas = getSigsActivas(detectPatrones(m, leg), p.sigsResolucion);
+    var sigsActivas = getSigsActivas(detectPatrones(m, leg, lineaBase(p, leg, periodos)), p.sigsResolucion);
     evolucionMap[key].sigs += sigsActivas.filter(function(s){return s.sev==='ALTA';}).length;
   });
   // Ordenar cronológicamente por mes/año y tomar los últimos 8
@@ -213,7 +213,7 @@ function DashboardView(props) {
     lp.forEach(function(p){
       var m = getMetricasPeriodo(p, l);
       if (!m) return;
-      var sigs = detectPatrones(m, l);
+      var sigs = detectPatrones(m, l, lineaBase(p, l, periodos));
       var sigsActivas = getSigsActivas(sigs, p.sigsResolucion);
       totalSigsAlta += sigsActivas.filter(function(s){return s.sev==='ALTA';}).length;
       totalVol += m.tIn;

@@ -30,6 +30,9 @@ var PAT_UIF_MAP = {
   'PAT-10': { tip:'T-02', desc:'Near-threshold structuring: acumulación de 5 o más operaciones por debajo del umbral UIF ($800K) con la misma contraparte' },
   'PAT-11': { tip:'T-08', desc:'Incorporación masiva de nuevas contrapartes en un período reducido, sin correlato operativo aparente' },
   'PAT-12': { tip:'T-09', desc:'Comportamiento transaccional atípico en relación al perfil histórico del cliente' },
+  'PAT-13': { tip:'T-09', desc:'Desvío significativo del volumen operado respecto de la línea base histórica del propio cliente' },
+  'PAT-14': { tip:'T-03', desc:'Concentración del flujo en una contraparte sin antecedentes operativos con el cliente' },
+  'PAT-15': { tip:'T-06', desc:'Cambio abrupto en la distribución horaria de las operaciones respecto del comportamiento habitual' },
 };
 
 export { ESTADOS_CUENTA, getEstado, CHECKLIST_ITEMS, KYB_FACTORS, SCREENING, PAT_UIF_MAP };

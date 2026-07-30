@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { toast, uiConfirm } from "../components/feedback";
 import { Badge, Card, Pill } from "../components/ui";
 import { _KEYS, callProxyOrDirect, extractWithClaude, extractWithGPT } from "../lib/ai";
-import { calcMetricas, calcScoring, contarAlta, detectPatrones } from "../lib/aml";
+import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEliminar } from "../lib/auth";
 import { CHECKLIST_ITEMS, ESTADOS_CUENTA, KYB_FACTORS, getEstado } from "../lib/constants";
 import { genINF01, genINF07Cierre, genROS } from "../lib/reports";
@@ -1258,7 +1258,7 @@ function LegajosView(props) {
               var lp = periodos.filter(function(p){return p.legajoId===sel.id;});
               var conSenales = lp.filter(function(p){
                 if (!p.metricas) return false;
-                var sigs = detectPatrones(p.metricas, sel);
+                var sigs = detectPatrones(p.metricas, sel, lineaBase(p, sel, periodos));
                 return sigs.some(function(s){return s.sev==='ALTA' && (!(p.sigsResolucion||{})[s.pat] || (p.sigsResolucion||{})[s.pat].estado!=='RESUELTA');});
               });
               setRosSelPer(conSenales.map(function(p){return p.id;}));
@@ -1293,7 +1293,7 @@ function LegajosView(props) {
                     {lp.length === 0 ? (
                       <div style={{color:T.TEXT3,fontSize:12,textAlign:'center',padding:'12px 0'}}>Este legajo no tiene períodos analizados.</div>
                     ) : lp.map(function(p){
-                      var hasSigs = p.metricas && detectPatrones(p.metricas, sel).some(function(s){
+                      var hasSigs = p.metricas && detectPatrones(p.metricas, sel, lineaBase(p, sel, periodos)).some(function(s){
                         return s.sev==='ALTA' && (!(p.sigsResolucion||{})[s.pat] || (p.sigsResolucion||{})[s.pat].estado!=='RESUELTA');
                       });
                       var checked = rosSelPer.indexOf(p.id) >= 0;
@@ -1532,7 +1532,7 @@ function LegajosView(props) {
     if (ts >= st.ultTs) { st.ultTs = ts; st.ultLabel = p.createdAt || null; }
     // Criterio único compartido (lib/aml.js): usa p.metricas persistidas, así que
     // ya no subreporta cuando las txns no están hidratadas en memoria.
-    st.alta += contarAlta(p, legIndex[p.legajoId]);
+    st.alta += contarAlta(p, legIndex[p.legajoId], periodos);
   });
   // Últ. análisis: período más reciente, o la fecha de análisis externo al sistema
   function ultAnalisis(l) {

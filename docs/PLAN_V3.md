@@ -166,10 +166,20 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
       match por documento, exacto, exacto-sin-sufijo y aproximado (token_set_ratio
       con penalización por cobertura). Indexado por bloques de prefijo/sufijo de token.
     - Tablas `screening_listas` y `screening_runs` (`sql/T5_screening.sql`).
-    - Vista `Screening`: carga de listados CSV/XLSX/JSON con detección automática de
-      columnas, corrida sobre cartera activa o completa, resultados con nivel y
-      puntaje, drawer de comparación lado a lado, descarte de falsos positivos con
-      motivo, historial de corridas y caso desde coincidencia.
+    - Vista `Screening`: carga de listados CSV/XLSX/JSON, corrida sobre cartera activa
+      o completa, resultados con nivel y puntaje, drawer de comparación lado a lado,
+      descarte de falsos positivos con motivo, historial de corridas y caso desde
+      coincidencia.
+    - **v3.13.1 — fix de importación de listados.** La carga usaba `parseCsv` /
+      `parseExcelFile`, que corren `normalizeRows()`: están hechas para archivos de
+      TRANSACCIONES (fecha/monto/tipo/contraparte) y devolvían cero filas para un
+      listado de nombres. Se agregaron `parseTabla`, `parseTablaExcel` y
+      `parseTablaJson` en `lib/parsers.js`: lectores genéricos que devuelven las filas
+      tal cual, con detección de separador (coma, punto y coma, tab, barra), manejo de
+      BOM y de comillas escapadas. Además la importación pasó a tener **mapeo de
+      columnas visible**: se sugiere el mapeo, se muestra una vista previa de las
+      entradas resultantes y el usuario corrige antes de confirmar, en vez de un
+      rechazo opaco.
   - [x] T5b (v3.12.0): automatización e integración
     - `api/cron-screening.js` + `crons` en `vercel.json`: corrida semanal (lunes 9:00 UTC)
       sobre la cartera activa, usando el MISMO motor que la corrida manual.
@@ -180,7 +190,18 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
       (coincidencias con nivel y puntaje, o "sin coincidencias" con fecha y listas).
       Los enlaces manuales quedan abajo para jurisdicciones no cubiertas.
     - Dashboard: aviso si la última corrida tiene más de 10 días o nunca se corrió.
-- [ ] T6 — Comportamiento + grafo
+- [x] **T6 — Comportamiento + grafo ✅ (v3.13.0)**
+  - `lineaBase(periodo, legajo, periodos)` en `lib/aml.js`: mediana de volumen y de
+    operaciones sobre los 6 períodos previos, contrapartes habituales y distribución
+    horaria. Mediana y no promedio: un solo período atípico previo no corre la base.
+  - **PAT-13** desvío ≥3x contra la mediana propia (≥5x = ALTA) · **PAT-14** contraparte
+    sin antecedentes que concentra ≥40% del flujo (≥60% = ALTA) · **PAT-15** salto de
+    ≥25 puntos en operaciones en horario atípico (≥40 = ALTA). Umbrales en
+    `COMPORTAMIENTO`, dentro de `lib/aml.js`.
+  - `PAT_UIF_MAP` extendido con los tres, así el generador de ROS los contempla.
+  - `lib/grafo.js` + vista `Red`: contrapartes que operan con varios legajos de la
+    cartera, grafo SVG determinístico, tabla, drawer con detalle por cliente y caso
+    desde una red detectada.
 - [ ] T7 — Reportería + documental
 - [ ] T8 — Hardening final
 
@@ -207,19 +228,34 @@ de caso 2) son política interna de Rebit.
 
 Cambiar cualquiera de estos valores recalcula todos los contadores de la app.
 
-## Spec T6 — Monitoreo por comportamiento + grafo de contrapartes (PRÓXIMA)
+## Spec T7 — Reportería regulatoria y gestión documental (PRÓXIMA)
 
-1. **Perfil dinámico**: línea base por cliente (promedio móvil de volumen, contrapartes
-   habituales, distribución horaria de sus últimos N períodos).
-2. Patrones nuevos: PAT-13 (desviación >Nx contra su propia línea base), PAT-14
-   (contraparte nueva concentra >40% del flujo), PAT-15 (cambio abrupto de distribución
-   horaria).
-3. **Grafo de contrapartes inter-legajo**: CUITs que operan con múltiples clientes de la
-   cartera. Vista de grafo interactiva + alerta cuando una contraparte comparte ≥3 legajos.
+1. Generador de **reporte sistemático mensual** desde las txns cargadas.
+2. **Export de legajo completo**: PDF único con datos + checklist + screening con
+   timestamps + períodos + señales + RFIs + informes emitidos. El legajo que pide un
+   inspector, en un click.
+3. **Supabase Storage** para documentos: adjuntar PDFs al legajo, versionado y fecha de
+   vencimiento por documento — que alimenta el calendario de T4, donde hoy la fecha se
+   carga a mano en el checklist.
 
-Nota: PAT-13/14/15 se suman a `detectPatrones` en `lib/aml.js`, así que entran
-automáticamente en Alertas, Casos y el conteo de señales activas. Hay que extender
-`PAT_UIF_MAP` en `constants.js` para que el generador de ROS los contemple.
+## Notas de T6 — comportamiento y red
+
+**Firma nueva.** `senalesActivas(periodo, legajo, periodos)` y `contarAlta(...)` toman un
+tercer parámetro con el array COMPLETO de períodos: sin él no hay línea base y PAT-13/14/15
+no activan. Todos los call sites lo tienen en scope y se actualizaron. **Si se agrega un
+call site nuevo, pasarlo siempre**, o esa vista contará menos señales que el resto — es
+exactamente la deuda #1 que se resolvió en T3a.
+
+**Comportamiento verificado** con series sintéticas (4 períodos estables de $1M como base):
+período normal no dispara nada; 3,2x → PAT-13 MEDIA; 6x → PAT-13 ALTA; 2x no dispara;
+contraparte nueva con 100% del flujo → PAT-14 ALTA; salto a horario nocturno → PAT-15 ALTA.
+Con menos de 2 períodos previos `lineaBase` devuelve null y los tres quedan inactivos.
+
+**Normalización de contrapartes en el grafo.** `normalizar()` convierte la puntuación en
+espacios, así que "S.A." queda "S A" y no coincidía con "SA": `claveCp` vuelve a pegar las
+corridas de letras sueltas. A diferencia del screening, **no** se quitan los sufijos
+societarios: "PUENTE SA" y "PUENTE SRL" son personas jurídicas distintas y fusionarlas
+inventaría una red inexistente. Un vínculo falso cuesta más caro que uno no detectado.
 
 ## Importante — extensiones .js en los imports de lib/
 
@@ -294,6 +330,12 @@ Filtros en `sessionStorage` → `rebit_legajos_filtros_v3`.
 **Analisis.jsx** — `ESTADOS_PERIODO` / `getEstadoPeriodo()` en scope de módulo.
 
 **Alertas.jsx** — filtros en `rebit_alertas_filtros_v3`, orden independiente por pestaña.
+
+**Importación de listados** — `parseTabla` detecta el separador contando ocurrencias
+fuera de comillas en la cabecera. Es necesario: las listas de sanciones suelen traer
+"APELLIDO, NOMBRE" en archivos separados por punto y coma, y asumir la coma parte los
+nombres al medio. Las cabeceras se comparan sin tildes y con no-alfanuméricos colapsados
+a `_`, así que "Número de Documento" y "Nro. de Documento" caen en el mismo alias.
 
 **screening.js** — no tiene dependencias de navegador: es JS puro, importable también
 desde una función serverless (lo usa el cron de T5b). Los descartes viven en

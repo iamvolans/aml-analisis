@@ -393,17 +393,50 @@ function hitsNuevos(runActual, runAnterior) {
 // ─── PARSEO DE LISTADOS ─────────────────────────────────────────────────────
 // Acepta el CSV/JSON oficial sin pedir un formato propio: busca las columnas
 // por nombre entre varios alias habituales.
-var ALIAS_NOMBRE = ['nombre','nombre_completo','denominacion','razon_social','name','fullname','apellido_y_nombre','sujeto'];
-var ALIAS_DOC    = ['documento','doc','cuit','cuil','dni','identificacion','numero_documento','id_documento','nro_documento'];
-var ALIAS_DET    = ['detalle','observaciones','tipo','motivo','resolucion','descripcion','lista'];
+var ALIAS_NOMBRE = ['nombre','nombres','nombre_completo','nombre_y_apellido','apellido_y_nombre','apellido_nombre','apellidos_y_nombres','denominacion','denominacion_social','razon_social','razonsocial','name','fullname','full_name','sujeto','persona','titular','entidad','beneficiario'];
+var ALIAS_DOC    = ['documento','doc','nro_documento','numero_documento','numero_de_documento','nro_de_documento','n_de_documento','numero_de_doc','n_documento','nro_doc','numero','nro','cuit','cuil','cuit_cuil','nro_cuit','numero_cuit','dni','nro_dni','identificacion','id_documento','tax_id','identificador'];
+var ALIAS_TIPODOC= ['tipo_documento','tipo_de_documento','tipo_doc','tipodoc','clase_documento','tipo_identificacion','tipo_de_identificacion'];
+var ALIAS_DET    = ['detalle','observaciones','observacion','tipo','motivo','resolucion','descripcion','lista','origen','fuente','nacionalidad','alias'];
 
 function buscarCampo(fila, alias) {
   var claves = Object.keys(fila);
   for (var i = 0; i < claves.length; i++) {
-    var k = claves[i].toLowerCase().replace(/[^a-z0-9]/g,'_');
+    var k = claves[i].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
     if (alias.indexOf(k) >= 0) return fila[claves[i]];
   }
   return '';
+}
+
+// Sugiere qué columna corresponde a cada campo. Devuelve el nombre EXACTO de la
+// cabecera para poder mostrarlo y dejar que el usuario lo corrija.
+function sugerirMapeo(headers) {
+  function buscar(alias) {
+    for (var i = 0; i < headers.length; i++) {
+      var k = headers[i].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+      if (alias.indexOf(k) >= 0) return headers[i];
+    }
+    return '';
+  }
+  return {
+    nombre:  buscar(ALIAS_NOMBRE) || (headers[0] || ''),
+    doc:     buscar(ALIAS_DOC),
+    tipoDoc: buscar(ALIAS_TIPODOC),
+    detalle: buscar(ALIAS_DET),
+  };
+}
+
+// Construye las entradas con un mapeo explícito de columnas.
+function filasAEntradasMapeo(filas, mapeo) {
+  return (filas || []).map(function(f){
+    var det = [];
+    if (mapeo.tipoDoc && f[mapeo.tipoDoc]) det.push(f[mapeo.tipoDoc]);
+    if (mapeo.detalle && f[mapeo.detalle]) det.push(f[mapeo.detalle]);
+    return {
+      nombre: mapeo.nombre ? f[mapeo.nombre] : '',
+      doc: mapeo.doc ? f[mapeo.doc] : '',
+      detalle: det.join(' · '),
+    };
+  }).filter(function(e){ return e.nombre && String(e.nombre).trim().length >= 3; });
 }
 
 function filasAEntradas(filas) {
@@ -419,5 +452,5 @@ function filasAEntradas(filas) {
 export {
   UMBRALES, normalizar, sinSufijos, soloDigitos, similitud, tokenSetRatio, nivelDe,
   sujetosDe, prepararListado, matchearSujeto, claveHit, correrScreening,
-  filasAEntradas, buscarCampo, clavesBloqueo, hitsNuevos
+  filasAEntradas, filasAEntradasMapeo, sugerirMapeo, buscarCampo, clavesBloqueo, hitsNuevos
 };

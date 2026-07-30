@@ -3,7 +3,7 @@ import { toast, uiConfirm } from "../components/feedback";
 import { BarChart, Bar, Line, ComposedChart, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
 import { Card, Pill, SevBadge, chartGrid, chartAxis, chartTooltip } from "../components/ui";
-import { calcMetricas, calcScoring, contarAlta, detectPatrones } from "../lib/aml";
+import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEditar } from "../lib/auth";
 import { parseCsv, parseExcelFile } from "../lib/parsers";
 import { genINF02, genNotaDD } from "../lib/reports";
@@ -33,7 +33,7 @@ function AnalisisView(props) {
   var fileRef = useRef();
   var lP = selLegajo ? periodos.filter(function(p){return p.legajoId===selLegajo.id;}) : [];
   var m = selPeriodo && selPeriodo.txns ? calcMetricas(selPeriodo.txns, selLegajo) : (selPeriodo && selPeriodo.metricas ? selPeriodo.metricas : null);
-  var sigs = m ? detectPatrones(m, selLegajo) : [];
+  var sigs = m ? detectPatrones(m, selLegajo, lineaBase(selPeriodo, selLegajo, periodos)) : [];
   var sc = m ? (selPeriodo && selPeriodo.scoring ? selPeriodo.scoring : calcScoring(m, sigs)) : null;
 
   // MEMOS — siempre desde Supabase KV
@@ -318,7 +318,7 @@ function AnalisisView(props) {
 
   // Señales ALTA activas de un período — usa las métricas persistidas, así que
   // no depende de que las txns estén hidratadas en memoria.
-  function altaActivas(p) { return contarAlta(p, selLegajo); }
+  function altaActivas(p) { return contarAlta(p, selLegajo, periodos); }
   function txnsDe(p) {
     return (p.txns && p.txns.length > 0) ? p.txns.length : (p.metricas ? (p.metricas.totalTxns||0) : 0);
   }
@@ -453,8 +453,9 @@ function AnalisisView(props) {
         // Datos de todos los períodos con métricas
         var periodosDatos = lP.map(function(p){
           var mm = p.metricas || (p.txns&&p.txns.length?calcMetricas(p.txns,selLegajo):null);
-          var ss = p.scoring || (mm?calcScoring(mm,detectPatrones(mm,selLegajo)):null);
-          var ssigs = mm ? detectPatrones(mm,selLegajo) : [];
+          var bb = lineaBase(p, selLegajo, periodos);
+          var ss = p.scoring || (mm?calcScoring(mm,detectPatrones(mm,selLegajo,bb)):null);
+          var ssigs = mm ? detectPatrones(mm,selLegajo,bb) : [];
           var sigsAltaActivas = ssigs.filter(function(s){
             if (s.sev!=='ALTA') return false;
             var res = (p.sigsResolucion||{})[s.pat];

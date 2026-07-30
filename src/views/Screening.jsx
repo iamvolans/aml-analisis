@@ -3,8 +3,8 @@ import { SortTh, TableCard, Drawer, EmptyState, StatCard, TD } from "../componen
 import { toast, uiConfirm } from "../components/feedback";
 import { auditLog } from "../lib/auth";
 import { nuevoCaso, refCaso } from "../lib/casos";
-import { parseCsv, parseExcelFile } from "../lib/parsers";
-import { UMBRALES, correrScreening, filasAEntradas } from "../lib/screening";
+import { parseTabla, parseTablaExcel, parseTablaJson } from "../lib/parsers";
+import { UMBRALES, correrScreening, filasAEntradasMapeo, sugerirMapeo } from "../lib/screening";
 import { serverLoadKV, serverSaveKV, serverLoadListas, serverSaveLista, serverDeleteLista, serverLoadRuns, serverLoadRun, serverSaveRun } from "../lib/sync";
 import { T } from "../lib/theme";
 import { todayStr } from "../lib/utils";
@@ -34,6 +34,8 @@ function ScreeningView(props) {
   var searchState = useState(''); var search=searchState[0]; var setSearch=searchState[1];
   var sortState = useState({k:'score',d:-1}); var sortBy=sortState[0]; var setSortBy=sortState[1];
   var fileRef = useRef(null);
+  // Importación con mapeo de columnas
+  var impState = useState(null); var imp=impState[0]; var setImp=impState[1];
 
   function toggleSort(k) { setSortBy(function(p){ return p.k===k ? {k:k,d:-p.d} : {k:k,d:1}; }); }
 
@@ -58,47 +60,71 @@ function ScreeningView(props) {
   }, []);
 
   // ── Carga de listado ───────────────────────────────────────────────────────
-  async function subirListado(file) {
+  // No se interpreta nada a ciegas: se leen las filas tal cual, se sugiere el
+  // mapeo de columnas y el usuario confirma viendo una muestra. La versión
+  // anterior rechazaba el archivo sin decir qué columnas había encontrado.
+  async function leerArchivo(file) {
     if (!file) return;
     try {
-      var filas;
       var nombreArch = file.name || 'listado';
+      var tabla;
       if (/\.(xlsx|xls)$/i.test(nombreArch)) {
-        filas = await parseExcelFile(file);
+        tabla = await parseTablaExcel(file);
       } else {
         var texto = await file.text();
-        if (/^\s*[\[{]/.test(texto)) {
-          var json = JSON.parse(texto);
-          filas = Array.isArray(json) ? json : (json.datos || json.data || json.registros || []);
-        } else {
-          filas = parseCsv(texto);
-        }
+        tabla = /^\s*[\[{]/.test(texto.replace(/^\uFEFF/, '')) ? parseTablaJson(texto) : parseTabla(texto);
       }
-      var entradas = filasAEntradas(filas);
-      if (!entradas.length) {
-        toast('No se reconoció ninguna entrada. El archivo debe tener una columna de nombre (nombre, denominación, razón social…).');
+      if (!tabla.headers.length || !tabla.filas.length) {
+        toast('El archivo no tiene filas legibles. Revisá que tenga una fila de cabeceras y al menos un registro.');
         return;
       }
-      var idLista = (window.prompt('Identificador corto de la lista (ej: repet, ofac, pep_arg):', 'repet') || '').trim().toLowerCase();
-      if (!idLista) return;
-      var lista = {
-        id: idLista,
-        nombre: window.prompt('Nombre visible de la lista:', idLista.toUpperCase()) || idLista.toUpperCase(),
-        fuente: window.prompt('Fuente / URL oficial de descarga:', '') || '',
-        version: nombreArch + ' · cargado ' + todayStr(),
-        entradas: entradas,
-      };
-      var ok = await serverSaveLista(lista);
-      if (!ok) { toast('No se pudo guardar la lista.'); return; }
-      setListas(function(prev){
-        var otras = prev.filter(function(l){ return l.id !== lista.id; });
-        return [Object.assign({}, lista, {cantidad: entradas.length, updated_at: new Date().toISOString()})].concat(otras);
+      setImp({
+        archivo: nombreArch,
+        headers: tabla.headers,
+        filas: tabla.filas,
+        mapeo: sugerirMapeo(tabla.headers),
+        id: 'repet',
+        nombre: '',
+        fuente: '',
       });
-      auditLog(currentUser, 'cargar_lista_screening', 'screening', lista.id, { cantidad: entradas.length, version: lista.version });
-      toast('✓ ' + entradas.length + ' entradas cargadas en ' + lista.nombre);
     } catch(e) {
       toast('Error leyendo el archivo: ' + e.message);
     }
+  }
+
+  function setMapeo(campo, valor) {
+    setImp(function(prev){
+      if (!prev) return prev;
+      var m = Object.assign({}, prev.mapeo); m[campo] = valor;
+      return Object.assign({}, prev, { mapeo: m });
+    });
+  }
+
+  async function confirmarImportacion() {
+    if (!imp) return;
+    var entradas = filasAEntradasMapeo(imp.filas, imp.mapeo);
+    if (!entradas.length) {
+      toast('Con esa columna de nombre no se obtuvo ninguna entrada válida. Probá con otra.');
+      return;
+    }
+    var idLista = (imp.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');
+    if (!idLista) { toast('Poné un identificador para la lista.'); return; }
+    var lista = {
+      id: idLista,
+      nombre: (imp.nombre || '').trim() || idLista.toUpperCase(),
+      fuente: (imp.fuente || '').trim(),
+      version: imp.archivo + ' · cargado ' + todayStr(),
+      entradas: entradas,
+    };
+    var ok = await serverSaveLista(lista);
+    if (!ok) { toast('No se pudo guardar la lista.'); return; }
+    setListas(function(prev){
+      var otras = prev.filter(function(l){ return l.id !== lista.id; });
+      return [Object.assign({}, lista, {cantidad: entradas.length, updated_at: new Date().toISOString()})].concat(otras);
+    });
+    auditLog(currentUser, 'cargar_lista_screening', 'screening', lista.id, { cantidad: entradas.length, version: lista.version });
+    setImp(null);
+    toast('✓ ' + entradas.length + ' entradas cargadas en ' + lista.nombre);
   }
 
   async function borrarLista(l) {
@@ -210,6 +236,99 @@ function ScreeningView(props) {
 
   return (
     <div style={{padding:22}}>
+
+      {/* Drawer de importación con mapeo de columnas */}
+      {imp && (function(){
+        var entradas = filasAEntradasMapeo(imp.filas, imp.mapeo);
+        var muestra = entradas.slice(0, 5);
+        var opciones = [''].concat(imp.headers);
+        function selCol(label, campo, obligatorio) {
+          return (
+            <div style={{marginBottom:9}}>
+              <label style={{display:'block',fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:4}}>
+                {label}{obligatorio ? <span style={{color:T.RED}}> *</span> : null}
+              </label>
+              <select value={imp.mapeo[campo]||''} onChange={function(e){setMapeo(campo, e.target.value);}}
+                style={{width:'100%',border:'1px solid '+((obligatorio && !imp.mapeo[campo]) ? T.RED : T.BORDER2),borderRadius:T.RADIUS.sm,padding:'7px 10px',fontSize:12,color:T.TEXT,fontFamily:T.SANS}}>
+                {opciones.map(function(h,i){ return <option key={i} value={h}>{h || '— ninguna —'}</option>; })}
+              </select>
+            </div>
+          );
+        }
+        return (
+          <Drawer width={620} onClose={function(){setImp(null);}}>
+            <h3 style={{margin:'0 0 4px',fontSize:17,fontWeight:700,color:T.TEXT}}>Importar listado</h3>
+            <div style={{fontSize:11,color:T.TEXT3,fontFamily:T.MONO,marginBottom:14}}>
+              {imp.archivo} · {imp.filas.length.toLocaleString('es-AR')} filas · {imp.headers.length} columnas
+            </div>
+
+            <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,padding:'14px 16px',marginBottom:12}}>
+              <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>Columnas detectadas en el archivo</div>
+              <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:12}}>
+                {imp.headers.map(function(h,i){
+                  return <span key={i} style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.pill,padding:'2px 9px',fontSize:10,color:T.TEXT2,fontFamily:T.MONO}}>{h}</span>;
+                })}
+              </div>
+              {selCol('Nombre o razón social', 'nombre', true)}
+              {selCol('Número de documento (CUIT / DNI)', 'doc', false)}
+              {selCol('Tipo de documento', 'tipoDoc', false)}
+              {selCol('Detalle u observaciones', 'detalle', false)}
+            </div>
+
+            <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,padding:'14px 16px',marginBottom:12}}>
+              <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:9}}>
+                Vista previa — {entradas.length.toLocaleString('es-AR')} entrada(s) válida(s) de {imp.filas.length.toLocaleString('es-AR')} filas
+              </div>
+              {entradas.length === 0 ? (
+                <div style={{fontSize:12,color:T.RED,lineHeight:1.6}}>
+                  Con esa columna de nombre no se obtiene ninguna entrada. Probá con otra: se descartan las filas
+                  cuyo nombre tenga menos de 3 caracteres.
+                </div>
+              ) : muestra.map(function(e,i){
+                return (
+                  <div key={i} style={{borderTop: i ? '1px solid '+T.BORDER : 'none',paddingTop: i ? 7 : 0,marginTop: i ? 7 : 0}}>
+                    <div style={{fontSize:12,color:T.TEXT,fontWeight:500}}>{e.nombre}</div>
+                    <div style={{fontSize:10,color:T.TEXT3,fontFamily:T.MONO}}>
+                      {e.doc ? 'doc: ' + e.doc : 'sin documento'}{e.detalle ? ' · ' + e.detalle : ''}
+                    </div>
+                  </div>
+                );
+              })}
+              {entradas.length > 5 && (
+                <div style={{fontSize:10,color:T.TEXT4,marginTop:8}}>y {(entradas.length-5).toLocaleString('es-AR')} más.</div>
+              )}
+            </div>
+
+            <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,padding:'14px 16px',marginBottom:12}}>
+              <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:9}}>Identificación de la lista</div>
+              <div style={{marginBottom:9}}>
+                <label style={{display:'block',fontSize:10,color:T.TEXT3,marginBottom:4}}>Identificador corto (sin espacios)</label>
+                <input value={imp.id} onChange={function(e){setImp(Object.assign({}, imp, {id:e.target.value}));}}
+                  placeholder="repet"
+                  style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'7px 10px',fontSize:12,fontFamily:T.MONO,boxSizing:'border-box'}}/>
+                <div style={{fontSize:10,color:T.TEXT4,marginTop:3}}>Si ya existe una lista con este identificador, se reemplaza.</div>
+              </div>
+              <div style={{marginBottom:9}}>
+                <label style={{display:'block',fontSize:10,color:T.TEXT3,marginBottom:4}}>Nombre visible</label>
+                <input value={imp.nombre} onChange={function(e){setImp(Object.assign({}, imp, {nombre:e.target.value}));}}
+                  placeholder={(imp.id||'lista').toUpperCase()}
+                  style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'7px 10px',fontSize:12,boxSizing:'border-box'}}/>
+              </div>
+              <div>
+                <label style={{display:'block',fontSize:10,color:T.TEXT3,marginBottom:4}}>Fuente oficial (queda registrada en cada corrida)</label>
+                <input value={imp.fuente} onChange={function(e){setImp(Object.assign({}, imp, {fuente:e.target.value}));}}
+                  placeholder="https://…"
+                  style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'7px 10px',fontSize:12,boxSizing:'border-box'}}/>
+              </div>
+            </div>
+
+            <button onClick={confirmarImportacion} disabled={!entradas.length || !imp.mapeo.nombre}
+              style={{width:'100%',background:(entradas.length&&imp.mapeo.nombre)?'rgba(0,230,118,0.15)':T.BG3,color:(entradas.length&&imp.mapeo.nombre)?T.GREEN:T.TEXT4,border:'1px solid '+((entradas.length&&imp.mapeo.nombre)?'rgba(0,230,118,0.3)':T.BORDER),borderRadius:T.RADIUS.sm,padding:'10px 0',cursor:(entradas.length&&imp.mapeo.nombre)?'pointer':'not-allowed',fontWeight:700,fontSize:13,fontFamily:T.SANS}}>
+              {entradas.length ? '✓ Importar ' + entradas.length.toLocaleString('es-AR') + ' entrada(s)' : 'Elegí la columna de nombre'}
+            </button>
+          </Drawer>
+        );
+      })()}
 
       {/* Drawer de coincidencia */}
       {selHit && (function(){
@@ -394,14 +513,13 @@ function ScreeningView(props) {
           <div style={{background:T.BG2,border:'1px dashed '+T.BORDER2,borderRadius:T.RADIUS.md,padding:'18px 20px',marginBottom:14}}>
             <div style={{fontSize:13,fontWeight:600,color:T.TEXT,marginBottom:6}}>Cargar un listado</div>
             <div style={{fontSize:11,color:T.TEXT3,lineHeight:1.6,marginBottom:12}}>
-              Acepta CSV, XLSX o JSON. Se reconoce automáticamente la columna de nombre
-              (<span style={{fontFamily:T.MONO}}>nombre, denominación, razón social, apellido_y_nombre</span>),
-              la de documento (<span style={{fontFamily:T.MONO}}>cuit, cuil, dni, documento</span>) y la de detalle.
-              Descargá el archivo del sitio oficial del organismo y subilo tal cual — anotá la fuente para que
-              quede registrada en cada corrida.
+              Acepta CSV, XLSX y JSON, con separador coma, punto y coma, tabulación o barra
+              (se detecta solo). Después de elegir el archivo vas a poder <strong>revisar y corregir</strong> qué
+              columna es el nombre, cuál el documento y cuál el detalle, viendo una muestra de las filas antes
+              de confirmar. Descargá el archivo del sitio oficial y subilo tal cual.
             </div>
             <input ref={fileRef} type="file" accept=".csv,.json,.xlsx,.xls" style={{display:'none'}}
-              onChange={function(e){ var f=e.target.files&&e.target.files[0]; if(f) subirListado(f); e.target.value=''; }}/>
+              onChange={function(e){ var f=e.target.files&&e.target.files[0]; if(f) leerArchivo(f); e.target.value=''; }}/>
             <button onClick={function(){ if(fileRef.current) fileRef.current.click(); }}
               style={{background:T.ACCENT_SOFT,color:T.ACCENT,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.sm,padding:'8px 16px',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:T.SANS}}>
               📁 Elegir archivo

@@ -56,7 +56,67 @@ function calcMetricas(txns, perfil) {
 return { tIn:tIn, tOut:tOut, tVol:tVol, balanceNeto:tIn-tOut, countIn:ins.length, countOut:outs.length, totalTxns:txns.length, avg:avg, maxMonto:montos[montos.length-1]||0, minMonto:montos[0]||0, cpIn:cpIn, cpOut:cpOut, sortedIn:sortedIn, sortedOut:sortedOut, uniqueCpIn:Object.keys(cpIn).length, uniqueCpOut:Object.keys(cpOut).length, top1In:tIn>0?(sortedIn[0]?sortedIn[0][1]:0)/tIn*100:0, top1Out:tOut>0?(sortedOut[0]?sortedOut[0][1]:0)/tOut*100:0, hhiIn:hhiIn, hhiOut:hhiOut, ratioCpEmbudo:Object.keys(cpIn).length/(Object.keys(cpOut).length||1), ratioIO:tVol>0?tIn/tVol:0.5, ratioVP:perfil&&perfil.facturacionMensual>0?tVol/Number(perfil.facturacionMensual):null, splitDays:splitDays, splitGroupsCount:splitGroups.length, pctRound:txns.length>0?roundCount/txns.length*100:0, pctOneShot:totalUcp>0?oneShotCnt/totalUcp*100:0, repeatedAmts:repeatedAmts, circularCps:circularCps, circularCount:circularCps.length, activeDays:dates.length, opsByDay:txns.length/(dates.length||1), dates:dates, dailyVol:dailyVol, passThrough:tIn>0?tOut/tIn:0, pctAtypicalHour:withHour.length>0?atypical.length/withHour.length*100:null, ntGroupsIn:ntGroupsIn, ntGroupsOut:ntGroupsOut };
 }
 
-function detectPatrones(m, perfil) {
+// ═══════════════════════════════════════════════════════════════════════════
+// LÍNEA BASE DE COMPORTAMIENTO (T6)
+// ═══════════════════════════════════════════════════════════════════════════
+// Los patrones PAT-01..12 evalúan un período contra umbrales fijos. Los PAT-13
+// a 15 lo evalúan contra el propio historial del cliente: lo que para uno es
+// normal, para otro es una anomalía. Sin esto, un cliente que siempre opera
+// fuerte nunca se destaca y uno chico que duplica su volumen tampoco.
+//
+// ⚠️ PARAMETRIZABLE — calibrar con datos reales antes de operar.
+var COMPORTAMIENTO = {
+  MIN_PERIODOS:      2,    // línea base mínima para que los patrones activen
+  VENTANA:           6,    // cuántos períodos previos promediar
+  DESVIO_VOLUMEN:    3,    // PAT-13: múltiplo del volumen promedio
+  DESVIO_VOLUMEN_ALTA: 5,  // idem, umbral de severidad ALTA
+  CONC_NUEVA:        40,   // PAT-14: % del flujo en una contraparte nueva
+  SALTO_HORARIO:     25,   // PAT-15: salto en puntos porcentuales de ops atípicas
+};
+
+function _mediana(arr) {
+  if (!arr.length) return 0;
+  var s = arr.slice().sort(function(a,b){ return a-b; });
+  var mid = Math.floor(s.length/2);
+  return s.length % 2 ? s[mid] : (s[mid-1]+s[mid])/2;
+}
+
+// Períodos del mismo legajo anteriores al actual, con métricas disponibles.
+// Se ordenan por createdAt; si empatan, se usa el orden del array.
+function lineaBase(periodo, legajo, periodos) {
+  if (!periodo || !periodos || !periodos.length) return null;
+  var delLegajo = periodos.filter(function(p){ return p.legajoId === periodo.legajoId; });
+  var idx = delLegajo.findIndex(function(p){ return p.id === periodo.id; });
+  if (idx < 0) return null;
+  var previos = delLegajo.slice(Math.max(0, idx - COMPORTAMIENTO.VENTANA), idx)
+    .map(function(p){ return p.metricas || null; })
+    .filter(Boolean);
+  if (previos.length < COMPORTAMIENTO.MIN_PERIODOS) return null;
+
+  var vols  = previos.map(function(x){ return x.tVol || 0; });
+  var txns  = previos.map(function(x){ return x.totalTxns || 0; });
+  var horas = previos.map(function(x){ return x.pctAtypicalHour; }).filter(function(v){ return v !== null && v !== undefined; });
+
+  // Contrapartes ya vistas: son las "habituales" del cliente
+  var habituales = {};
+  previos.forEach(function(x){
+    Object.keys(x.cpIn || {}).forEach(function(k){ habituales[k] = true; });
+    Object.keys(x.cpOut || {}).forEach(function(k){ habituales[k] = true; });
+  });
+
+  return {
+    nPeriodos: previos.length,
+    // Mediana en vez de promedio: un solo período atípico previo no corre la
+    // línea base y hace que la anomalía siguiente pase desapercibida.
+    volMediano:  _mediana(vols),
+    txnsMediano: _mediana(txns),
+    pctHorarioMediano: horas.length ? _mediana(horas) : null,
+    habituales: habituales,
+    cantHabituales: Object.keys(habituales).length,
+  };
+}
+
+function detectPatrones(m, perfil, base) {
   if (!m) return [];
   var sigs = [];
   function add(pat, sev, titulo, desc, tip) { sigs.push({ id:uid(), pat:pat, sev:sev, titulo:titulo, desc:desc, tip:tip }); }
@@ -114,6 +174,60 @@ function detectPatrones(m, perfil) {
   }
   if (m.opsByDay > 50) add('PAT-11', 'ALTA', 'Velocidad operativa anomala', m.opsByDay.toFixed(1) + ' ops/dia (umbral: 50/dia).', 'T-04');
   if (m.uniqueCpIn > 20 && m.uniqueCpOut < 5 && m.tOut > 0) add('PAT-12', 'ALTA', 'Embudo multiple (muchos-a-pocos)', m.uniqueCpIn + ' origenes hacia ' + m.uniqueCpOut + ' destino(s).', 'T-04');
+
+  // ── Patrones de comportamiento (T6) — requieren línea base del cliente ────
+  if (base) {
+    // PAT-13 — Desvío contra el propio volumen habitual
+    if (base.volMediano > 0) {
+      var factor = m.tVol / base.volMediano;
+      if (factor >= COMPORTAMIENTO.DESVIO_VOLUMEN) {
+        add('PAT-13',
+          factor >= COMPORTAMIENTO.DESVIO_VOLUMEN_ALTA ? 'ALTA' : 'MEDIA',
+          'Desvio contra la linea base del cliente',
+          'Volumen ' + factor.toFixed(1) + 'x su mediana historica (' + fmtM(base.volMediano) +
+          ' sobre ' + base.nPeriodos + ' periodo(s) previos). Umbral: ' + COMPORTAMIENTO.DESVIO_VOLUMEN + 'x.',
+          'T-09');
+      }
+    }
+
+    // PAT-14 — Contraparte nueva que concentra el flujo
+    if (m.tVol > 0 && base.cantHabituales > 0) {
+      var flujoCp = {};
+      Object.keys(m.cpIn || {}).forEach(function(k){ flujoCp[k] = (flujoCp[k]||0) + m.cpIn[k]; });
+      Object.keys(m.cpOut || {}).forEach(function(k){ flujoCp[k] = (flujoCp[k]||0) + m.cpOut[k]; });
+      var nuevasConc = Object.keys(flujoCp)
+        .filter(function(k){ return !base.habituales[k]; })
+        .map(function(k){ return { cp: k, pct: flujoCp[k] / m.tVol * 100 }; })
+        .filter(function(x){ return x.pct >= COMPORTAMIENTO.CONC_NUEVA; })
+        .sort(function(a,b){ return b.pct - a.pct; });
+      if (nuevasConc.length) {
+        var top = nuevasConc[0];
+        add('PAT-14',
+          top.pct >= 60 ? 'ALTA' : 'MEDIA',
+          'Contraparte nueva concentra el flujo',
+          '"' + top.cp + '" no aparece en los ' + base.nPeriodos + ' periodo(s) previos y concentra ' +
+          top.pct.toFixed(1) + '% del volumen' +
+          (nuevasConc.length > 1 ? ' (' + nuevasConc.length + ' contrapartes nuevas superan el umbral)' : '') +
+          '. Umbral: ' + COMPORTAMIENTO.CONC_NUEVA + '%.',
+          'T-03');
+      }
+    }
+
+    // PAT-15 — Cambio abrupto en la distribución horaria
+    if (base.pctHorarioMediano !== null && m.pctAtypicalHour !== null && m.pctAtypicalHour !== undefined) {
+      var salto = m.pctAtypicalHour - base.pctHorarioMediano;
+      if (salto >= COMPORTAMIENTO.SALTO_HORARIO) {
+        add('PAT-15',
+          salto >= 40 ? 'ALTA' : 'MEDIA',
+          'Cambio abrupto de distribucion horaria',
+          'Operaciones en horario atipico pasaron de ' + base.pctHorarioMediano.toFixed(1) + '% a ' +
+          m.pctAtypicalHour.toFixed(1) + '% (+' + salto.toFixed(1) + ' puntos). Umbral: +' +
+          COMPORTAMIENTO.SALTO_HORARIO + ' puntos.',
+          'T-06');
+      }
+    }
+  }
+
   return sigs;
 }
 
@@ -156,18 +270,22 @@ function metricasDe(periodo, legajo) {
   return null;
 }
 
-function senalesActivas(periodo, legajo) {
+// El tercer parámetro es el array COMPLETO de períodos. Sin él los patrones de
+// comportamiento (PAT-13/14/15) no activan, porque no hay contra qué comparar.
+// Todos los call sites lo tienen en scope: pasarlo siempre.
+function senalesActivas(periodo, legajo, periodos) {
   var m = metricasDe(periodo, legajo);
   if (!m) return [];
+  var base = periodos ? lineaBase(periodo, legajo, periodos) : null;
   var res = (periodo && periodo.sigsResolucion) || {};
-  return detectPatrones(m, legajo).filter(function(s) {
+  return detectPatrones(m, legajo, base).filter(function(s) {
     var r = res[s.pat];
     return !r || r.estado !== 'RESUELTA';
   });
 }
 
-function contarAlta(periodo, legajo) {
-  return senalesActivas(periodo, legajo).filter(function(s){ return s.sev === 'ALTA'; }).length;
+function contarAlta(periodo, legajo, periodos) {
+  return senalesActivas(periodo, legajo, periodos).filter(function(s){ return s.sev === 'ALTA'; }).length;
 }
 
-export { calcMetricas, detectPatrones, calcScoring, metricasDe, senalesActivas, contarAlta };
+export { calcMetricas, detectPatrones, calcScoring, metricasDe, senalesActivas, contarAlta, lineaBase, COMPORTAMIENTO };

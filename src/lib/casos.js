@@ -157,6 +157,7 @@ function nuevoCaso(campos) {
     fechaCierre: '',
     vencKey: '',            // clave del vencimiento que originó el caso (T4)
     screeningKey: '',       // clave del hit de screening que originó el caso (T5)
+    redKey: '',             // clave de la contraparte compartida que originó el caso (T6)
     comentarios: [],
     historial: [{
       estado: 'NUEVA',
@@ -192,7 +193,7 @@ function casosPendientesDeCrear(legajos, periodos, casosExistentes) {
   (periodos||[]).forEach(function(p){
     var leg = (legajos||[]).find(function(l){return l.id===p.legajoId;});
     if (!leg) return;
-    senalesActivas(p, leg).forEach(function(s){
+    senalesActivas(p, leg, periodos).forEach(function(s){
       if (s.sev !== 'ALTA') return;
       if (yaHay[claveSenal(p.id, s.pat)]) return;
       pendientes.push({

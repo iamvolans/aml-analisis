@@ -150,4 +150,120 @@ function parseExcelFile(file) {
   });
 }
 
-export { normalizeRows, parseCsv, parseExcelFile };
+// ═══════════════════════════════════════════════════════════════════════════
+// LECTOR DE TABLAS GENÉRICO (T5 — listados de screening)
+// ═══════════════════════════════════════════════════════════════════════════
+// parseCsv/parseExcelFile arriba están hechos para archivos de TRANSACCIONES:
+// pasan por normalizeRows, que busca fecha/monto/tipo/contraparte y descarta
+// todo lo demás. Para un listado de nombres eso devuelve vacío.
+//
+// Estas funciones no interpretan nada: devuelven las filas tal como vienen,
+// como objetos con las cabeceras del archivo por clave.
+
+// Detecta el separador contando ocurrencias fuera de comillas en la cabecera.
+// Importante para listas de sanciones: suelen venir con "APELLIDO, NOMBRE" en
+// un archivo separado por punto y coma, y asumir la coma parte los nombres.
+function detectarSeparador(linea) {
+  var cands = [',', ';', '\t', '|'];
+  var mejor = ',', mejorN = -1;
+  cands.forEach(function(sep){
+    var n = 0, inQ = false;
+    for (var i = 0; i < linea.length; i++) {
+      var ch = linea[i];
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (ch === sep && !inQ) n++;
+    }
+    if (n > mejorN) { mejorN = n; mejor = sep; }
+  });
+  return mejor;
+}
+
+function partirLinea(linea, sep) {
+  var cols = [], cur = '', inQ = false;
+  for (var i = 0; i < linea.length; i++) {
+    var ch = linea[i];
+    if (ch === '"') {
+      if (inQ && linea[i+1] === '"') { cur += '"'; i++; }  // comilla escapada
+      else inQ = !inQ;
+      continue;
+    }
+    if (ch === sep && !inQ) { cols.push(cur.trim()); cur = ''; }
+    else cur += ch;
+  }
+  cols.push(cur.trim());
+  return cols;
+}
+
+// Devuelve { headers: [...], filas: [{header: valor}] }
+function parseTabla(text) {
+  if (!text) return { headers: [], filas: [] };
+  var limpio = text.replace(/^\uFEFF/, '');           // BOM de Excel
+  var lineas = limpio.split(/\r?\n/).filter(function(l){ return l.trim().length; });
+  if (lineas.length < 2) return { headers: [], filas: [] };
+  var sep = detectarSeparador(lineas[0]);
+  var headers = partirLinea(lineas[0], sep).map(function(h, i){
+    return h || ('columna_' + (i+1));
+  });
+  var filas = [];
+  for (var i = 1; i < lineas.length; i++) {
+    var cols = partirLinea(lineas[i], sep);
+    var obj = {};
+    var vacia = true;
+    headers.forEach(function(h, k){
+      var v = cols[k] !== undefined ? cols[k] : '';
+      obj[h] = v;
+      if (v !== '') vacia = false;
+    });
+    if (!vacia) filas.push(obj);
+  }
+  return { headers: headers, filas: filas };
+}
+
+function parseTablaExcel(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:false });
+        var sheet = wb.Sheets[wb.SheetNames[0]];
+        var arr = XLSX.utils.sheet_to_json(sheet, { header:1, raw:false, defval:'' });
+        if (!arr.length) return resolve({ headers: [], filas: [] });
+        var headers = (arr[0] || []).map(function(h, i){
+          return String(h || '').trim() || ('columna_' + (i+1));
+        });
+        var filas = [];
+        for (var i = 1; i < arr.length; i++) {
+          var obj = {}, vacia = true;
+          headers.forEach(function(h, k){
+            var v = arr[i][k] !== undefined && arr[i][k] !== null ? String(arr[i][k]).trim() : '';
+            obj[h] = v;
+            if (v !== '') vacia = false;
+          });
+          if (!vacia) filas.push(obj);
+        }
+        resolve({ headers: headers, filas: filas });
+      } catch(err) { reject(new Error('Error al leer el Excel: ' + err.message)); }
+    };
+    reader.onerror = function(){ reject(new Error('No se pudo leer el archivo.')); };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// JSON: array de objetos, o un objeto con el array adentro
+function parseTablaJson(texto) {
+  var json = JSON.parse(texto);
+  var arr = Array.isArray(json) ? json
+    : (json.datos || json.data || json.registros || json.entradas || json.items || []);
+  if (!Array.isArray(arr) || !arr.length) return { headers: [], filas: [] };
+  var set = {};
+  arr.forEach(function(o){ if (o && typeof o === 'object') Object.keys(o).forEach(function(k){ set[k] = true; }); });
+  var headers = Object.keys(set);
+  var filas = arr.filter(function(o){ return o && typeof o === 'object'; }).map(function(o){
+    var out = {};
+    headers.forEach(function(h){ out[h] = o[h] !== undefined && o[h] !== null ? String(o[h]) : ''; });
+    return out;
+  });
+  return { headers: headers, filas: filas };
+}
+
+export { normalizeRows, parseCsv, parseExcelFile, parseTabla, parseTablaExcel, parseTablaJson, detectarSeparador };
