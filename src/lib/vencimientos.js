@@ -8,8 +8,8 @@
 //   3. INSTITUCIONALES — obligaciones periódicas del sujeto obligado, que no
 //      dependen de ningún cliente en particular.
 
-import { T } from "./theme";
-import { parseFechaAR } from "./utils";
+import { T } from "./theme.js";
+import { parseFechaAR } from "./utils.js";
 
 // ─── 1. ACTUALIZACIÓN DE LEGAJO (meses) ─────────────────────────────────────
 // ⚠️ PARAMETRIZABLE. Frecuencia de actualización de la debida diligencia según

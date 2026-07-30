@@ -8,6 +8,15 @@
     },
     "api/config.js": {
       "maxDuration": 10
+    },
+    "api/cron-screening.js": {
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron-screening",
+      "schedule": "0 9 * * 1"
+    }
+  ]
 }

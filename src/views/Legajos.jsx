@@ -40,6 +40,7 @@ function guardarFiltros(f) {
 
 function LegajosView(props) {
   var legajos=props.legajos, setLegajos=props.setLegajos, periodos=props.periodos, setPeriodos=props.setPeriodos, onAnalizar=props.onAnalizar, onReport=props.onReport, onSync=props.onSync||function(){}, currentUser=props.currentUser||{rol:'analista'};
+  var ultScreening = props.ultScreening || null;
   var selState = useState(props.initSelId||null); var selId = selState[0]; var setSelId = selState[1];
   var editState = useState(false); var editing = editState[0]; var setEditing = editState[1];
   var formState = useState(null); var form = formState[0]; var setForm = formState[1];
@@ -877,6 +878,54 @@ function LegajosView(props) {
         </div> : null}
 
         {tab === 'screening' ? <div>
+          {/* Resultado del motor determinístico (T5) para este legajo */}
+          {(function(){
+            if (!ultScreening) {
+              return (
+                <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.md,padding:'11px 14px',marginBottom:12,fontSize:11,color:T.TEXT3,lineHeight:1.6}}>
+                  Todavía no se corrió el screening automático contra listas cargadas.
+                  Los enlaces de abajo siguen sirviendo para la verificación manual.
+                </div>
+              );
+            }
+            var mios = (ultScreening.hits||[]).filter(function(h){ return h.legajoId === form.id; });
+            var fechaCorrida = new Date(ultScreening.fecha).toLocaleDateString('es-AR');
+            if (!mios.length) {
+              return (
+                <div style={{background:'rgba(0,230,118,0.06)',border:'1px solid rgba(0,230,118,0.28)',borderLeft:'3px solid '+T.GREEN,borderRadius:T.RADIUS.md,padding:'11px 14px',marginBottom:12,fontSize:12,color:T.TEXT2,lineHeight:1.6}}>
+                  <strong style={{color:T.GREEN}}>Sin coincidencias</strong> en la corrida del {fechaCorrida} contra{' '}
+                  {(ultScreening.listas||[]).map(function(l){return l.nombre;}).join(', ') || 'las listas cargadas'}.
+                  <div style={{fontSize:10,color:T.TEXT4,marginTop:3}}>
+                    Matching determinístico sobre razón social, representante legal, presidente, beneficiario final y vinculados.
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div style={{background:'rgba(255,68,85,0.06)',border:'1px solid rgba(255,68,85,0.3)',borderLeft:'3px solid '+T.RED,borderRadius:T.RADIUS.md,padding:'12px 14px',marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:T.RED,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:8}}>
+                  {mios.length} coincidencia(s) — corrida del {fechaCorrida}
+                </div>
+                {mios.map(function(h){
+                  var col = h.nivel==='ALTA'?T.RED:h.nivel==='MEDIA'?T.AMBER:T.TEXT3;
+                  return (
+                    <div key={h.clave} style={{borderTop:'1px solid '+T.BORDER,paddingTop:7,marginTop:7,display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+                      <span style={{color:col,fontSize:10,fontWeight:700,fontFamily:T.MONO,width:48}}>{h.nivel}</span>
+                      <span style={{fontFamily:T.MONO,fontSize:10,color:T.TEXT3,width:48}}>{(h.score*100).toFixed(1)}%</span>
+                      <span style={{flex:1,minWidth:140,fontSize:12,color:T.TEXT}}>{h.sujeto}
+                        <span style={{fontSize:10,color:T.TEXT4}}> ({h.rol})</span></span>
+                      <span style={{fontSize:12,color:T.RED,flex:1,minWidth:140}}>{h.entradaNom}</span>
+                      <span style={{fontSize:10,color:T.TEXT4,fontFamily:T.MONO}}>{h.lista}</span>
+                    </div>
+                  );
+                })}
+                <div style={{fontSize:10,color:T.TEXT3,marginTop:9,lineHeight:1.5}}>
+                  Revisá y resolvé cada una desde la sección Screening: ahí se abre caso o se descarta con motivo.
+                </div>
+              </div>
+            );
+          })()}
+
           {(function(){
             var scr = form.screening || null;
 

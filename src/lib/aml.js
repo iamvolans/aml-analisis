@@ -1,5 +1,5 @@
-import { C, T } from "./theme";
-import { fmtM, uid } from "./utils";
+import { C, T } from "./theme.js";
+import { fmtM, uid } from "./utils.js";
 
 function calcMetricas(txns, perfil) {
   if (!txns || !txns.length) return null;

@@ -6,7 +6,7 @@ import CommandPalette from "./components/palette";
 import { setModuleKeys } from "./lib/ai";
 import { ROL_LABELS, puedeGestionarUsuarios } from "./lib/auth";
 import { APP_TOKEN, _USER_TOKEN, setUserToken } from "./lib/session";
-import { fetchServerConfig, serverLoad, serverLoadCasos, serverSave, serverSaveCasos } from "./lib/sync";
+import { fetchServerConfig, serverLoad, serverLoadCasos, serverLoadRun, serverLoadRuns, serverSave, serverSaveCasos } from "./lib/sync";
 import { C, T } from "./lib/theme";
 import { todayStr } from "./lib/utils";
 import AlertasView from "./views/Alertas";
@@ -30,6 +30,7 @@ export default function App() {
   var legState = useState([]); var legajos=legState[0]; var setLegajos=legState[1];
   var perState = useState([]); var periodos=perState[0]; var setPeriodos=perState[1];
   var casState = useState([]); var casos=casState[0]; var setCasos=casState[1];
+  var scrState = useState(null); var ultScreening=scrState[0]; var setUltScreening=scrState[1];
   var loadState = useState(true); var loading=loadState[0]; var setLoading=loadState[1];
   var viewState = useState('dashboard'); var view=viewState[0]; var setView=viewState[1];
   var repState = useState(null); var reportHTML=repState[0]; var setReportHTML=repState[1];
@@ -110,6 +111,12 @@ export default function App() {
     // 2. Cargar todo desde Supabase (única fuente de verdad)
     // Casos (T3) — carga independiente, no bloquea la hidratación principal
     serverLoadCasos().then(function(cs){ setCasos(cs || []); }).catch(function(){});
+
+    // Última corrida de screening (T5b) — la usan la pestaña Screening del legajo
+    // y el aviso de corrida vencida del Dashboard.
+    serverLoadRuns().then(function(rs){
+      if (rs && rs.length) return serverLoadRun(rs[0].id).then(function(full){ setUltScreening(full); });
+    }).catch(function(){});
 
     serverLoad().then(function(cloudData) {
       if (cloudData && cloudData.legajos !== undefined) {
@@ -514,8 +521,8 @@ export default function App() {
             </button>
           </div>
         )}
-        {view==='dashboard' ? <DashboardView casos={casos} onVerCaso={handleVerCaso} onNavigate={function(v){setView(v);}} legajos={legajos} periodos={periodos} setLegajos={setLegajos}/> : null}
-        {view==='legajos' ? <LegajosView key={'leg-'+(legTarget||'')} initSelId={legTarget} legajos={legajos} setLegajos={setLegajos} periodos={periodos} setPeriodos={setPeriodos} onAnalizar={handleAnalizar} onReport={function(html){setReportHTML(html);}} onSync={syncToCloud} currentUser={currentUser}/> : null}
+        {view==='dashboard' ? <DashboardView casos={casos} ultScreening={ultScreening} onVerCaso={handleVerCaso} onNavigate={function(v){setView(v);}} legajos={legajos} periodos={periodos} setLegajos={setLegajos}/> : null}
+        {view==='legajos' ? <LegajosView ultScreening={ultScreening} key={'leg-'+(legTarget||'')} initSelId={legTarget} legajos={legajos} setLegajos={setLegajos} periodos={periodos} setPeriodos={setPeriodos} onAnalizar={handleAnalizar} onReport={function(html){setReportHTML(html);}} onSync={syncToCloud} currentUser={currentUser}/> : null}
         {view==='analisis' ? <AnalisisView legajos={legajos} periodos={periodos} setPeriodos={setPeriodos} onReport={function(html){setReportHTML(html);}} initLegajo={analTarget.leg} initPeriodo={analTarget.per} onSync={syncToCloud} currentUser={currentUser}/> : null}
         {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos} setPeriodos={setPeriodos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onNavAnalisis={handleAnalizar} onVerCaso={handleVerCaso} currentUser={currentUser}/> : null}
         {view==='screening' ? <ScreeningView legajos={legajos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onVerCaso={handleVerCaso} currentUser={currentUser}/> : null}

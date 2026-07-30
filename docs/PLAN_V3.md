@@ -170,8 +170,16 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
       columnas, corrida sobre cartera activa o completa, resultados con nivel y
       puntaje, drawer de comparación lado a lado, descarte de falsos positivos con
       motivo, historial de corridas y caso desde coincidencia.
-  - [ ] **T5b — PRÓXIMA: Vercel Cron semanal + integración con la pestaña Screening
-        del legajo** (spec abajo)
+  - [x] T5b (v3.12.0): automatización e integración
+    - `api/cron-screening.js` + `crons` en `vercel.json`: corrida semanal (lunes 9:00 UTC)
+      sobre la cartera activa, usando el MISMO motor que la corrida manual.
+    - `hitsNuevos(actual, anterior)`: diff entre corridas. Solo las coincidencias
+      **nuevas** de nivel ALTA abren caso solo. Si no hay corrida previa devuelve vacío
+      a propósito — la primera carga de un listado se revisa a mano.
+    - Pestaña Screening del legajo: muestra el resultado real del motor para ese cliente
+      (coincidencias con nivel y puntaje, o "sin coincidencias" con fecha y listas).
+      Los enlaces manuales quedan abajo para jurisdicciones no cubiertas.
+    - Dashboard: aviso si la última corrida tiene más de 10 días o nunca se corrió.
 - [ ] T6 — Comportamiento + grafo
 - [ ] T7 — Reportería + documental
 - [ ] T8 — Hardening final
@@ -199,18 +207,29 @@ de caso 2) son política interna de Rebit.
 
 Cambiar cualquiera de estos valores recalcula todos los contadores de la app.
 
-## Spec T5b — Cron semanal e integración (PRÓXIMA)
+## Spec T6 — Monitoreo por comportamiento + grafo de contrapartes (PRÓXIMA)
 
-1. **Vercel Cron semanal** (`vercel.json` + `api/cron-screening.js`) que corre el
-   screening sobre la cartera activa y guarda la corrida. Requiere mover el motor a un
-   punto importable desde el server (hoy `lib/screening.js` es puro JS sin dependencias
-   de navegador, así que se puede importar tal cual).
-2. Coincidencia **nueva respecto de la corrida anterior** → caso automático. Hoy la
-   creación es manual desde el drawer; el cron necesita el diff contra la última corrida
-   para no regenerar lo mismo cada semana.
-3. Reemplazar la pestaña Screening del legajo (hoy son links manuales a sitios externos)
-   por el resultado real del motor para ese cliente.
-4. Aviso en Dashboard si la última corrida tiene más de N días.
+1. **Perfil dinámico**: línea base por cliente (promedio móvil de volumen, contrapartes
+   habituales, distribución horaria de sus últimos N períodos).
+2. Patrones nuevos: PAT-13 (desviación >Nx contra su propia línea base), PAT-14
+   (contraparte nueva concentra >40% del flujo), PAT-15 (cambio abrupto de distribución
+   horaria).
+3. **Grafo de contrapartes inter-legajo**: CUITs que operan con múltiples clientes de la
+   cartera. Vista de grafo interactiva + alerta cuando una contraparte comparte ≥3 legajos.
+
+Nota: PAT-13/14/15 se suman a `detectPatrones` en `lib/aml.js`, así que entran
+automáticamente en Alertas, Casos y el conteo de señales activas. Hay que extender
+`PAT_UIF_MAP` en `constants.js` para que el generador de ROS los contemple.
+
+## Importante — extensiones .js en los imports de lib/
+
+`api/cron-screening.js` importa `src/lib/screening.js` y `src/lib/casos.js` desde una
+función serverless. **Node ESM exige extensión explícita en los imports relativos**;
+Vite no. Por eso el cierre transitivo (`screening`, `casos`, `aml`, `utils`, `theme`,
+`vencimientos`) usa `from "./utils.js"` y no `from "./utils"`. Sin eso el cron falla con
+`ERR_MODULE_NOT_FOUND` — se detectó probando el import en Node puro antes de deployar.
+
+Si en el futuro el cron necesita otro módulo de `lib/`, agregarle las extensiones antes.
 
 ## Notas del motor de screening (T5a)
 
@@ -277,7 +296,7 @@ Filtros en `sessionStorage` → `rebit_legajos_filtros_v3`.
 **Alertas.jsx** — filtros en `rebit_alertas_filtros_v3`, orden independiente por pestaña.
 
 **screening.js** — no tiene dependencias de navegador: es JS puro, importable también
-desde una función serverless (lo va a necesitar el cron de T5b). Los descartes viven en
+desde una función serverless (lo usa el cron de T5b). Los descartes viven en
 KV bajo `screening_descartes` y se aplican dentro de `correrScreening`, así que un falso
 positivo descartado no reaparece en corridas futuras.
 

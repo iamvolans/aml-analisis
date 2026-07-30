@@ -9,7 +9,11 @@
 // Todo el matching corre en el navegador contra el listado cargado en Supabase.
 // No hay llamadas a terceros durante una corrida.
 
-import { uid } from "./utils";
+import { uid } from "./utils.js";
+// Nota: los imports de este módulo y de su cierre transitivo (casos, aml, utils,
+// theme) llevan extensión .js explícita a propósito. Vite la acepta, pero Node
+// ESM la EXIGE, y api/cron-screening.js importa este archivo desde una función
+// serverless. Sin la extensión el cron falla con ERR_MODULE_NOT_FOUND.
 
 // ─── UMBRALES ───────────────────────────────────────────────────────────────
 // ⚠️ PARAMETRIZABLE. Bajarlos aumenta falsos positivos; subirlos, falsos
@@ -371,6 +375,21 @@ function correrScreening(legajos, listas, descartes, opts) {
   };
 }
 
+// ─── DIFF ENTRE CORRIDAS ────────────────────────────────────────────────────
+// Coincidencias presentes en la corrida actual y ausentes en la anterior. Es lo
+// que necesita el cron para no reabrir cada semana los mismos casos.
+//
+// Si no hay corrida anterior devuelve lista vacía a propósito: la primera vez
+// que se carga un listado, TODO es "nuevo" y generar cientos de casos de golpe
+// no ayuda a nadie. La primera revisión se hace a mano.
+function hitsNuevos(runActual, runAnterior) {
+  if (!runActual || !runActual.hits) return [];
+  if (!runAnterior || !runAnterior.hits) return [];
+  var previos = {};
+  runAnterior.hits.forEach(function(h){ previos[h.clave] = true; });
+  return runActual.hits.filter(function(h){ return !previos[h.clave]; });
+}
+
 // ─── PARSEO DE LISTADOS ─────────────────────────────────────────────────────
 // Acepta el CSV/JSON oficial sin pedir un formato propio: busca las columnas
 // por nombre entre varios alias habituales.
@@ -400,5 +419,5 @@ function filasAEntradas(filas) {
 export {
   UMBRALES, normalizar, sinSufijos, soloDigitos, similitud, tokenSetRatio, nivelDe,
   sujetosDe, prepararListado, matchearSujeto, claveHit, correrScreening,
-  filasAEntradas, buscarCampo, clavesBloqueo
+  filasAEntradas, buscarCampo, clavesBloqueo, hitsNuevos
 };

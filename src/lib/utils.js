@@ -1,4 +1,4 @@
-import { T } from "./theme";
+import { T } from "./theme.js";
 
 function uid() { return Math.random().toString(36).slice(2,9); }
 

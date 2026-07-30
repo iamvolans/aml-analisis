@@ -5,9 +5,9 @@
 // screening, de un RFI o se crea a mano, y recorre un ciclo de vida con plazos
 // contados. Es la pieza que convierte alertas sueltas en trazabilidad auditable.
 
-import { T } from "./theme";
-import { senalesActivas } from "./aml";
-import { parseFechaAR, todayStr, uid } from "./utils";
+import { T } from "./theme.js";
+import { senalesActivas } from "./aml.js";
+import { parseFechaAR, todayStr, uid } from "./utils.js";
 
 // ─── PLAZOS ─────────────────────────────────────────────────────────────────
 // ⚠️ PARAMETRIZABLE — VERIFICAR CONTRA LA NORMATIVA VIGENTE ANTES DE OPERAR.

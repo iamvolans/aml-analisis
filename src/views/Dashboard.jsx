@@ -14,6 +14,15 @@ function DashboardView(props) {
   var casos = props.casos || [];
   var onVerCaso = props.onVerCaso;
   var onNavigate = props.onNavigate;
+  var ultScreening = props.ultScreening;
+
+  // Antigüedad de la última corrida de screening. Un panel de compliance que
+  // no avisa que hace dos meses no se screenea no sirve de mucho.
+  var DIAS_SCREENING_OK = 10;
+  var diasDesdeScreening = ultScreening && ultScreening.fecha
+    ? Math.floor((Date.now() - new Date(ultScreening.fecha).getTime()) / 86400000)
+    : null;
+  var screeningVencido = diasDesdeScreening === null || diasDesdeScreening > DIAS_SCREENING_OK;
 
   // Casos con plazo vencido o próximo — el panel que un inspector mira primero
   var casosAbiertos = casos.filter(function(c){ return getEstadoCaso(c.estado).abierto; });
@@ -266,6 +275,23 @@ function DashboardView(props) {
             </table>
           </div>
         )}
+        {screeningVencido && (
+          <div style={{background:T.BG2,border:'1px solid rgba(255,184,48,0.3)',borderLeft:'3px solid '+T.AMBER,borderRadius:T.RADIUS.md,padding:'11px 16px',marginBottom:14,display:'flex',alignItems:'center',gap:11,flexWrap:'wrap'}}>
+            <span style={{fontSize:11,fontWeight:700,color:T.AMBER,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS}}>Screening</span>
+            <span style={{fontSize:12,color:T.TEXT2,flex:1,minWidth:180}}>
+              {diasDesdeScreening === null
+                ? 'Todavía no se corrió ningún screening contra listas restrictivas.'
+                : 'La última corrida fue hace ' + diasDesdeScreening + ' días (' + new Date(ultScreening.fecha).toLocaleDateString('es-AR') + ').'}
+            </span>
+            {onNavigate && (
+              <button onClick={function(){onNavigate('screening');}}
+                style={{background:T.ACCENT_SOFT,border:'1px solid '+T.ACCENT_DIM,color:T.ACCENT,borderRadius:T.RADIUS.sm,padding:'5px 12px',cursor:'pointer',fontSize:11,fontWeight:600,fontFamily:T.SANS,whiteSpace:'nowrap'}}>
+                Ir a Screening →
+              </button>
+            )}
+          </div>
+        )}
+
         {casosUrgentes.length > 0 && (
           <div style={{background:T.BG2,border:'1px solid rgba(255,68,85,0.3)',borderLeft:'3px solid '+T.RED,borderRadius:T.RADIUS.md,padding:'13px 16px',marginBottom:14,boxShadow:T.SHADOW.card}}>
             <div style={{display:'flex',alignItems:'center',gap:9,marginBottom:10}}>
