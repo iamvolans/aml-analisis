@@ -12,6 +12,7 @@
 
 import { correrScreening, hitsNuevos } from '../src/lib/screening.js';
 import { nuevoCaso, refCaso } from '../src/lib/casos.js';
+import { requireAuth } from './_auth.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -38,12 +39,15 @@ async function sb(table, method = 'GET', body = null, qs = '') {
 }
 
 export default async function handler(req, res) {
+  // El cron de Vercel manda Authorization: Bearer $CRON_SECRET. Para pruebas
+  // manuales se acepta además una sesión de usuario válida, o el token
+  // compartido mientras dure la transición.
   const auth = req.headers['authorization'] || '';
-  const token = req.headers['x-app-token'] || '';
-  const autorizado =
-    (CRON_SECRET && auth === `Bearer ${CRON_SECRET}`) ||
-    (token && token === APP_TOKEN);
-  if (!autorizado) return res.status(401).json({ error: 'No autorizado' });
+  let autorizado = !!(CRON_SECRET && auth === `Bearer ${CRON_SECRET}`);
+  if (!autorizado) {
+    const ctx = await requireAuth(req, res);
+    if (!ctx) return;  // requireAuth ya respondió 401
+  }
 
   if (!SUPABASE_URL || !SUPABASE_KEY)
     return res.status(503).json({ error: 'Supabase no configurado' });

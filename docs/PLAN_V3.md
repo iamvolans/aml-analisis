@@ -226,7 +226,24 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
     - El export de legajo completo suma la sección 10 (documentación respaldatoria) y
       la columna "Archivo adjunto" en el checklist.
   - [ ] **T7c — BLOQUEADA: reporte sistemático mensual** (ver abajo)
-- [ ] T8 — Hardening final
+- [~] **T8 — Hardening final — EN CURSO**
+  - [x] T8a (v3.16.0): **autenticación por usuario**
+    - `api/_auth.js`: `requireAuth()` compartido. Valida el JWT de Supabase contra
+      `/auth/v1/user` y lee el rol de `perfiles` — nunca del body ni del JWT.
+    - Migrados a sesión de usuario: `/api/sync`, `/api/documentos`, `/api/ai` y
+      `/api/cron-screening`. `/api/auth` y `/api/config` siguen con el token compartido
+      **a propósito**: son los endpoints de arranque, se consultan antes de que exista
+      sesión. Las acciones privilegiadas de `/api/auth` ya exigían sesión y se verificó
+      que lo sigan haciendo.
+    - **Refresco de JWT**: el login no devolvía `refresh_token` y los tokens de Supabase
+      vencen a la hora. Sin esto, exigir el JWT habría roto toda sesión de trabajo larga.
+      `session.js` refresca un minuto antes del vencimiento y deduplica refrescos
+      concurrentes (3 requests en paralelo → 1 solo refresco, verificado). Si el refresco
+      falla, se limpia la sesión y se vuelve al login en vez de fallar en silencio.
+    - Los 32 call sites del cliente pasaron a `authHeaders()`.
+    - Transición con `ALLOW_APP_TOKEN`: mientras esté habilitado la app muestra un aviso
+      permanente a los administradores, que desaparece al ponerlo en `false`.
+  - [ ] **T8b — PRÓXIMA: tests, code-splitting, staging y documentación**
 
 ## ⚠️ Pendiente de validación normativa (BLOQUEANTE para uso operativo)
 
@@ -266,17 +283,31 @@ Para desbloquear hace falta que Germán aporte, de la resolución vigente:
 Con eso el generador sale rápido: los datos ya están todos en `periodos[].txns` y en las
 métricas. Lo que falta es el mapeo, no la información.
 
-## Spec T8 — Hardening técnico final (PRÓXIMA)
+## Spec T8b — Tests, performance y documentación (PRÓXIMA)
 
-1. Migrar `/api/sync` de app-token a autenticación por usuario (último pendiente de
-   seguridad; `api/documentos.js` hereda la misma limitación y hay que migrarlo junto).
-2. Tests unitarios de `aml.js` con vitest: `calcMetricas`, `detectPatrones`, `calcScoring`
-   y `lineaBase` son funciones puras — es el corazón regulatorio y el testeo es trivial.
-3. Entorno de staging en Vercel (branch `staging` → deploy preview).
-4. Code-splitting por vista (bundle ~1,3 MB → carga inicial <400 KB).
-5. Migrar `Legajos.jsx` a las primitivas compartidas `SortTh`/`TableCard` (deuda #2).
-6. README v3 y CHANGELOG.
-7. Evaluar las 3 vulnerabilidades npm (deuda #4).
+1. **Tests con vitest** de `aml.js` (`calcMetricas`, `detectPatrones`, `calcScoring`,
+   `lineaBase`) y `screening.js` (`normalizar`, `similitud`, `correrScreening`). Son
+   funciones puras y es el corazón regulatorio: hoy nada impide que un cambio futuro
+   rompa un umbral en silencio. Las pruebas sintéticas de T5 y T6 fueron scripts
+   descartables; acá se vuelven permanentes.
+2. **Code-splitting** por vista con `React.lazy` (bundle ~1,43 MB → carga inicial <400 KB).
+3. **Staging** en Vercel: branch `staging` → deploy preview.
+4. **README v3 y CHANGELOG**: el README quedó de la v2 y hoy hay diez secciones, seis
+   tablas y cuatro módulos de reglas parametrizables que alguien tiene que poder
+   entender sin preguntar.
+5. Migrar `Legajos.jsx` a `SortTh`/`TableCard` (deuda #2) — el de menor rendimiento.
+6. Decidir qué hacer con las 3 vulnerabilidades npm (deuda #4).
+
+## ⚠️ Paso pendiente de T8a: cortar el token compartido
+
+El deploy de v3.16.0 **no endurece nada por sí solo**: sale con `ALLOW_APP_TOKEN`
+habilitado para que no se rompa nada. Una vez verificado que la app funciona con la
+sesión de usuario, hay que definir en Vercel:
+
+    ALLOW_APP_TOKEN = false
+
+y redeployar. Recién ahí el token del bundle deja de servir. La app muestra un aviso
+permanente a los administradores hasta que eso pase.
 
 ## Nota T7b — fecha del documento
 
@@ -383,6 +414,12 @@ fuera de comillas en la cabecera. Es necesario: las listas de sanciones suelen t
 "APELLIDO, NOMBRE" en archivos separados por punto y coma, y asumir la coma parte los
 nombres al medio. Las cabeceras se comparan sin tildes y con no-alfanuméricos colapsados
 a `_`, así que "Número de Documento" y "Nro. de Documento" caen en el mismo alias.
+
+**session.js** — `authHeaders()` es async porque puede necesitar refrescar el token
+antes de devolverlo. Toda llamada nueva a `/api` debe usarlo; si se arma un `headers`
+a mano, esa request se queda sin sesión y va a fallar cuando se corte el token compartido.
+Ni el access ni el refresh token se persisten: viven solo en memoria, así que recargar
+la página obliga a loguearse de nuevo.
 
 **genLegajoCompleto** — recibe todo por un único objeto `datos` en vez de diez parámetros
 posicionales, así agregar una sección no rompe los call sites. Escapa HTML en cada campo

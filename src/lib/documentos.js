@@ -5,21 +5,21 @@
 // que emite el servidor. Ni la service key ni el archivo pasan por la función
 // serverless, así que no aplica su límite de tamaño de body.
 
-import { APP_TOKEN } from "./session.js";
+import { authHeaders } from "./session.js";
 import { uid } from "./utils.js";
 
 // Tope de tamaño por archivo. Storage aguanta más, pero un legajo con adjuntos
 // de 100 MB es inmanejable para cualquiera que después tenga que revisarlo.
 var MAX_MB = 25;
 
-function headers() {
-  return { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN };
+async function headers() {
+  return await authHeaders({ 'Content-Type': 'application/json' });
 }
 
 async function listarDocumentos(legajoId) {
   try {
     var url = '/api/documentos?action=list' + (legajoId ? '&legajoId=' + encodeURIComponent(legajoId) : '');
-    var r = await fetch(url, { headers: { 'x-app-token': APP_TOKEN } });
+    var r = await fetch(url, { headers: await authHeaders() });
     if (!r.ok) return [];
     var d = await r.json();
     return (d && d.documentos) || [];
@@ -36,7 +36,7 @@ async function subirDocumento(opts) {
 
   // 1. Pedir la URL firmada
   var r1 = await fetch('/api/documentos?action=upload_url', {
-    method: 'POST', headers: headers(),
+    method: 'POST', headers: await headers(),
     body: JSON.stringify({ legajoId: opts.legajoId, tipo: opts.tipo || '', nombre: file.name })
   });
   if (!r1.ok) throw new Error('No se pudo preparar la subida: ' + (await r1.text()));
@@ -65,7 +65,7 @@ async function subirDocumento(opts) {
     notas: opts.notas || '',
   };
   var r3 = await fetch('/api/documentos?action=confirm', {
-    method: 'POST', headers: headers(), body: JSON.stringify({ doc: doc })
+    method: 'POST', headers: await headers(), body: JSON.stringify({ doc: doc })
   });
   if (!r3.ok) throw new Error('El archivo se subió pero no se pudo registrar: ' + (await r3.text()));
   return doc;
@@ -73,7 +73,7 @@ async function subirDocumento(opts) {
 
 async function urlDescarga(path) {
   var r = await fetch('/api/documentos?action=download_url', {
-    method: 'POST', headers: headers(), body: JSON.stringify({ path: path })
+    method: 'POST', headers: await headers(), body: JSON.stringify({ path: path })
   });
   if (!r.ok) throw new Error('No se pudo generar el enlace de descarga.');
   var d = await r.json();
@@ -82,7 +82,7 @@ async function urlDescarga(path) {
 
 async function borrarDocumento(id, path) {
   var r = await fetch('/api/documentos?action=delete', {
-    method: 'POST', headers: headers(), body: JSON.stringify({ id: id, path: path })
+    method: 'POST', headers: await headers(), body: JSON.stringify({ id: id, path: path })
   });
   return r.ok;
 }

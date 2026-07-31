@@ -1,25 +1,25 @@
-import { APP_TOKEN, _USER_TOKEN } from "./session";
+import { APP_TOKEN, authHeaders } from "./session";
 
 // ─── LOGIN SCREEN ─────────────────────────────────────────────────────────────
 // ── AUTH HELPERS ──────────────────────────────────────────────────────────────
 async function serverLogin(email, password) {
   var r = await fetch('/api/auth?action=login', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },  // login: todavía no hay sesión
     body: JSON.stringify({ email: email, password: password })
   });
   return r.json();
 }
 
 async function serverGetUsuarios() {
-  var r = await fetch('/api/auth?action=usuarios', { headers: { 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN } });
+  var r = await fetch('/api/auth?action=usuarios', { headers: await authHeaders() });
   return r.json();
 }
 
 async function serverCrearUsuario(email, password, nombre, rol) {
   var r = await fetch('/api/auth?action=crear', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN },
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ email: email, password: password, nombre: nombre, rol: rol })
   });
   return r.json();
@@ -28,7 +28,7 @@ async function serverCrearUsuario(email, password, nombre, rol) {
 async function serverCambiarPassword(userId, password) {
   var r = await fetch('/api/auth?action=password', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN },
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ userId: userId, password: password })
   });
   return r.json();
@@ -37,7 +37,7 @@ async function serverCambiarPassword(userId, password) {
 async function serverCambiarRol(userId, rol) {
   var r = await fetch('/api/auth?action=rol', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN },
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ userId: userId, rol: rol })
   });
   return r.json();
@@ -46,7 +46,7 @@ async function serverCambiarRol(userId, rol) {
 async function serverToggleActivo(userId, activo) {
   var r = await fetch('/api/auth?action=toggle', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN },
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ userId: userId, activo: activo })
   });
   return r.json();
@@ -57,7 +57,7 @@ async function auditLog(usuario, accion, entidad, entidadId, detalle) {
   try {
     await fetch('/api/auth?action=audit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN, 'x-user-token': _USER_TOKEN },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         usuario_id: usuario.id,
         usuario_nombre: usuario.nombre || usuario.email,

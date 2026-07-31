@@ -1,14 +1,14 @@
 import { r2 } from "./reports";
-import { APP_TOKEN } from "./session";
+import { authHeaders } from "./session";
 
 async function gzipPayload(obj) {
   var json = JSON.stringify(obj);
   try {
     var stream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
     var buf = await new Response(stream).arrayBuffer();
-    return { body: buf, headers: { 'Content-Type': 'application/octet-stream', 'x-encoding': 'gzip-json', 'x-app-token': APP_TOKEN } };
+    return { body: buf, headers: await authHeaders({ 'Content-Type': 'application/octet-stream', 'x-encoding': 'gzip-json' }) };
   } catch(e) {
-    return { body: json, headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN } };
+    return { body: json, headers: await authHeaders({ 'Content-Type': 'application/json' }) };
   }
 }
 
@@ -123,7 +123,7 @@ async function serverSaveTxns(periodoId, txns) {
 async function serverLoadTxns(periodoId) {
   try {
     var r = await fetchRetry('/api/sync?action=txns&id=' + periodoId,
-      { headers: { 'x-app-token': APP_TOKEN } }, 2);
+      { headers: await authHeaders() }, 2);
     if (!r.ok) {
       console.error('[Sync] Error cargando txns:', r._error || r.status, '— período:', periodoId);
       return null;
@@ -146,7 +146,7 @@ async function serverSaveKV(k, v) {
   try {
     await fetch('/api/sync?action=kv', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ k: k, v: v })
     });
   } catch(e) { console.warn('[Sync] Error guardando KV:', e.message); }
@@ -155,7 +155,7 @@ async function serverSaveKV(k, v) {
 async function serverLoadKV(k) {
   try {
     var r = await fetch('/api/sync?action=kv&k=' + encodeURIComponent(k), {
-      headers: { 'x-app-token': APP_TOKEN }
+      headers: await authHeaders()
     });
     if (!r.ok) return null;
     var d = await r.json();
@@ -168,7 +168,7 @@ async function serverLoadKV(k) {
 async function serverLoadKVPrefix(prefix) {
   try {
     var r = await fetchRetry('/api/sync?action=kv_prefix&p=' + encodeURIComponent(prefix),
-      { headers: { 'x-app-token': APP_TOKEN } }, 2);
+      { headers: await authHeaders() }, 2);
     if (!r.ok) return [];
     var d = await r.json();
     return (d && d.items) || [];
@@ -177,7 +177,7 @@ async function serverLoadKVPrefix(prefix) {
 
 async function serverLoad() {
   try {
-    var r = await fetchRetry('/api/sync', { headers: { 'x-app-token': APP_TOKEN } }, 3);
+    var r = await fetchRetry('/api/sync', { headers: await authHeaders() }, 3);
     if (!r.ok) return null;
     var data = await r.json();
     if (!data || data.error) return null;
@@ -191,7 +191,7 @@ async function serverLoad() {
 // ─── CASOS (T3) ──────────────────────────────────────────────────────────────
 async function serverLoadCasos() {
   try {
-    var r = await fetchRetry('/api/sync?action=casos', { headers: { 'x-app-token': APP_TOKEN } }, 2);
+    var r = await fetchRetry('/api/sync?action=casos', { headers: await authHeaders() }, 2);
     if (!r.ok) return [];
     var d = await r.json();
     return (d && d.casos) || [];
@@ -202,7 +202,7 @@ async function serverSaveCasos(casos, deletedCasoIds) {
   try {
     var r = await fetchRetry('/api/sync?action=casos', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ casos: casos || [], deletedCasoIds: deletedCasoIds || [] })
     }, 2);
     return !!(r && r.ok);
@@ -213,7 +213,7 @@ async function serverSaveCasos(casos, deletedCasoIds) {
 async function serverLoadListas(soloMeta) {
   try {
     var url = '/api/sync?action=screening_listas' + (soloMeta ? '&meta=1' : '');
-    var r = await fetchRetry(url, { headers: { 'x-app-token': APP_TOKEN } }, 2);
+    var r = await fetchRetry(url, { headers: await authHeaders() }, 2);
     if (!r.ok) return [];
     var d = await r.json();
     return (d && d.listas) || [];
@@ -224,7 +224,7 @@ async function serverSaveLista(lista) {
   try {
     var r = await fetchRetry('/api/sync?action=screening_listas', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ lista: lista })
     }, 2);
     return !!(r && r.ok);
@@ -235,7 +235,7 @@ async function serverDeleteLista(id) {
   try {
     var r = await fetchRetry('/api/sync?action=screening_listas', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ deletedListaId: id })
     }, 2);
     return !!(r && r.ok);
@@ -244,7 +244,7 @@ async function serverDeleteLista(id) {
 
 async function serverLoadRuns() {
   try {
-    var r = await fetchRetry('/api/sync?action=screening_runs', { headers: { 'x-app-token': APP_TOKEN } }, 2);
+    var r = await fetchRetry('/api/sync?action=screening_runs', { headers: await authHeaders() }, 2);
     if (!r.ok) return [];
     var d = await r.json();
     return (d && d.runs) || [];
@@ -253,7 +253,7 @@ async function serverLoadRuns() {
 
 async function serverLoadRun(id) {
   try {
-    var r = await fetchRetry('/api/sync?action=screening_runs&id=' + encodeURIComponent(id), { headers: { 'x-app-token': APP_TOKEN } }, 2);
+    var r = await fetchRetry('/api/sync?action=screening_runs&id=' + encodeURIComponent(id), { headers: await authHeaders() }, 2);
     if (!r.ok) return null;
     var d = await r.json();
     return (d && d.run) || null;
@@ -264,7 +264,7 @@ async function serverSaveRun(run) {
   try {
     var r = await fetchRetry('/api/sync?action=screening_runs', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ run: run })
     }, 2);
     return !!(r && r.ok);
@@ -273,7 +273,7 @@ async function serverSaveRun(run) {
 
 async function fetchServerConfig() {
   try {
-    var r = await fetch('/api/config', { headers: { 'x-app-token': APP_TOKEN } });
+    var r = await fetch('/api/config', { headers: await authHeaders() });
     if (!r.ok) return null;
     return await r.json();
   } catch(e) { return null; }

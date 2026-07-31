@@ -7,7 +7,8 @@
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
-const APP_TOKEN    = process.env.APP_TOKEN || '123aml2026';
+import { requireAuth } from './_auth.js';
+
 const BUCKET       = 'documentos';
 
 async function sb(table, method = 'GET', body = null, qs = '') {
@@ -50,9 +51,8 @@ function slug(s) {
 }
 
 export default async function handler(req, res) {
-  if (req.headers['x-app-token'] !== APP_TOKEN) {
-    return res.status(401).json({ error: 'No autorizado' });
-  }
+  const ctx = await requireAuth(req, res);
+  if (!ctx) return;  // requireAuth ya respondió 401
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     return res.status(503).json({ error: 'Supabase no configurado' });
   }

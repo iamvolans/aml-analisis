@@ -2,6 +2,7 @@
 // v2 — agrega soporte gzip (x-encoding: gzip-json) para superar límite 4.5MB Vercel
 
 import { gunzipSync } from 'zlib';
+import { requireAuth } from './_auth.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -53,11 +54,13 @@ async function sb(table, method = 'GET', body = null, qs = '') {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-app-token, x-encoding');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-app-token, x-user-token, x-encoding');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (req.headers['x-app-token'] !== APP_TOKEN)
-    return res.status(401).json({ error: 'No autorizado' });
+  // Autenticación por usuario. Durante la transición sigue aceptando el token
+  // compartido; se corta con ALLOW_APP_TOKEN=false en Vercel.
+  const ctx = await requireAuth(req, res);
+  if (!ctx) return;  // requireAuth ya respondió 401
 
   if (!SUPABASE_URL || !SUPABASE_KEY)
     return res.status(503).json({ error: 'Supabase no configurado. Agregá SUPABASE_URL y SUPABASE_SERVICE_KEY en Vercel.' });

@@ -7,7 +7,7 @@ import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase } from
 import { auditLog, puedeAprobar, puedeEditar } from "../lib/auth";
 import { parseCsv, parseExcelFile } from "../lib/parsers";
 import { genINF02, genNotaDD } from "../lib/reports";
-import { APP_TOKEN } from "../lib/session";
+import { authHeaders } from "../lib/session";
 import { serverLoadKV, serverLoadTxns, serverSaveKV, serverSaveTxns } from "../lib/sync";
 import { C, T } from "../lib/theme";
 import { fmtM, safeArr, sevColor, todayStr, uid } from "../lib/utils";
@@ -434,7 +434,7 @@ function AnalisisView(props) {
                     props.setPeriodos(updatedPers);
                     fetch('/api/sync?action=txns', {
                       method:'POST',
-                      headers:{'Content-Type':'application/json','x-app-token':APP_TOKEN},
+                      headers: await authHeaders({'Content-Type':'application/json'}),
                       body:JSON.stringify({periodo_id:selPeriodo.id, txns:[]})
                     });
                     onSync(legajos, updatedPers, [], [selPeriodo.id]);

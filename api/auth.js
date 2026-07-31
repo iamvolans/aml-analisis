@@ -60,7 +60,7 @@ const ERR_PERMISO = 'No tenés permisos para esta acción.';
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-app-token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-app-token, x-user-token');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   if (req.headers['x-app-token'] !== APP_TOKEN)
@@ -72,6 +72,26 @@ export default async function handler(req, res) {
 
   try {
     // ── LOGIN ────────────────────────────────────────────────────────────────
+    // ── Refrescar el access_token ────────────────────────────────────────────
+    // Sin esto, una sesión de trabajo de más de una hora empieza a fallar en
+    // silencio cuando el JWT vence.
+    if (req.method === 'POST' && action === 'refresh') {
+      const { refresh_token } = req.body || {};
+      if (!refresh_token) return res.status(400).json({ error: 'Falta refresh_token' });
+      try {
+        const r = await sb('/auth/v1/token?grant_type=refresh_token', 'POST', { refresh_token });
+        if (!r?.access_token) return res.status(401).json({ error: 'Refresh rechazado' });
+        return res.json({
+          ok: true,
+          token: r.access_token,
+          refreshToken: r.refresh_token || refresh_token,
+          expiresIn: r.expires_in || 3600
+        });
+      } catch (e) {
+        return res.status(401).json({ error: 'Sesión expirada' });
+      }
+    }
+
     if (req.method === 'POST' && action === 'login') {
       const { email, password } = req.body || {};
       if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
@@ -94,6 +114,8 @@ export default async function handler(req, res) {
       return res.json({
         ok: true,
         token: authRes.access_token || null, // JWT de Supabase Auth — habilita acciones con RBAC
+        refreshToken: authRes.refresh_token || null,
+        expiresIn: authRes.expires_in || 3600,
         usuario: {
           id:     userId,
           email:  perfil.email,

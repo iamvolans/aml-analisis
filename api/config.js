@@ -4,10 +4,13 @@
 // por el proxy /api/ai, que usa las keys del lado del servidor.
 export default function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-app-token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-app-token, x-user-token');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // Validar token de app (mismo que contraseña de login)
+  // Este endpoint se consulta ANTES del login (para saber el proveedor de IA por
+  // defecto), así que no puede exigir sesión de usuario. Sigue protegido por el
+  // token compartido, lo cual es aceptable porque solo devuelve flags booleanos:
+  // ninguna key ni dato de negocio sale por acá.
   const token = req.headers['x-app-token'];
   const APP_TOKEN = process.env.APP_TOKEN || '123aml2026';
   if (token !== APP_TOKEN) {
@@ -18,6 +21,9 @@ export default function handler(req, res) {
     defaultProvider: process.env.AI_PROVIDER || 'claude',
     hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
     hasOpenaiKey: !!process.env.OPENAI_API_KEY,
-    hasSyncConfig: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
+    hasSyncConfig: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY),
+    // true = el token compartido del bundle todavía sirve para llamar a la API.
+    // La app muestra un aviso mientras siga así.
+    appTokenLegacy: process.env.ALLOW_APP_TOKEN !== 'false'
   });
 }

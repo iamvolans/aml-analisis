@@ -5,7 +5,7 @@ import { FeedbackHost, toast, uiConfirm } from "./components/feedback";
 import CommandPalette from "./components/palette";
 import { setModuleKeys } from "./lib/ai";
 import { ROL_LABELS, puedeGestionarUsuarios } from "./lib/auth";
-import { APP_TOKEN, _USER_TOKEN, setUserToken } from "./lib/session";
+import { authHeaders, setSesion, limpiarSesion, onSesionCaida } from "./lib/session";
 import { fetchServerConfig, serverLoad, serverLoadCasos, serverLoadRun, serverLoadRuns, serverSave, serverSaveCasos } from "./lib/sync";
 import { C, T } from "./lib/theme";
 import { todayStr } from "./lib/utils";
@@ -32,6 +32,17 @@ export default function App() {
   var perState = useState([]); var periodos=perState[0]; var setPeriodos=perState[1];
   var casState = useState([]); var casos=casState[0]; var setCasos=casState[1];
   var scrState = useState(null); var ultScreening=scrState[0]; var setUltScreening=scrState[1];
+  var legacyState = useState(false); var tokenLegacy=legacyState[0]; var setTokenLegacy=legacyState[1];
+
+  // Si el refresco del JWT falla, la sesión no se puede recuperar: se vuelve al
+  // login en vez de dejar la app fallando en silencio contra la API.
+  useEffect(function(){
+    onSesionCaida(function(){
+      limpiarSesion();
+      setCurrentUser(null);
+      toast('Tu sesión expiró. Ingresá de nuevo.');
+    });
+  }, []);
   var loadState = useState(true); var loading=loadState[0]; var setLoading=loadState[1];
   var viewState = useState('dashboard'); var view=viewState[0]; var setView=viewState[1];
   var repState = useState(null); var reportHTML=repState[0]; var setReportHTML=repState[1];
@@ -57,7 +68,7 @@ export default function App() {
   var auditItemsState = useState([]); var auditItems=auditItemsState[0]; var setAuditItems=auditItemsState[1];
   var auditLoadedState = useState(false); var auditLoaded=auditLoadedState[0]; var setAuditLoaded=auditLoadedState[1];
   function cargarAudit() {
-    fetch('/api/auth?action=audit_log&limit=20', {headers:{'x-app-token':APP_TOKEN,'x-user-token':_USER_TOKEN}})
+    authHeaders().then(function(h){ return fetch('/api/auth?action=audit_log&limit=20', {headers:h}); })
       .then(function(r){return r.json();})
       .then(function(d){ setAuditItems(d.logs||[]); setAuditLoaded(true); })
       .catch(function(){ setAuditLoaded(true); });
@@ -106,6 +117,7 @@ export default function App() {
       if (cfg) {
         setServerKeys({ anthropic: !!cfg.hasAnthropicKey, openai: !!cfg.hasOpenaiKey });
         if (cfg.defaultProvider) { setProvider(cfg.defaultProvider); setModuleKeys(null, null, cfg.defaultProvider); }
+        setTokenLegacy(!!cfg.appTokenLegacy);
       }
     }).catch(function(){});
 
@@ -276,7 +288,7 @@ export default function App() {
     NAV.push(['usuarios', Users, 'Usuarios']);
   }
 
-  if (!isAuth) return <LoginScreen onLogin={function(usuario){setUserToken(usuario && usuario.token); setCurrentUser(usuario);}} />;
+  if (!isAuth) return <LoginScreen onLogin={function(usuario){setSesion(usuario); setCurrentUser(usuario);}} />;
 
   if (loading) return (
     <div style={{minHeight:'100vh',background:T.BG,display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',fontFamily:T.MONO}}>
@@ -513,6 +525,16 @@ export default function App() {
         </div>
       </div>
       <div style={{flex:1,overflowY:'auto',maxHeight:'100vh',background:T.BG}}>
+        {/* Aviso mientras el token compartido siga habilitado (T8a) */}
+        {tokenLegacy && puedeGestionarUsuarios(currentUser && currentUser.rol) && (
+          <div style={{margin:'14px 22px 0',background:'rgba(255,184,48,0.08)',border:'1px solid rgba(255,184,48,0.35)',borderLeft:'3px solid '+T.AMBER,borderRadius:T.RADIUS.md,padding:'11px 15px',fontSize:11,color:T.TEXT2,lineHeight:1.65}}>
+            <strong style={{color:T.AMBER}}>Autenticación en transición.</strong> La API todavía acepta el token
+            compartido, que viaja dentro del bundle del navegador y es legible por cualquiera que abra la app, incluso
+            sin credenciales. Verificá que todo funcione con la sesión de usuario y después definí{' '}
+            <span style={{fontFamily:T.MONO,color:T.TEXT}}>ALLOW_APP_TOKEN=false</span> en las variables de entorno de
+            Vercel. Este aviso desaparece solo cuando el token deja de aceptarse.
+          </div>
+        )}
         {syncStatus==='error' && (
           <div style={{background:'rgba(255,184,48,0.08)',borderBottom:'1px solid rgba(255,184,48,0.2)',padding:'7px 20px',display:'flex',alignItems:'center',gap:10,fontSize:10,fontFamily:T.MONO}}>
             <span style={{fontSize:13}}>⚠</span>

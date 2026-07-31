@@ -1,3 +1,4 @@
+import { requireAuth } from './_auth.js';
 // api/ai.js — Proxy seguro para llamadas a Claude y GPT-4o
 // Soporta payloads comprimidos con gzip para superar el límite de 4.5MB de Vercel
 
@@ -22,13 +23,13 @@ async function getRawBody(req) {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-app-token, x-encoding');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-app-token, x-user-token, x-encoding');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
-  const token = req.headers['x-app-token'];
-  const APP_TOKEN = process.env.APP_TOKEN || '123aml2026';
-  if (token !== APP_TOKEN) return res.status(401).json({ error: 'No autorizado' });
+  // Sin esto, cualquiera con el bundle podía consumir las API keys de IA.
+  const ctx = await requireAuth(req, res);
+  if (!ctx) return;  // requireAuth ya respondió 401
 
   let parsed;
   try {

@@ -15,7 +15,11 @@ function LoginScreen(props) {
     try {
       var res = await serverLogin(email.trim(), pass);
       if (res.ok && res.usuario) {
-        props.onLogin(Object.assign({}, res.usuario, { token: res.token || '' }));
+        props.onLogin(Object.assign({}, res.usuario, {
+          token: res.token || '',
+          refreshToken: res.refreshToken || '',
+          expiresIn: res.expiresIn || 3600
+        }));
       } else {
         setErr(res.error || 'Email o contraseña incorrectos.');
       }

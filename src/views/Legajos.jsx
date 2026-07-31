@@ -6,7 +6,7 @@ import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase, senal
 import { auditLog, puedeAprobar, puedeEliminar } from "../lib/auth";
 import { CHECKLIST_ITEMS, ESTADOS_CUENTA, KYB_FACTORS, getEstado } from "../lib/constants";
 import { genINF01, genINF07Cierre, genLegajoCompleto, genROS } from "../lib/reports";
-import { APP_TOKEN } from "../lib/session";
+import { authHeaders } from "../lib/session";
 import { gzipPayload, serverLoadKV } from "../lib/sync";
 import { C, T } from "../lib/theme";
 import { fileToBase64, fmtM, parseFechaAR, safeArr, segColor, todayStr, uid } from "../lib/utils";
@@ -1110,7 +1110,7 @@ function LegajosView(props) {
 
                 var r = await fetch('/api/ai', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'x-app-token': APP_TOKEN },
+                  headers: await authHeaders({ 'Content-Type': 'application/json' }),
                   body: JSON.stringify({
                     provider: 'claude',
                     useWebSearch: true,
@@ -1407,7 +1407,7 @@ function LegajosView(props) {
               });
               setRosSelPer(conSenales.map(function(p){return p.id;}));
               // Obtener número correlativo desde KV
-              fetch('/api/sync?action=kv&k=ros_counter_'+new Date().getFullYear(), {headers:{'x-app-token':APP_TOKEN}})
+              authHeaders().then(function(h){ return fetch('/api/sync?action=kv&k=ros_counter_'+new Date().getFullYear(), {headers:h}); })
                 .then(function(r){return r.json();}).then(function(d){ setRosNum((d.v||0)+1); }).catch(function(){ setRosNum(1); });
               setRosOpen(true);
             }} style={{background:'rgba(139,103,192,0.2)',color:'#B39DDB',border:'1px solid rgba(139,103,192,0.3)',borderRadius:3,padding:'8px 14px',cursor:'pointer',fontWeight:700,fontSize:13}}>📋 ROS Borrador</button>}
@@ -1474,7 +1474,7 @@ function LegajosView(props) {
                         var yearKey = 'ros_counter_'+new Date().getFullYear();
                         try {
                           await fetch('/api/sync?action=kv', {
-                            method:'POST', headers:{'Content-Type':'application/json','x-app-token':APP_TOKEN},
+                            method:'POST', headers: await authHeaders({'Content-Type':'application/json'}),
                             body: JSON.stringify({k:yearKey, v:num})
                           });
                         } catch(e){}
