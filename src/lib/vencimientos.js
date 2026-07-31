@@ -191,6 +191,13 @@ function vencimientosInstitucionales() {
 }
 
 // ─── AGREGADO ───────────────────────────────────────────────────────────────
+// Un vencimiento es "confiable" si su fecha está validada. Solo las
+// institucionales pueden no estarlo: las de legajo y documento se derivan de
+// datos reales del sistema.
+function esConfiable(v) {
+  return !(v && v.tipo === 'INSTITUCIONAL' && !v.validado);
+}
+
 function todosLosVencimientos(legajos, periodos) {
   var out = [];
   (legajos || []).forEach(function(l){
@@ -204,10 +211,16 @@ function todosLosVencimientos(legajos, periodos) {
 // ─── GENERACIÓN DE CASOS ────────────────────────────────────────────────────
 // Igual que con las señales: devuelve el preview, no crea nada. Solo los ya
 // vencidos generan caso; los próximos son aviso, no incumplimiento.
+//
+// Las obligaciones institucionales con `validado:false` quedan EXCLUIDAS: su
+// fecha es un valor por defecto todavía sin confirmar contra la normativa, y un
+// caso abierto por una fecha inventada es un registro regulatorio falso, con su
+// referencia y su rastro de auditoría. Se habilitan al poner `validado:true`.
 function vencimientosPendientesDeCaso(vencimientos, casos) {
   var yaHay = {};
   (casos || []).forEach(function(c){ if (c.vencKey) yaHay[c.vencKey] = true; });
   return (vencimientos || []).filter(function(v){
+    if (v.tipo === 'INSTITUCIONAL' && !v.validado) return false;
     return v.estado === 'VENCIDO' && !yaHay[v.clave];
   }).map(function(v){
     return {
@@ -230,5 +243,5 @@ export {
   ACTUALIZACION_LEGAJO, VIGENCIA_DOCS, INSTITUCIONALES, DIAS_AVISO_VENC,
   sumarMeses, diasHasta, fmtFecha, estadoDe, colorVenc,
   baseActualizacion, vencimientosDeLegajo, vencimientosInstitucionales,
-  todosLosVencimientos, vencimientosPendientesDeCaso
+  todosLosVencimientos, vencimientosPendientesDeCaso, esConfiable
 };

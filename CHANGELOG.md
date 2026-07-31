@@ -2,6 +2,16 @@
 
 Formato: versión — tanda — cambios. Las tandas están descritas en `docs/PLAN_V3.md`.
 
+## 3.17.2 — Fechas institucionales sin validar
+
+- **Las obligaciones institucionales con `validado:false` ya no generan casos.**
+  Una fecha por defecto que pasara a vencida abría un caso de compliance real,
+  con referencia y rastro de auditoría, sobre un vencimiento inventado.
+- El widget del Dashboard las muestra atenuadas y con etiqueta "sin validar", y
+  no las cuenta en el total. Antes aparecían idénticas a un vencimiento real.
+- Los KPIs de Vencimientos tampoco las cuentan.
+- 3 tests nuevos que fijan el criterio.
+
 ## 3.17.1 — xlsx 0.20.3 y tests de parseo de Excel
 
 - `xlsx` pasa a instalarse desde el CDN de SheetJS: corrige Prototype Pollution y

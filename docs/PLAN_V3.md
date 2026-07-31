@@ -270,9 +270,10 @@ de caso 2) son política interna de Rebit.
   meses). Debe coincidir con lo que declara el Manual PLAFT de GOAT S.A.
 - `VIGENCIA_DOCS`: vigencia en meses de cada documento del checklist.
 - `INSTITUCIONALES`: fechas de autoevaluación anual, informe del revisor externo y
-  reporte sistemático mensual. Las tres están marcadas `validado:false` y el panel las
-  muestra con un cartel de advertencia hasta que se confirmen. Al validarlas, cambiar
-  el flag a `true` y el aviso desaparece.
+  reporte sistemático mensual. Las tres están marcadas `validado:false`. Mientras lo
+  estén: se muestran atenuadas y etiquetadas "sin validar", **no cuentan en ningún
+  indicador y no generan casos** (v3.17.2). Al confirmarlas, cambiar el flag a `true`
+  y pasan a operar normalmente.
 
 Cambiar cualquiera de estos valores recalcula todos los contadores de la app.
 

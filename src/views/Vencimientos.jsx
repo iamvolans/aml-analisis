@@ -7,7 +7,7 @@ import { T } from "../lib/theme";
 import {
   ACTUALIZACION_LEGAJO, DIAS_AVISO_VENC,
   todosLosVencimientos, vencimientosPendientesDeCaso,
-  fmtFecha, colorVenc
+  fmtFecha, colorVenc, esConfiable
 } from "../lib/vencimientos";
 
 var FILTROS_KEY = 'rebit_vencimientos_filtros_v3';
@@ -56,8 +56,8 @@ function VencimientosView(props) {
   var casoPorVenc = {};
   casos.forEach(function(c){ if (c.vencKey) casoPorVenc[c.vencKey] = c; });
 
-  var vencidos = todos.filter(function(v){ return v.estado==='VENCIDO'; });
-  var proximos = todos.filter(function(v){ return v.estado==='PROXIMO'; });
+  var vencidos = todos.filter(function(v){ return v.estado==='VENCIDO' && esConfiable(v); });
+  var proximos = todos.filter(function(v){ return v.estado==='PROXIMO' && esConfiable(v); });
   var sinValidar = todos.filter(function(v){ return v.tipo==='INSTITUCIONAL' && !v.validado; });
 
   var q = search.trim().toLowerCase();
@@ -174,7 +174,9 @@ function VencimientosView(props) {
         <div style={{background:'rgba(255,184,48,0.07)',border:'1px solid rgba(255,184,48,0.3)',borderLeft:'3px solid '+T.AMBER,borderRadius:T.RADIUS.md,padding:'11px 14px',marginBottom:14,fontSize:11,color:T.TEXT2,lineHeight:1.6}}>
           <strong style={{color:T.AMBER}}>{sinValidar.length} fecha(s) institucional(es) sin validar.</strong> Las fechas de
           autoevaluación, revisor externo y reporte sistemático son valores por defecto y deben confirmarse contra la
-          resolución UIF vigente. Se editan en <span style={{fontFamily:T.MONO}}>src/lib/vencimientos.js</span> (marcar
+          resolución UIF vigente. Mientras tanto <strong>no se cuentan en los indicadores ni generan casos</strong>, para
+          que una fecha por defecto no termine en un registro con valor regulatorio. Se editan en{' '}
+          <span style={{fontFamily:T.MONO}}>src/lib/vencimientos.js</span> (marcar
           <span style={{fontFamily:T.MONO}}> validado:true</span> una vez confirmadas).
         </div>
       )}

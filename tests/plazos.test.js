@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { hitosSLA, slaCritico, cambiarEstadoCaso, nuevoCaso, getEstadoCaso, casosPendientesDeCrear, SLA } from '../src/lib/casos.js';
-import { sumarMeses, vencimientosDeLegajo, baseActualizacion, ACTUALIZACION_LEGAJO } from '../src/lib/vencimientos.js';
+import { sumarMeses, vencimientosDeLegajo, baseActualizacion, ACTUALIZACION_LEGAJO, vencimientosPendientesDeCaso, esConfiable } from '../src/lib/vencimientos.js';
 import { calcMetricas } from '../src/lib/aml.js';
 
 // Fecha en formato es-AR a N días de hoy
@@ -174,5 +174,33 @@ describe('generación de casos desde señales', () => {
 
   it('ignora períodos de legajos que no están en la cartera', () => {
     expect(casosPendientesDeCrear([], [per], []).length).toBe(0);
+  });
+});
+
+describe('fechas institucionales sin validar', () => {
+  const vencs = [
+    { clave:'INST::a', tipo:'INSTITUCIONAL', validado:false, estado:'VENCIDO', dias:-5, label:'Sin validar', detalle:'', limite:new Date(), legajoId:'', legajoNom:'' },
+    { clave:'INST::b', tipo:'INSTITUCIONAL', validado:true,  estado:'VENCIDO', dias:-5, label:'Validada',    detalle:'', limite:new Date(), legajoId:'', legajoNom:'' },
+    { clave:'ACT::L1', tipo:'LEGAJO',        estado:'VENCIDO', dias:-5, label:'Actualización', detalle:'', limite:new Date(), legajoId:'L1', legajoNom:'Test' },
+  ];
+
+  it('esConfiable distingue solo las institucionales no validadas', () => {
+    expect(esConfiable(vencs[0])).toBe(false);
+    expect(esConfiable(vencs[1])).toBe(true);
+    expect(esConfiable(vencs[2])).toBe(true);
+  });
+
+  // Un caso abierto por una fecha inventada es un registro regulatorio falso,
+  // con su referencia y su rastro de auditoría.
+  it('una fecha sin validar NO genera caso aunque esté vencida', () => {
+    const p = vencimientosPendientesDeCaso(vencs, []);
+    expect(p.length).toBe(2);
+    expect(p.some(x => x.vencKey === 'INST::a')).toBe(false);
+    expect(p.some(x => x.vencKey === 'INST::b')).toBe(true);
+    expect(p.some(x => x.vencKey === 'ACT::L1')).toBe(true);
+  });
+
+  it('los vencimientos de legajo y documento nunca quedan excluidos', () => {
+    expect(esConfiable({ tipo:'DOCUMENTO', estado:'VENCIDO' })).toBe(true);
   });
 });
