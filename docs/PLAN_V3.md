@@ -243,7 +243,15 @@ T3 en adelante puede intercalarse con T2 si se prioriza funcionalidad sobre est�
     - Los 32 call sites del cliente pasaron a `authHeaders()`.
     - Transición con `ALLOW_APP_TOKEN`: mientras esté habilitado la app muestra un aviso
       permanente a los administradores, que desaparece al ponerlo en `false`.
-  - [ ] **T8b — PRÓXIMA: tests, code-splitting, staging y documentación**
+  - [x] T8b (v3.17.0): tests, performance y documentación
+    - **80 tests con vitest** sobre `aml.js`, `screening.js`, `casos.js` y
+      `vencimientos.js`. `npm test`. Las pruebas sintéticas de T5 y T6, que eran
+      scripts descartables, quedaron como suite permanente.
+    - **Carga diferida por vista**: inicial de 1.432 kB → 240 kB (419 → 75 kB gzip).
+      `xlsx` y `recharts` solo bajan al entrar a Análisis o Dashboard.
+    - README v3 y CHANGELOG.
+  - [ ] Pendientes de T8, no bloqueantes: staging en Vercel, migración de
+        `Legajos.jsx` a `SortTh`/`TableCard`, y las 3 vulnerabilidades npm.
 
 ## ⚠️ Pendiente de validación normativa (BLOQUEANTE para uso operativo)
 
@@ -283,20 +291,39 @@ Para desbloquear hace falta que Germán aporte, de la resolución vigente:
 Con eso el generador sale rápido: los datos ya están todos en `periodos[].txns` y en las
 métricas. Lo que falta es el mapeo, no la información.
 
-## Spec T8b — Tests, performance y documentación (PRÓXIMA)
+## Cómo montar staging (pendiente, 5 minutos)
 
-1. **Tests con vitest** de `aml.js` (`calcMetricas`, `detectPatrones`, `calcScoring`,
-   `lineaBase`) y `screening.js` (`normalizar`, `similitud`, `correrScreening`). Son
-   funciones puras y es el corazón regulatorio: hoy nada impide que un cambio futuro
-   rompa un umbral en silencio. Las pruebas sintéticas de T5 y T6 fueron scripts
-   descartables; acá se vuelven permanentes.
-2. **Code-splitting** por vista con `React.lazy` (bundle ~1,43 MB → carga inicial <400 KB).
-3. **Staging** en Vercel: branch `staging` → deploy preview.
-4. **README v3 y CHANGELOG**: el README quedó de la v2 y hoy hay diez secciones, seis
-   tablas y cuatro módulos de reglas parametrizables que alguien tiene que poder
-   entender sin preguntar.
-5. Migrar `Legajos.jsx` a `SortTh`/`TableCard` (deuda #2) — el de menor rendimiento.
-6. Decidir qué hacer con las 3 vulnerabilidades npm (deuda #4).
+No requiere cambios de código: es configuración de git y Vercel.
+
+```bash
+git checkout -b staging && git push -u origin staging
+```
+
+En Vercel, el branch `staging` genera un deploy preview con su propia URL. Para que
+no toque los datos de producción hace falta un proyecto Supabase aparte y definir
+`SUPABASE_URL` / `SUPABASE_SERVICE_KEY` distintas **solo para el entorno Preview**
+(Settings → Environment Variables → scope Preview). Sin eso, staging escribe sobre
+la base real y no sirve de nada.
+
+Flujo: se trabaja en `staging`, se verifica en la URL de preview y recién ahí se
+mergea a `main`.
+
+## Hallazgo abierto: alcance de PAT-01
+
+`calcMetricas` agrupa los grupos de fraccionamiento recorriendo **solo las
+operaciones entrantes** (`ins.forEach`), aunque la variable se llame `byDayDest` y el
+texto de la señal diga "3+ ops al mismo destino". Consecuencia: el fraccionamiento de
+salida no se detecta.
+
+Detectar structuring sobre ingresos es la tipología clásica, así que puede ser
+deliberado. Pero la redacción sugiere otra cosa. Hay dos salidas y es una decisión de
+compliance, no técnica:
+- Ampliar la detección a las salidas (cambia el comportamiento regulatorio: van a
+  aparecer señales nuevas en períodos ya analizados).
+- Corregir el texto de la señal para que diga "origen".
+
+El test `PAT-01 hoy NO detecta fraccionamiento en operaciones de salida` fija la
+conducta actual: si se cambia, el test falla y obliga a que sea una decisión explícita.
 
 ## ⚠️ Paso pendiente de T8a: cortar el token compartido
 

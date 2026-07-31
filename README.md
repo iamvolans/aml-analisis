@@ -1,197 +1,162 @@
-# Rebit AML & KYB Tool — v2.2.0
+# Rebit AML & KYB Tool
 
-Sistema integral de gestión de Compliance, KYB y Monitoreo Transaccional AML para **GOAT S.A. / Rebit**, Proveedor de Servicios de Pago (PSP) regulado por UIF y BCRA.
+Plataforma interna de compliance PLAFT de **GOAT S.A. / Rebit** (PSPCP, Registro
+BCRA N° 33.706). Gestiona el ciclo completo: legajos KYB, análisis transaccional,
+detección de patrones AML, casos con plazos regulatorios, calendario de
+vencimientos, screening contra listas restrictivas y reportería.
 
-🌐 **Producción:** https://rebit-aml-app.vercel.app
-
----
-
-## Funcionalidades
-
-### 📁 Módulo Legajos KYB
-- CRUD completo de clientes corporativos con 7 pestañas: Resumen IA, Datos, Checklist, Scoring, Red Flags, Historial, Screening
-- **Extracción IA de documentos** — PDFs e imágenes procesados por Claude / GPT-4o para completar automáticamente todos los campos
-- Checklist de documentación KYB con estados OK / Pendiente / Bloqueante
-- Scoring de 8 factores de riesgo (1–5) con segmentación automática BAJO / MEDIO / MEDIO-ALTO / ALTO
-- **Ciclo de vida de cuenta** — 5 estados: En Onboarding → Activa → Monitoreo Reforzado → Suspendida → Cerrada
-- Historial de cambios de estado con fecha, hora y analista (respaldo regulatorio UIF)
-- Generación de **INF-01** (Debida Diligencia KYB) y **INF-07** (Cierre/Desvinculación)
-
-### 🛡 Screening de Sanciones Internacionales
-- Verificación automática via IA con búsqueda web en tiempo real contra:
-  - 🇺🇸 OFAC SDN List (USA)
-  - 🌐 ONU Lista Consolidada
-  - 🇦🇷 REPET UIF Argentina (repet.uif.gob.ar)
-  - 🇦🇷 PEPs Argentina (Oficina Anticorrupción)
-- Resultado por lista: ✅ LIMPIO / 🟡 REVISAR / 🔴 COINCIDENCIA
-- Resultado guardado con fecha, hora y analista para evidencia regulatoria
-
-### 📊 Módulo Análisis AML Transaccional
-- Carga de archivos CSV, XLS, XLSX, ODS — detección automática de columnas
-- **12 patrones AML** (PAT-01 a PAT-12) con tipologías UIF T-01 a T-09
-- **16 métricas** transaccionales: volumen IN/OUT, HHI concentración, fraccionamiento, pass-through, circularidad, montos redondos, horario atípico, etc.
-- **Scoring de 8 factores** con clasificación BAJO / MEDIO / MEDIO-ALTO / ALTO
-- Métricas pre-computadas y persistidas en Supabase — disponibles en cualquier dispositivo sin recargar el archivo
-- Pestañas: Métricas | Señales | Scoring | Gráficos | Nota DD | Memos | RFI
-- **Resolución de señales ALTA** — flujo dos pasos: Analista propone → Supervisor aprueba/rechaza
-- **Estados del período AML** — En revisión / RFI enviado / Cerrado sin alerta / Cerrado con alerta / Archivado
-- Generación de **INF-02** (Monitoreo Transaccional AML) con memos integrados
-
-### 📈 Análisis Multi-período (Tendencias)
-- Activo cuando el legajo tiene 2+ períodos cargados
-- Gráfico de líneas: evolución IN/OUT por período
-- Gráfico de score trend con puntos de color por nivel de riesgo
-- Tabla comparativa de métricas clave período a período
-- Análisis de rotación de contrapartes con alerta automática si rotación > 60%
-
-### 📋 ROS Borrador UIF
-- Reporte de Operación Sospechosa pre-completado con datos del sistema
-- 8 secciones: Sujeto Obligado, Cliente, Descripción de Operaciones, Señales (PAT → tipología UIF), Top 20 operaciones, Diligencias (KYB + RFIs), Conclusión editable, Firma
-- Número correlativo ROS-YYYY-NNN compartido entre analistas via Supabase
-- Secciones narrativas editables en pantalla antes de imprimir/PDF
-
-### 📧 Módulo RFI
-- Hilo de intercambios: Envío / Respuesta / Nota interna / Cierre
-- Estados: Enviado | Respondido | Resp. parcial | Sin respuesta | Cerrado
-- Alertas automáticas de vencimiento (> 7 días sin respuesta del cliente)
-
-### 📈 Dashboard
-- **Operacional** — KPIs, alertas proactivas por plazo regulatorio, semáforo de cartera, gráficos, cuentas con señales ALTA
-- **Ejecutivo** — semáforo completo de cartera, evolución mensual IN/OUT, panel RFIs con SLA y tasa de respuesta
-
-### 🔐 Autenticación y Roles
-- Login con email + contraseña via Supabase Auth
-- 5 roles: Admin | Oficial de Cumplimiento | Supervisor | Analista | Solo lectura
-- Panel de administración de usuarios (solo Admin)
-- **Audit trail completo** — todas las acciones registradas en Supabase
+**Producción:** `rebit-aml-app.vercel.app` · **Repo:** `iamvolans/aml-analisis`
 
 ---
 
-## Stack Técnico
-
-| Capa | Tecnología |
-|------|-----------|
-| Frontend | React + Vite, Recharts, SheetJS (xlsx) |
-| Backend | Vercel Serverless Functions (Node.js) |
-| Base de datos | Supabase PostgreSQL |
-| Autenticación | Supabase Auth |
-| IA — extracción docs | Claude `claude-sonnet-4-20250514` o GPT-4o `gpt-4o-2024-11-20` |
-| IA — screening | Claude con web search (`web_search_20250305`) |
-| Deploy | Vercel (CD automático desde GitHub) |
-
----
-
-## Estructura del proyecto
-
-```
-rebit-aml-app/
-├── index.html
-├── package.json          # v2.2.0
-├── vite.config.js
-├── vercel.json           # maxDuration: 60s para api/ai.js
-├── README.md
-├── src/
-│   ├── main.jsx
-│   └── App.jsx           # ~5200+ líneas — app completa
-└── api/
-    ├── ai.js             # Proxy IA (Claude + GPT-4o + web search)
-    ├── sync.js           # Proxy Supabase (legajos, periodos, txns, kv)
-    ├── auth.js           # Autenticación y gestión de usuarios
-    └── config.js         # Sirve env vars al frontend
-```
-
----
-
-## Variables de entorno (Vercel)
-
-Configurar en https://vercel.com → proyecto → Settings → Environment Variables:
-
-| Variable | Descripción |
-|----------|-------------|
-| `ANTHROPIC_API_KEY` | API key de Anthropic (Claude) |
-| `OPENAI_API_KEY` | API key de OpenAI (GPT-4o) |
-| `AI_PROVIDER` | `claude` o `openai` (default: `claude`) |
-| `SUPABASE_URL` | URL del proyecto Supabase |
-| `SUPABASE_SERVICE_KEY` | Service role key de Supabase |
-| `APP_TOKEN` | Token de validación interna entre frontend y API |
-
----
-
-## Base de datos Supabase
-
-Tablas requeridas (crear con RLS deshabilitado — se usa `service_role`):
-
-```sql
-CREATE TABLE legajos      (id TEXT PRIMARY KEY, data JSONB, updated_at TIMESTAMPTZ DEFAULT now());
-CREATE TABLE periodos     (id TEXT PRIMARY KEY, legajo_id TEXT, nombre TEXT, created_at_str TEXT, data JSONB, updated_at TIMESTAMPTZ DEFAULT now());
-CREATE TABLE periodos_txns(periodo_id TEXT PRIMARY KEY, txns JSONB, updated_at TIMESTAMPTZ DEFAULT now());
-CREATE TABLE kv           (k TEXT PRIMARY KEY, v JSONB, updated_at TIMESTAMPTZ DEFAULT now());
-CREATE TABLE perfiles     (id UUID PRIMARY KEY REFERENCES auth.users, nombre TEXT, email TEXT, rol TEXT, activo BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now());
-CREATE TABLE audit_log    (id BIGSERIAL PRIMARY KEY, usuario_id UUID, usuario_nombre TEXT, accion TEXT, entidad TEXT, entidad_id TEXT, detalle JSONB, created_at TIMESTAMPTZ DEFAULT now());
-```
-
----
-
-## Deploy
-
-### Deploy automático (recomendado)
-
-El repositorio está conectado a Vercel — cada `git push` a `main` dispara un deploy automático.
-
-```bash
-cd ~/Downloads/rebit-aml-app
-git add .
-git commit -m "descripción del cambio"
-git push
-```
-
-### Deploy manual con CLI
-
-```bash
-cd ~/Downloads/rebit-aml-app
-npx vercel --prod
-```
-
-### Desarrollo local
+## Puesta en marcha
 
 ```bash
 npm install
-npm run dev
-# Abrir http://localhost:5173
+npm run dev      # servidor de desarrollo
+npm run build    # build de producción
+npm test         # suite de tests (80 casos)
 ```
 
-> Para desarrollo local crear `.env.local` con las mismas variables que en Vercel.
+### Variables de entorno (Vercel)
 
----
+| Variable | Obligatoria | Para qué |
+|---|---|---|
+| `SUPABASE_URL` | sí | Endpoint del proyecto Supabase |
+| `SUPABASE_SERVICE_KEY` | sí | Service key. **Nunca sale del servidor.** |
+| `APP_TOKEN` | sí | Token de arranque (login y config) |
+| `ALLOW_APP_TOKEN` | recomendada | `false` = la API exige sesión de usuario |
+| `ANTHROPIC_API_KEY` | opcional | Extracción con Claude |
+| `OPENAI_API_KEY` | opcional | Extracción con GPT |
+| `AI_PROVIDER` | opcional | `claude` (por defecto) u `openai` |
+| `CRON_SECRET` | opcional | Autoriza el cron semanal de screening |
 
-## Persistencia de datos
+> ⚠️ **`ALLOW_APP_TOKEN` debe estar en `false` en producción.** Mientras no lo esté,
+> la API acepta el token compartido, que viaja dentro del bundle del navegador y es
+> legible por cualquiera que abra la app, incluso sin credenciales. La app muestra un
+> aviso permanente a los administradores hasta que se corte.
 
-- **Supabase PostgreSQL** — fuente de verdad. Sincronización automática con cada guardado.
-- **localStorage** — caché local para acceso offline y velocidad de carga.
-- **Transacciones AML** — guardadas separado en `periodos_txns` (Vercel body limit 4.5 MB).
-- Al iniciar, los períodos sin métricas se migran automáticamente en segundo plano: carga txns de Supabase → calcula métricas → guarda. El dashboard se va poblando progresivamente sin intervención manual.
-- **Backup manual** — botones "Exportar JSON" / "Importar JSON" en el sidebar.
+### Migraciones SQL
 
----
-
-## Normativa de referencia
-
-- Ley 25.246 y modificatorias — Encubrimiento y Lavado de Activos
-- Resoluciones UIF 156/2018, 76/2019 y complementarias para PSPs
-- Comunicación BCRA "A" 6885 y ss. — Proveedores de Servicios de Pago
-- REPET UIF: https://repet.uif.gob.ar
-- SIROS UIF (presentación ROS): https://siros.uif.gob.ar
-
----
-
-## Design System
+Se corren en el SQL Editor de Supabase, en orden. Todas son **idempotentes**: se
+pueden volver a ejecutar sin romper nada y no tocan tablas existentes.
 
 ```
-v2.2.0 LOCKED — GOAT S.A. / Rebit Compliance
-Azul Oscuro: #1B2A4A  |  Azul Medio: #2C4A7C  |  Azul Claro: #3B6DAA
-Verde: #27AE60  |  Amarillo: #F39C12  |  Naranja: #E67E22  |  Rojo: #E74C3C
+sql/T3_casos.sql        casos + índices de dedupe (señales y vencimientos)
+sql/T5_screening.sql    screening_listas + screening_runs
+sql/T7_documentos.sql   documentos + bucket privado de Storage
 ```
 
 ---
 
-*GOAT S.A. — CUIT 30-71703953-6 — Compliance & AML — Sistema interno v2.2.0*
+## Arquitectura
+
+```
+src/
+  App.jsx           shell: routing, sesión, sincronización (carga diferida por vista)
+  lib/              lógica pura, sin dependencias de navegador
+    theme.js        design tokens — fuente única de diseño
+    constants.js    checklist, factores KYB, estados, mapa PAT → tipología UIF
+    aml.js          métricas, patrones PAT-01..15, scoring, línea base
+    screening.js    normalización y matching contra listas
+    casos.js        ciclo de vida de casos y plazos regulatorios
+    vencimientos.js calendario: legajos, documentos, obligaciones institucionales
+    grafo.js        contrapartes compartidas entre legajos
+    reports.js      generadores HTML de informes (INF-01/02/07, ROS, legajo completo)
+    documentos.js   adjuntos sobre Supabase Storage
+    session.js      sesión y cabeceras de autenticación
+    sync.js         capa Supabase
+  views/            una vista por sección
+  components/       ui.jsx (primitivas), feedback.jsx (toast/confirm), palette.jsx (⌘K)
+api/
+  _auth.js          autenticación compartida (no es una ruta)
+  auth.js           login, refresh, usuarios, audit log
+  sync.js           legajos, períodos, transacciones, KV, casos
+  documentos.js     URLs firmadas de subida y descarga
+  ai.js             proxy de Claude / GPT
+  config.js         flags de configuración (sin secretos)
+  cron-screening.js corrida semanal automática
+tests/              suite vitest
+sql/                migraciones
+docs/PLAN_V3.md     plan maestro y estado por tanda
+```
+
+### Decisiones que conviene conocer antes de tocar el código
+
+**Los umbrales viven en un solo lugar por dominio.** Cambiar un número recalcula
+toda la app:
+
+| Dónde | Qué controla |
+|---|---|
+| `casos.js` → `SLA` | Plazos de reporte, RFI, comité |
+| `vencimientos.js` → `ACTUALIZACION_LEGAJO`, `VIGENCIA_DOCS`, `INSTITUCIONALES` | Calendario regulatorio |
+| `aml.js` → `COMPORTAMIENTO` | Umbrales de PAT-13/14/15 |
+| `screening.js` → `UMBRALES` | Niveles ALTA/MEDIA/BAJA de coincidencia |
+| `grafo.js` → `GRAFO` | Cuántos legajos compartidos disparan alerta |
+
+**Criterio único de señal activa.** `senalesActivas(periodo, legajo, periodos)` en
+`aml.js` es la única fuente. El tercer parámetro es el array **completo** de
+períodos: sin él no hay línea base y PAT-13/14/15 no activan. Si se agrega un call
+site nuevo, hay que pasarlo, o esa vista contará menos señales que el resto.
+
+**Autenticación.** Toda llamada a `/api` usa `authHeaders()` de `session.js`, que es
+`async` porque puede necesitar refrescar el JWT. Armar un objeto `headers` a mano deja
+esa request sin sesión.
+
+**Extensiones `.js` en `lib/`.** El cierre transitivo que importa el cron
+(`screening`, `casos`, `aml`, `utils`, `theme`, `vencimientos`) usa `from "./utils.js"`
+con extensión explícita: Vite no la necesita, Node ESM sí. Sin eso el cron falla con
+`ERR_MODULE_NOT_FOUND`.
+
+**Sin backticks en componentes.** Convención del proyecto: concatenación de strings.
+
+---
+
+## Secciones
+
+| Sección | Qué hace |
+|---|---|
+| **Dashboard** | KPIs, casos con plazo crítico, vencimientos a 30 días, aviso de screening vencido |
+| **Legajos KYB** | Alta y edición, checklist con adjuntos, scoring, screening, historial, export completo |
+| **Análisis AML** | Carga de transacciones, métricas, señales, tendencias multi-período, INF-02, ROS |
+| **Alertas** | Señales activas, RFIs vencidos, clientes sin analizar |
+| **Casos** | Bandeja con SLA, lista y kanban, asignación, comentarios, trazabilidad |
+| **Vencimientos** | Calendario regulatorio y generación de casos por incumplimiento |
+| **Screening** | Listas restrictivas, corridas, descartes razonados, historial |
+| **Red** | Contrapartes que operan con varios clientes de la cartera |
+| **Normativa · Patrones · Wiki** | Referencia |
+| **Usuarios** | Gestión y audit log (solo admin) |
+
+---
+
+## Tests
+
+```bash
+npm test
+```
+
+80 casos sobre la lógica que decide si una operación genera una señal, y de ahí un
+caso, un plazo y eventualmente un ROS:
+
+- `tests/aml.test.js` — métricas, PAT-01..15, línea base, scoring, señales activas
+- `tests/screening.test.js` — normalización, precisión del matcher, corridas, importación
+- `tests/plazos.test.js` — aritmética de meses, SLA, transiciones, vencimientos
+
+Los tests de screening fijan la precisión medida: qué **debe** coincidir (variantes
+societarias, orden invertido, plurales) y qué **no** (Norte/Sur, Nación/Provincia).
+
+---
+
+## Pendientes conocidos
+
+1. **Validación normativa** de los plazos por defecto en `casos.js` y
+   `vencimientos.js` — ver `docs/PLAN_V3.md`. **Bloqueante para uso operativo.**
+2. **Reporte sistemático mensual**: falta el layout oficial de campos.
+3. **`ALLOW_APP_TOKEN=false`** en producción.
+4. `PAT-01` evalúa fraccionamiento solo sobre operaciones **entrantes**; el texto de
+   la señal dice "destino". Pinneado en los tests; decidir si se amplía o se corrige
+   la redacción.
+5. `Legajos.jsx` no usa las primitivas `SortTh`/`TableCard`: tiene su propia
+   implementación equivalente.
+6. 3 vulnerabilidades npm de dependencias transitivas de Vite 4 / esbuild.
+   `npm audit fix --force` sube Vite a 5+ y Recharts a 3 y rompe los gráficos.
