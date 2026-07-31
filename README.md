@@ -158,5 +158,27 @@ societarias, orden invertido, plurales) y qué **no** (Norte/Sur, Nación/Provin
    la redacción.
 5. `Legajos.jsx` no usa las primitivas `SortTh`/`TableCard`: tiene su propia
    implementación equivalente.
-6. 3 vulnerabilidades npm de dependencias transitivas de Vite 4 / esbuild.
-   `npm audit fix --force` sube Vite a 5+ y Recharts a 3 y rompe los gráficos.
+6. Vulnerabilidades npm: las que quedan son **solo de desarrollo** (vite, esbuild,
+   vitest) y no llegan al bundle. La crítica de vitest requiere `vitest --ui`, que no
+   se usa. `npm audit fix --force` sube Vite a 8 y rompe el build: no correrlo.
+
+## Nota sobre `xlsx`
+
+Se instala **desde el CDN de SheetJS**, no desde npm:
+
+```bash
+npm install https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+```
+
+La última versión publicada en npm es 0.18.5 y arrastra Prototype Pollution y ReDoS,
+sin fix disponible por ese canal. Como la app parsea planillas que mandan los clientes,
+el vector no es teórico. Consecuencia: **cada build necesita alcanzar `cdn.sheetjs.com`**;
+si ese CDN está caído, el deploy falla.
+
+`tests/xlsx.test.js` verifica que la API que usa `parsers.js` siga presente — en especial
+`XLSX.SSF.parse_date_code`, que convierte las fechas seriales de Excel y está envuelta en
+un `try/catch` que ante un fallo deja el número crudo **sin avisar**.
+
+⚠️ Un script de Node suelto NO sirve para verificar esto: Node resuelve la build CJS,
+cuyo analizador de exports no expone `SSF`, y da un falso negativo. Los tests corren bajo
+Vitest, que resuelve igual que Vite y que el navegador.

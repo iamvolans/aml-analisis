@@ -2,6 +2,16 @@
 
 Formato: versión — tanda — cambios. Las tandas están descritas en `docs/PLAN_V3.md`.
 
+## 3.17.1 — xlsx 0.20.3 y tests de parseo de Excel
+
+- `xlsx` pasa a instalarse desde el CDN de SheetJS: corrige Prototype Pollution y
+  ReDoS (high), que no tenían fix por npm. La app parsea planillas que mandan los
+  clientes, así que el vector no era teórico.
+- `tests/xlsx.test.js` (7 casos): verifica que `XLSX.SSF.parse_date_code` siga
+  disponible y que las fechas seriales de Excel se conviertan bien. Esa llamada
+  está dentro de un `try/catch` que, si falla, deja el número crudo sin avisar.
+- Las vulnerabilidades restantes son todas de desarrollo y no llegan al bundle.
+
 ## 3.17.0 — T8b · Tests, performance y documentación
 
 - **Suite de tests con vitest**: 80 casos sobre `aml.js`, `screening.js`,
