@@ -15,7 +15,14 @@ const APP_TOKEN    = process.env.APP_TOKEN || '123aml2026';
 // Poner ALLOW_APP_TOKEN=false en Vercel una vez verificado el login por usuario.
 // ⚠️ El token compartido viaja dentro del bundle del navegador y es legible por
 // cualquiera que abra la app, incluso sin credenciales.
-const ALLOW_APP_TOKEN = process.env.ALLOW_APP_TOKEN !== 'false';
+//
+// Se normaliza el valor: un control de seguridad no puede quedar abierto porque
+// alguien escribió "False" o dejó un espacio al final. Cualquier forma razonable
+// de "no" cierra la compuerta.
+function esNo(v) {
+  return ['false', '0', 'no', 'off'].indexOf(String(v == null ? '' : v).trim().toLowerCase()) >= 0;
+}
+const ALLOW_APP_TOKEN = !esNo(process.env.ALLOW_APP_TOKEN);
 
 async function getAuthUser(req) {
   const userToken = req.headers['x-user-token'];

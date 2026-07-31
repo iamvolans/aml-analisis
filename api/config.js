@@ -23,7 +23,11 @@ export default function handler(req, res) {
     hasOpenaiKey: !!process.env.OPENAI_API_KEY,
     hasSyncConfig: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY),
     // true = el token compartido del bundle todavía sirve para llamar a la API.
-    // La app muestra un aviso mientras siga así.
-    appTokenLegacy: process.env.ALLOW_APP_TOKEN !== 'false'
+    // La app muestra un aviso mientras siga así. Misma normalización que _auth.js.
+    appTokenLegacy: ['false','0','no','off'].indexOf(
+      String(process.env.ALLOW_APP_TOKEN == null ? '' : process.env.ALLOW_APP_TOKEN).trim().toLowerCase()
+    ) < 0,
+    // Diagnóstico: si la variable no está definida, esto lo dice sin revelar su valor
+    appTokenVarDefinida: process.env.ALLOW_APP_TOKEN != null && String(process.env.ALLOW_APP_TOKEN).trim() !== ''
   });
 }
