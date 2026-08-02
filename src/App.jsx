@@ -136,7 +136,23 @@ export default function App() {
       }
     }).catch(function(){});
 
-    // 2. Cargar todo desde Supabase (única fuente de verdad)
+    // Verificar si hay API keys configuradas en servidor
+    fetchServerConfig().then(function(cfg){
+      if (!cfg || (!cfg.hasAnthropicKey && !cfg.hasOpenaiKey)) setConfigOpen(true);
+    }).catch(function(){});
+  }, []);
+
+  // ── 2. Cargar los datos de Supabase, DESPUÉS de tener sesión ────────────────
+  // Este efecto depende de currentUser a propósito. Antes corría al montar la
+  // app, cuando todavía no hay sesión: con el token compartido funcionaba porque
+  // viajaba siempre, pero al exigir sesión de usuario devolvía 401 y no se
+  // reintentaba nunca — la app quedaba logueada y vacía, con "sin conexión a
+  // Supabase". La carga tiene que esperar a que haya con qué autenticarse.
+  useEffect(function() {
+    if (!currentUser) return;
+    setSyncStatus('loading');
+    setLoading(true);
+
     // Casos (T3) — carga independiente, no bloquea la hidratación principal
     serverLoadCasos().then(function(cs){ setCasos(cs || []); }).catch(function(){});
 
@@ -148,24 +164,19 @@ export default function App() {
 
     serverLoad().then(function(cloudData) {
       if (cloudData && cloudData.legajos !== undefined) {
-        var cloudLegs = cloudData.legajos || [];
         var cloudPers = cloudData.periodos || [];
-
-        setLegajos(cloudLegs);
+        setLegajos(cloudData.legajos || []);
         setPeriodos(cloudPers);
         setSyncStatus('ok');
         setLoading(false);
 
-        // ── Solo recalcular métricas para períodos que no las tienen ──
-        // Las txns se cargan on-demand cuando el usuario selecciona un período
-        // Esto evita saturar Supabase con queries masivas al inicio
+        // Las txns se cargan on-demand al seleccionar un período; esto evita
+        // saturar Supabase con queries masivas al inicio.
         var sinMetricas = cloudPers.filter(function(p){ return !p.metricas; });
         if (sinMetricas.length > 0) {
           console.log('[Rebit] Períodos sin métricas:', sinMetricas.length, '— se calcularán al seleccionarlos');
         }
-
       } else {
-        // Supabase no disponible — mostrar aviso pero dejar la app usable
         setSyncStatus('error');
         setLoading(false);
       }
@@ -173,12 +184,7 @@ export default function App() {
       setSyncStatus('error');
       setLoading(false);
     });
-
-    // Verificar si hay API keys configuradas en servidor
-    fetchServerConfig().then(function(cfg){
-      if (!cfg || (!cfg.hasAnthropicKey && !cfg.hasOpenaiKey)) setConfigOpen(true);
-    }).catch(function(){});
-  }, []);
+  }, [currentUser]);
 
   function saveApiKey(val) { var t=val.trim(); setApiKey(t); setModuleKeys(t, null, null); }
   function saveOaiKey(val) { var t=val.trim(); setOaiKey(t); setModuleKeys(null, t, null); }

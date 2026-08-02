@@ -2,6 +2,23 @@
 
 Formato: versión — tanda — cambios. Las tandas están descritas en `docs/PLAN_V3.md`.
 
+## 3.17.4 — Fix: la carga de datos esperaba sesión
+
+- El `useEffect` que hidrata legajos, períodos, casos y screening corría **al
+  montar la app**, antes del login. Con el token compartido funcionaba porque
+  viajaba siempre; al exigir sesión de usuario devolvía 401 y no reintentaba,
+  dejando la app logueada y vacía con "sin conexión a Supabase".
+- Ahora depende de `currentUser`: la carga arranca cuando hay con qué
+  autenticarse, y se rehace si cambia la sesión.
+
+## 3.17.3 — Normalización de ALLOW_APP_TOKEN
+
+- El flag se comparaba con `!== 'false'`: un `False` o un espacio al final
+  dejaba el control de seguridad abierto en silencio. Ahora acepta `false`,
+  `0`, `no`, `off`, sin distinguir mayúsculas ni espacios.
+- `appTokenVarDefinida` en `/api/config` para diagnosticar si la variable llega
+  a la función, sin exponer su valor.
+
 ## 3.17.2 — Fechas institucionales sin validar
 
 - **Las obligaciones institucionales con `validado:false` ya no generan casos.**
