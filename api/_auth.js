@@ -70,8 +70,11 @@ async function requireAuth(req, res) {
   return null;
 }
 
-const ROLES_ESCRITURA = ['admin', 'compliance', 'supervisor', 'analista'];
-const ROLES_BORRADO   = ['admin', 'compliance', 'supervisor'];
+// Los identificadores tienen que coincidir EXACTAMENTE con los que emite la UI
+// de Usuarios y guarda la tabla `perfiles`. Un nombre distinto acá no rompe el
+// login pero deja al rol sin permisos en silencio.
+const ROLES_ESCRITURA = ['admin', 'oficial_cumplimiento', 'supervisor', 'analista'];
+const ROLES_BORRADO   = ['admin', 'oficial_cumplimiento', 'supervisor'];
 
 function puedeEscribir(ctx) {
   if (!ctx) return false;

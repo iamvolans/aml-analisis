@@ -2,6 +2,22 @@
 
 Formato: versión — tanda — cambios. Las tandas están descritas en `docs/PLAN_V3.md`.
 
+## 3.20.1 — Manual de operación y consistencia de roles
+
+- **Manual de Operación** (`manual/generar_manual.py`): documento corporativo de
+  27 páginas que cubre las 13 secciones de la app, los 15 patrones, el checklist,
+  los informes, los parámetros y las limitaciones declaradas. Los catálogos se
+  **leen del código fuente**, así que el manual no puede divergir del sistema.
+  Incluye guía de uso correcto e incorrecto por función y por rol.
+- **Fix de roles**: `api/_auth.js` usaba `'compliance'` donde el resto del
+  sistema usa `'oficial_cumplimiento'`. Bug latente introducido en T8a: las
+  funciones no se llamaban desde ningún endpoint, pero el Oficial de
+  Cumplimiento habría perdido permisos de escritura en silencio el día que se
+  cableara RBAC en `/api/sync`.
+- `tests/roles.test.js` (6 casos): verifica que los identificadores de rol
+  coincidan entre la UI, el cliente y el servidor, y que el rol de solo lectura
+  no aparezca en ninguna lista de escritura.
+
 ## 3.20.0 — Validación y calibración de plazos
 
 **Tests de coherencia** (`tests/plazos-coherencia.test.js`, 20 casos). No validan
