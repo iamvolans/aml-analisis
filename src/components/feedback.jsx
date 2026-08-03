@@ -94,7 +94,7 @@ export function FeedbackHost() {
       {/* ── ConfirmDialog ── */}
       {confirmReq && (
         <div onClick={function(){closeConfirm(null);}}
-          style={{position:'fixed',inset:0,background:'rgba(4,7,12,0.65)',backdropFilter:'blur(2px)',zIndex:4500,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          style={{position:'fixed',inset:0,background:T.SCRIM,backdropFilter:'blur(2px)',zIndex:4500,display:'flex',alignItems:'center',justifyContent:'center'}}>
           <div onClick={function(e){e.stopPropagation();}}
             style={{background:T.BG2,border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.md,padding:'22px 24px',width:420,maxWidth:'90vw',boxShadow:T.SHADOW.pop,fontFamily:T.SANS}}>
             <div style={{fontSize:14,fontWeight:600,color:T.TEXT,marginBottom:6}}>

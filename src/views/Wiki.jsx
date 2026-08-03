@@ -16,7 +16,7 @@ function WikiTip({label, text}) {
   var [show, setShow] = useState(false);
   return (
     <span style={{position:'relative',display:'inline-block',cursor:'help'}} onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}>
-      <span style={{borderBottom:'1px dashed #3B6DAA',color:'#2C4A7C',fontWeight:600}}>{label}</span>
+      <span style={{borderBottom:'1px dashed '+T.ACCENT_DIM,color:T.ACCENT,fontWeight:600}}>{label}</span>
       {show && <div style={{position:'absolute',background:'#1B2A4A',color:'white',fontSize:11,padding:'6px 10px',borderRadius:6,whiteSpace:'nowrap',zIndex:9999,boxShadow:'0 4px 12px rgba(0,0,0,0.2)',bottom:'calc(100% + 7px)',left:'50%',transform:'translateX(-50%)'}}>{text}</div>}
     </span>
   );

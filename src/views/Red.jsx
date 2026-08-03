@@ -3,8 +3,8 @@ import { SortTh, TableCard, Drawer, EmptyState, StatCard, TD } from "../componen
 import { auditLog } from "../lib/auth";
 import { nuevoCaso, refCaso } from "../lib/casos";
 import { GRAFO, contrapartesCompartidas, layoutGrafo } from "../lib/grafo";
-import { T } from "../lib/theme";
-import { fmtM, segColor } from "../lib/utils";
+import { T, TR } from "../lib/theme";
+import { fmtM, segColor, segColorR } from "../lib/utils";
 
 var FILTROS_KEY = 'rebit_red_filtros_v3';
 function leerFiltros() {
@@ -166,7 +166,7 @@ function RedView(props) {
             {layout.aristas.map(function(a,i){
               var act = resaltado && (a.cpId === resaltado);
               return <line key={i} x1={a.x1} y1={a.y1} x2={a.x2} y2={a.y2}
-                stroke={act ? T.RED : T.BORDER2} strokeWidth={act ? 2 : 1}
+                stroke={act ? TR.RED : TR.BORDER2} strokeWidth={act ? 2 : 1}
                 strokeOpacity={resaltado ? (act ? 0.9 : 0.15) : 0.5}/>;
             })}
             {/* Legajos */}
@@ -175,7 +175,7 @@ function RedView(props) {
               return (
                 <g key={n.id} style={{cursor:onOpenLegajo?'pointer':'default'}}
                    onClick={function(){ if(onOpenLegajo) onOpenLegajo(n.id); }}>
-                  <circle cx={n.x} cy={n.y} r={8} fill={segColor(n.segmento)} stroke={T.BG2} strokeWidth={2}/>
+                  <circle cx={n.x} cy={n.y} r={8} fill={segColorR(n.segmento)} stroke={TR.BG2} strokeWidth={2}/>
                   <text x={n.x + (derecha ? 13 : -13)} y={n.y + 4}
                     textAnchor={derecha ? 'start' : 'end'}
                     style={{fontSize:11,fill:T.TEXT2,fontFamily:'Inter, sans-serif'}}>
@@ -195,7 +195,7 @@ function RedView(props) {
                    onClick={function(){setSelCp(n.ref);}}>
                   <circle cx={n.x} cy={n.y} r={r}
                     fill={n.alerta ? 'rgba(255,68,85,0.85)' : 'rgba(255,184,48,0.85)'}
-                    stroke={act ? '#FFFFFF' : T.BG2} strokeWidth={act ? 2 : 1.5}/>
+                    stroke={act ? TR.ON_ACCENT : TR.BG2} strokeWidth={act ? 2 : 1.5}/>
                   <text x={n.x} y={n.y + 4} textAnchor="middle"
                     style={{fontSize:10,fontWeight:700,fill:'#0A0E14',fontFamily:'JetBrains Mono, monospace'}}>{n.cant}</text>
                   {act && (

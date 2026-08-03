@@ -1,4 +1,4 @@
-import { T } from "./theme.js";
+import { T, TR } from "./theme.js";
 
 function uid() { return Math.random().toString(36).slice(2,9); }
 
@@ -15,9 +15,17 @@ function fmtM(v) {
 
 function safeArr(v) { return Array.isArray(v) ? v : []; }
 
-function segColor(s) { return s==='BAJO' ? T.GREEN : s==='MEDIO' ? T.AMBER : s==='MEDIO-ALTO' ? '#FF8C00' : T.RED; }
+// Colores por segmento / severidad.
+//
+// Vienen en dos sabores porque el tema se implementa con variables CSS y var()
+// NO se resuelve dentro de un atributo SVG:
+//   segColor()  → 'var(--green)'  para style, className, CSS en general
+//   segColorR() → '#0B8A5F'       para atributos SVG y props de recharts
+function segColor(s) { return s==='BAJO' ? T.GREEN : s==='MEDIO' ? T.AMBER : s==='MEDIO-ALTO' ? T.NARANJA : T.RED; }
+function sevColor(s) { return (s==='ALTA'||s==='CRITICA') ? T.RED : s==='MEDIA' ? T.NARANJA : T.AMBER; }
 
-function sevColor(s) { return (s==='ALTA'||s==='CRITICA') ? T.RED : s==='MEDIA' ? '#FF8C00' : T.AMBER; }
+function segColorR(s) { return s==='BAJO' ? TR.GREEN : s==='MEDIO' ? TR.AMBER : s==='MEDIO-ALTO' ? TR.NARANJA : TR.RED; }
+function sevColorR(s) { return (s==='ALTA'||s==='CRITICA') ? TR.RED : s==='MEDIA' ? TR.NARANJA : TR.AMBER; }
 
 function fileToBase64(file) {
   return new Promise(function(res, rej) {
@@ -69,4 +77,4 @@ function parseFechaAR(str) {
   return p.length===3 ? new Date(p[2],p[1]-1,p[0]) : null;
 }
 
-export { uid, todayStr, fmtM, safeArr, segColor, sevColor, fileToBase64, sleep, base64ToBlob, parseJsonFromResponse, parseFechaAR };
+export { uid, todayStr, fmtM, safeArr, segColor, sevColor, fileToBase64, sleep, base64ToBlob, parseJsonFromResponse, parseFechaAR, segColorR, sevColorR };

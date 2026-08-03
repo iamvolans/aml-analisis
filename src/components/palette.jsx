@@ -61,7 +61,7 @@ export default function CommandPalette(props) {
 
   return (
     <div onClick={onClose}
-      style={{position:'fixed',inset:0,background:'rgba(4,7,12,0.65)',backdropFilter:'blur(2px)',zIndex:4800,display:'flex',justifyContent:'center',alignItems:'flex-start',paddingTop:'16vh'}}>
+      style={{position:'fixed',inset:0,background:T.SCRIM,backdropFilter:'blur(2px)',zIndex:4800,display:'flex',justifyContent:'center',alignItems:'flex-start',paddingTop:'16vh'}}>
       <div onClick={function(e){e.stopPropagation();}}
         style={{background:T.BG2,border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.md+2,width:560,maxWidth:'92vw',boxShadow:T.SHADOW.pop,overflow:'hidden',fontFamily:T.SANS}}>
 

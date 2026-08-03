@@ -68,7 +68,7 @@ function ReportModal(props) {
     return function() { URL.revokeObjectURL(url); };
   }, [props.html]);
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:2000,display:'flex',flexDirection:'column'}}>
+    <div style={{position:'fixed',inset:0,background:T.SCRIM,zIndex:2000,display:'flex',flexDirection:'column'}}>
       <div style={{background:T.BG3,color:T.TEXT,padding:'10px 18px',borderBottom:'1px solid '+T.BORDER,display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <span style={{fontWeight:700,fontSize:14}}>Vista previa del informe</span>
         <div style={{display:'flex',gap:8}}>
@@ -116,7 +116,7 @@ function Drawer(props) {
     return function(){ window.removeEventListener('keydown', onKey); };
   }, [props.onClose]);
   return (
-    <div onClick={props.onClose} style={{position:'fixed',inset:0,background:'rgba(4,7,12,0.55)',backdropFilter:'blur(1px)',zIndex:1500,display:'flex',justifyContent:'flex-end',animation:'fadeIn 0.15s ease-out'}}>
+    <div onClick={props.onClose} style={{position:'fixed',inset:0,background:T.SCRIM,backdropFilter:'blur(1px)',zIndex:1500,display:'flex',justifyContent:'flex-end',animation:'fadeIn 0.15s ease-out'}}>
       <div onClick={function(e){e.stopPropagation();}}
         style={{width:props.width||560,maxWidth:'94vw',height:'100vh',overflowY:'auto',background:T.BG,borderLeft:'1px solid '+T.BORDER2,boxShadow:T.SHADOW.pop,padding:22,animation:'drawerIn 0.18s ease-out'}}>
         <button onClick={props.onClose} style={{background:'transparent',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,color:T.TEXT3,cursor:'pointer',fontSize:11,fontWeight:500,fontFamily:T.SANS,padding:'5px 11px',marginBottom:14}}>✕ Cerrar · Esc</button>

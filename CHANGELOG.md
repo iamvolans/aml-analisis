@@ -2,6 +2,32 @@
 
 Formato: versión — tanda — cambios. Las tandas están descritas en `docs/PLAN_V3.md`.
 
+## 3.18.0 — Tema claro
+
+- **Dos temas que conviven**, alternables desde la barra lateral: el oscuro
+  original y uno claro estilo fintech moderno (referencia Stripe): tarjetas
+  blancas que flotan con sombras de dos capas en vez de bordes duros, texto en
+  azul marino profundo en lugar de negro, y semánticos oscurecidos para tener
+  contraste real sobre blanco.
+- **Implementación por variables CSS.** `T.BG` ya no vale `'#0A0E14'` sino
+  `'var(--bg)'`. Cambiar de tema reescribe las variables en `:root`, así que no
+  hace falta re-render y —clave— no quedan viejas las diez constantes que se
+  calculan una sola vez al importar un módulo (`ui.jsx`, `casos.js` y otras).
+- `TR` / `CR`: mismos tokens con valores reales, para atributos SVG y props de
+  recharts, donde `var()` NO se resuelve. Un test estático vigila que no se
+  cuele un `T.` en un atributo SVG.
+- Preferencia persistida en `localStorage`, con el tema del sistema operativo
+  como valor inicial y un script anti-parpadeo en `index.html`.
+- `color-scheme` dinámico: scrollbars, date pickers y autofill del navegador
+  siguen el tema.
+- **Bugs de contraste preexistentes del tema oscuro, encontrados al medir:**
+  texto blanco sobre verde daba 1,91:1 y sobre ámbar 1,83:1 (ilegibles); las
+  etiquetas con tooltip de la Wiki daban 2,19:1. Se agregó el token
+  `ON_SEMANTIC`, que va oscuro sobre los semánticos brillantes del tema oscuro
+  y blanco sobre los oscurecidos del claro.
+- 52 tests nuevos: paridad de claves entre paletas, contraste medido de cada
+  par texto/superficie en ambos temas, y el escáner de atributos SVG.
+
 ## 3.17.4 — Fix: la carga de datos esperaba sesión
 
 - El `useEffect` que hidrata legajos, períodos, casos y screening corría **al

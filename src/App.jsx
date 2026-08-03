@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
-import { LayoutDashboard, FolderOpen, BarChart3, Bell, Briefcase, CalendarClock, ShieldCheck, Share2, Scale, Radar, BookOpen, Users, Download, Upload, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, FolderOpen, BarChart3, Bell, Briefcase, CalendarClock, ShieldCheck, Share2, Scale, Radar, BookOpen, Users, Download, Upload, Settings, LogOut, Sun, Moon } from "lucide-react";
 import { ReportModal } from "./components/ui";
 import { FeedbackHost, toast, uiConfirm } from "./components/feedback";
 import CommandPalette from "./components/palette";
@@ -7,7 +7,7 @@ import { setModuleKeys } from "./lib/ai";
 import { ROL_LABELS, puedeGestionarUsuarios } from "./lib/auth";
 import { authHeaders, setSesion, limpiarSesion, onSesionCaida } from "./lib/session";
 import { fetchServerConfig, serverLoad, serverLoadCasos, serverLoadRun, serverLoadRuns, serverSave, serverSaveCasos } from "./lib/sync";
-import { C, T } from "./lib/theme";
+import { T, TEMAS, aplicarTema, temaActual, temaGuardado } from "./lib/theme";
 import { todayStr } from "./lib/utils";
 import LoginScreen from "./views/Login";
 
@@ -47,6 +47,17 @@ export default function App() {
   var perState = useState([]); var periodos=perState[0]; var setPeriodos=perState[1];
   var casState = useState([]); var casos=casState[0]; var setCasos=casState[1];
   var scrState = useState(null); var ultScreening=scrState[0]; var setUltScreening=scrState[1];
+
+  // ── Tema (T9) ──────────────────────────────────────────────────────────────
+  // El inicializador de useState corre antes del primer render, así que las
+  // variables CSS ya están puestas cuando el árbol se pinta por primera vez y
+  // no hay parpadeo del tema equivocado.
+  var temaState = useState(function(){ return aplicarTema(temaGuardado()); });
+  var tema = temaState[0]; var setTema = temaState[1];
+  function cambiarTema(id) {
+    aplicarTema(id);
+    setTema(id);   // fuerza el re-render para que TR llegue a los gráficos SVG
+  }
   var legacyState = useState(false); var tokenLegacy=legacyState[0]; var setTokenLegacy=legacyState[1];
 
   // Si el refresco del JWT falla, la sesión no se puede recuperar: se vuelve al
@@ -117,7 +128,7 @@ export default function App() {
       'table { border-collapse: collapse; width: 100%; }',
       'th { font-weight: 500; text-align: left; color: ' + T.TEXT3 + '; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }',
       'td { color: ' + T.TEXT + '; }',
-      'tr:hover td { background: ' + T.ACCENT_SOFT.replace('0.12','0.05') + '; }',
+      'tr:hover td { background: ' + T.HOVER_ROW + '; }',
       '@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }',
       '@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }',
       '@keyframes drawerIn { from { transform: translateX(26px); opacity: 0; } to { transform: none; opacity: 1; } }'
@@ -325,7 +336,7 @@ export default function App() {
       <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:'none'}}/>
 
       {/* MODAL CONFIGURACIÓN IA */}
-      {configOpen ? <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',overflow:'auto'}}>
+      {configOpen ? <div style={{position:'fixed',inset:0,background:T.SCRIM,zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',overflow:'auto'}}>
         <div style={{background:T.BG2,border:'1px solid '+T.BORDER2,borderRadius:4,padding:28,color:T.TEXT,width:540,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div>
@@ -515,6 +526,23 @@ export default function App() {
             <span style={{flex:1,textAlign:'left'}}>Configuración IA</span>
             <span style={{width:7,height:7,borderRadius:99,background:activeKeyOk?T.GREEN:T.RED,boxShadow:'0 0 6px '+(activeKeyOk?T.GREEN:T.RED)}}/>
           </button>
+
+          {/* Selector de tema */}
+          <div style={{display:'flex',gap:3,marginTop:8,background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.sm+2,padding:3}}>
+            {TEMAS.map(function(tm){
+              var on = tema === tm.id;
+              var Icono = tm.id === 'claro' ? Sun : Moon;
+              return (
+                <button key={tm.id} onClick={function(){cambiarTema(tm.id);}} title={tm.desc}
+                  style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:6,
+                    border:'none',borderRadius:T.RADIUS.sm,padding:'6px 4px',cursor:'pointer',
+                    background:on?T.ACCENT_SOFT:'transparent',color:on?T.ACCENT:T.TEXT3,
+                    fontWeight:on?600:500,fontSize:11,fontFamily:T.SANS,transition:T.TRANS}}>
+                  <Icono size={13}/> {tm.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Usuario + estado */}

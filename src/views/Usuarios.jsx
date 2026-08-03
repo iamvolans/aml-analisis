@@ -106,7 +106,7 @@ function UsuariosView(props) {
 
       {/* Modal cambiar contraseña */}
       {passModal && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <div style={{position:'fixed',inset:0,background:T.SCRIM,zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
           <div style={{background:T.BG2,borderRadius:8,padding:28,width:380,boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
             <div style={{fontWeight:600,color:T.TEXT,fontSize:15,marginBottom:4}}>Cambiar contraseña</div>
             <div style={{fontSize:12,color:T.TEXT2,marginBottom:16}}>{passModal.nombre} — {passModal.email}</div>

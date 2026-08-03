@@ -489,7 +489,7 @@ function LegajosView(props) {
               <div style={{fontSize:26,marginBottom:6}}>✍️</div>
               <div style={{fontSize:13,color:T.TEXT,fontWeight:600,marginBottom:4}}>Carga manual</div>
               <div style={{fontSize:11,color:T.TEXT2,lineHeight:1.5}}>Completá los campos a mano. Podés hacerlo ahora y usar IA después cuando tengas créditos.</div>
-              <div style={{marginTop:10,background:C.VERDE,color:'white',borderRadius:4,padding:'6px 0',fontSize:12,fontWeight:700}}>📋 Ir a Datos →</div>
+              <div style={{marginTop:10,background:C.VERDE,color:T.ON_SEMANTIC,borderRadius:4,padding:'6px 0',fontSize:12,fontWeight:700}}>📋 Ir a Datos →</div>
               <div style={{fontSize:10,color:T.TEXT3,marginTop:6}}>Sin API key requerida</div>
             </div>
           </div> : null}
@@ -536,7 +536,7 @@ function LegajosView(props) {
               <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
                 {iaFields.filled.map(function(f,i){
                   var labels = {razonSocial:'Razón Social',cuit:'CUIT',actividad:'Actividad',facturacionMensual:'Facturación',limiteDiario:'Límite Diario',limiteMensual:'Límite Mensual',beneficiarioFinal:'Beneficiario Final',domicilio:'Domicilio',segmento:'Segmento',dictamen:'Dictamen'};
-                  return <span key={i} style={{background:T.GREEN,color:'white',borderRadius:4,padding:'3px 10px',fontSize:11,fontWeight:600}}>{labels[f]||f}</span>;
+                  return <span key={i} style={{background:T.GREEN,color:T.ON_SEMANTIC,borderRadius:4,padding:'3px 10px',fontSize:11,fontWeight:600}}>{labels[f]||f}</span>;
                 })}
               </div>
               {/* Preview de los valores clave extraídos */}
@@ -1367,7 +1367,7 @@ function LegajosView(props) {
     var scP2 = scV2.length>0?(scV2.reduce(function(a,b){return a+b;},0)/scV2.length).toFixed(2):'N/D';
     return (
       <div onClick={function(){setSelId(null);}}
-        style={{position:'fixed',inset:0,background:'rgba(4,7,12,0.55)',backdropFilter:'blur(1px)',zIndex:1500,display:'flex',justifyContent:'flex-end',animation:'fadeIn 0.15s ease-out'}}>
+        style={{position:'fixed',inset:0,background:T.SCRIM,backdropFilter:'blur(1px)',zIndex:1500,display:'flex',justifyContent:'flex-end',animation:'fadeIn 0.15s ease-out'}}>
       <div onClick={function(e){e.stopPropagation();}}
         style={{width:780,maxWidth:'94vw',height:'100vh',overflowY:'auto',background:T.BG,borderLeft:'1px solid '+T.BORDER2,boxShadow:T.SHADOW.pop,padding:22,animation:'drawerIn 0.18s ease-out'}}>
         <button onClick={function(){setSelId(null);}} style={{background:'transparent',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,color:T.TEXT3,cursor:'pointer',fontSize:11,fontWeight:500,fontFamily:T.SANS,padding:'5px 11px',marginBottom:12}}>✕ Cerrar · Esc</button>
@@ -1383,7 +1383,7 @@ function LegajosView(props) {
               {sel.screening && (function(){
                 var col = sel.screening.estadoGeneral==='LIMPIO'?C.VERDE:sel.screening.estadoGeneral==='COINCIDENCIA'?C.ROJO:C.AMARILLO;
                 var label = sel.screening.estadoGeneral==='LIMPIO'?'🛡 Screening ✅':sel.screening.estadoGeneral==='COINCIDENCIA'?'🛡 Coincidencia 🔴':'🛡 Revisar 🟡';
-                return <span style={{background:col,color:'white',borderRadius:10,padding:'3px 10px',fontSize:11,fontWeight:700}}>{label}</span>;
+                return <span style={{background:col,color:T.ON_SEMANTIC,borderRadius:10,padding:'3px 10px',fontSize:11,fontWeight:700}}>{label}</span>;
               })()}
             </div>
           </div>
@@ -1422,7 +1422,7 @@ function LegajosView(props) {
             var rfisLegajo = [];
             // rfisLegajo se carga desde Supabase KV via useEffect en AnalisisView
             return (
-              <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <div style={{position:'fixed',inset:0,background:T.SCRIM,zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
                 <div style={{background:T.BG2,borderRadius:8,padding:28,width:560,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
                     <div>
@@ -1493,7 +1493,7 @@ function LegajosView(props) {
           })()}
 
           {/* MODAL CIERRE DE CUENTA */}
-          {cierreOpen ? <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',overflow:'auto'}}>
+          {cierreOpen ? <div style={{position:'fixed',inset:0,background:T.SCRIM,zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',overflow:'auto'}}>
             <div style={{background:T.BG2,borderRadius:8,padding:28,width:600,maxWidth:'92vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
                 <div>

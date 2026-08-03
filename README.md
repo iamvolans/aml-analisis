@@ -83,6 +83,20 @@ docs/PLAN_V3.md     plan maestro y estado por tanda
 
 ### Decisiones que conviene conocer antes de tocar el código
 
+**Temas.** La app tiene dos: `oscuro` y `claro`, alternables desde la barra lateral.
+Se implementan con variables CSS: `T.BG` vale `'var(--bg)'`, no un hex. Consecuencias
+para quien toque el código:
+
+- En CSS (incluido `style={{...}}`) usar `T.` normalmente. Funciona siempre.
+- En **atributos SVG** y props de recharts (`stroke=`, `fill=`) usar `TR.` / `CR.`,
+  que traen el valor real: `var()` no se resuelve fuera de CSS y el elemento se
+  pintaría transparente. `tests/tema.test.js` lo verifica y falla si se cuela uno.
+- Para colores por severidad o segmento en SVG están `segColorR()` y `sevColorR()`.
+- Agregar un token nuevo: sumarlo a `CLAVES_COLOR` **y a las dos paletas**. El test
+  de paridad falla si falta en una.
+- Texto sobre un fondo semántico sólido (verde/ámbar/rojo): usar `T.ON_SEMANTIC`,
+  que se invierte según el tema. Blanco fijo es ilegible sobre el verde del oscuro.
+
 **Los umbrales viven en un solo lugar por dominio.** Cambiar un número recalcula
 toda la app:
 

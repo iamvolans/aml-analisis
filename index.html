@@ -4,13 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Rebit AML & KYB Tool</title>
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="dark light" />
     <style>
-      /* Solo el reset y el fondo base. Toda la paleta la inyecta App.jsx
-         desde los design tokens de src/lib/theme.js — no duplicar acá. */
+      /* Solo el reset y el fondo base. Toda la paleta la inyectan los design
+         tokens de src/lib/theme.js — no duplicar valores acá. */
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body { background: #0A0E14; }
+      html, body { background: var(--bg, #0A0E14); }
     </style>
+    <script>
+      // Anti-parpadeo: fija el fondo y el esquema de color ANTES de que se
+      // descargue el bundle. Sin esto, quien usa el tema claro ve un flash
+      // negro de varios cientos de milisegundos en cada carga.
+      // Solo escribe --bg y color-scheme; el resto de la paleta la aplica
+      // theme.js apenas arranca React.
+      (function () {
+        try {
+          var t = localStorage.getItem('rebit_tema');
+          if (t !== 'claro' && t !== 'oscuro') {
+            t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)
+              ? 'claro' : 'oscuro';
+          }
+          var r = document.documentElement;
+          r.style.setProperty('--bg', t === 'claro' ? '#F6F9FC' : '#0A0E14');
+          r.style.colorScheme = t === 'claro' ? 'light' : 'dark';
+          r.setAttribute('data-tema', t);
+        } catch (e) { /* storage bloqueado: queda el tema oscuro por defecto */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

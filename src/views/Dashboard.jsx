@@ -6,7 +6,7 @@ import { getEstadoCaso, slaCritico, colorSLA } from "../lib/casos";
 import { todosLosVencimientos, fmtFecha, colorVenc, esConfiable } from "../lib/vencimientos";
 import { ESTADOS_CUENTA, getEstado } from "../lib/constants";
 import { serverLoadKVPrefix } from "../lib/sync";
-import { C, T } from "../lib/theme";
+import { C, CR, T, TR } from "../lib/theme";
 import { fmtM, parseFechaAR } from "../lib/utils";
 
 function DashboardView(props) {
@@ -272,7 +272,7 @@ function DashboardView(props) {
                         if (!val) return;
                         var updated = Object.assign({},n.l,{ultimoAnalisisExterno:val});
                         props.setLegajos(function(prev){var arr=prev.map(function(x){return x.id===n.l.id?updated:x;});return arr;});
-                      }} style={{background:T.GREEN,color:'white',border:'none',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>✓</button>
+                      }} style={{background:T.GREEN,color:T.ON_SEMANTIC,border:'none',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>✓</button>
                     </div>
                   </td>
                 </tr>
@@ -523,8 +523,8 @@ function DashboardView(props) {
                     <XAxis dataKey="nombre" {...chartAxis} angle={-25} textAnchor="end" interval={0}/>
                     <YAxis {...chartAxis} tickFormatter={function(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v;}} tick={{fontSize:9,fill:'#4A6A8A',fontFamily:"'JetBrains Mono',monospace"}} width={45}/>
                     <Tooltip {...chartTooltip} formatter={function(v,name){return [fmtM(v), name==='tIn'?'Vol IN':'Vol OUT'];}} labelStyle={{fontWeight:600,color:T.TEXT}}/>
-                    <Line type="monotone" dataKey="tIn" stroke={C.VERDE} strokeWidth={2.5} dot={{r:4,fill:C.VERDE}} activeDot={{r:6}} name="tIn"/>
-                    <Line type="monotone" dataKey="tOut" stroke={C.ROJO} strokeWidth={2.5} dot={{r:4,fill:C.ROJO}} activeDot={{r:6}} name="tOut"/>
+                    <Line type="monotone" dataKey="tIn" stroke={CR.VERDE} strokeWidth={2.5} dot={{r:4,fill:C.VERDE}} activeDot={{r:6}} name="tIn"/>
+                    <Line type="monotone" dataKey="tOut" stroke={CR.ROJO} strokeWidth={2.5} dot={{r:4,fill:C.ROJO}} activeDot={{r:6}} name="tOut"/>
                   </LineChart>
                 </ResponsiveContainer>
               </div>

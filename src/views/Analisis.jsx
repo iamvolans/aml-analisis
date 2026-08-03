@@ -9,7 +9,7 @@ import { parseCsv, parseExcelFile } from "../lib/parsers";
 import { genINF02, genNotaDD } from "../lib/reports";
 import { authHeaders } from "../lib/session";
 import { serverLoadKV, serverLoadTxns, serverSaveKV, serverSaveTxns } from "../lib/sync";
-import { C, T } from "../lib/theme";
+import { C, T, TR } from "../lib/theme";
 import { fmtM, safeArr, sevColor, todayStr, uid } from "../lib/utils";
 
 // Estados del período — compartidos entre el panel lateral y el header de contenido
@@ -534,9 +534,9 @@ function AnalisisView(props) {
                     <YAxis yAxisId="ops" orientation="right" {...chartAxis}/>
                     <Tooltip {...chartTooltip} formatter={function(v,n){return n==='Operaciones'?Number(v).toLocaleString('es-AR'):fmtM(v);}}/>
                     <Legend wrapperStyle={{fontSize:10,fontFamily:T.SANS,color:T.TEXT3}} iconSize={8}/>
-                    <Bar yAxisId="ops" dataKey="totalTxns" fill={T.BORDER3} radius={[3,3,0,0]} name="Operaciones" barSize={16}/>
-                    <Line yAxisId="vol" type="monotone" dataKey="tIn" stroke={T.GREEN} strokeWidth={2} dot={{r:3,fill:T.GREEN,strokeWidth:0}} name="Vol IN"/>
-                    <Line yAxisId="vol" type="monotone" dataKey="tOut" stroke={T.RED} strokeWidth={2} dot={{r:3,fill:T.RED,strokeWidth:0}} name="Vol OUT"/>
+                    <Bar yAxisId="ops" dataKey="totalTxns" fill={TR.BORDER3} radius={[3,3,0,0]} name="Operaciones" barSize={16}/>
+                    <Line yAxisId="vol" type="monotone" dataKey="tIn" stroke={TR.GREEN} strokeWidth={2} dot={{r:3,fill:TR.GREEN,strokeWidth:0}} name="Vol IN"/>
+                    <Line yAxisId="vol" type="monotone" dataKey="tOut" stroke={TR.RED} strokeWidth={2} dot={{r:3,fill:TR.RED,strokeWidth:0}} name="Vol OUT"/>
                   </ComposedChart>
                 </ResponsiveContainer>
               </Card>
@@ -549,11 +549,11 @@ function AnalisisView(props) {
                     <YAxis yAxisId="sig" orientation="right" allowDecimals={false} {...chartAxis}/>
                     <Tooltip {...chartTooltip} formatter={function(v,n){return n==='Score'?Number(v).toFixed(2)+'/5':v;}}/>
                     <Legend wrapperStyle={{fontSize:10,fontFamily:T.SANS,color:T.TEXT3}} iconSize={8}/>
-                    <ReferenceLine yAxisId="sc" y={3} stroke={T.AMBER} strokeDasharray="4 4" strokeOpacity={0.55}/>
-                    <ReferenceLine yAxisId="sc" y={4} stroke={T.RED} strokeDasharray="4 4" strokeOpacity={0.55}/>
+                    <ReferenceLine yAxisId="sc" y={3} stroke={TR.AMBER} strokeDasharray="4 4" strokeOpacity={0.55}/>
+                    <ReferenceLine yAxisId="sc" y={4} stroke={TR.RED} strokeDasharray="4 4" strokeOpacity={0.55}/>
                     <Bar yAxisId="sig" dataKey="sigsAlta" fill="rgba(255,68,85,0.28)" radius={[3,3,0,0]} name="Señales ALTA" barSize={16}/>
-                    <Line yAxisId="sc" type="monotone" dataKey="score" stroke={T.ACCENT} strokeWidth={2} name="Score"
-                      dot={function(dp){var col=dp.payload.score>=4?T.RED:dp.payload.score>=3?T.AMBER:T.GREEN;return <circle key={dp.key} cx={dp.cx} cy={dp.cy} r={4.5} fill={col} stroke={T.BG2} strokeWidth={1.5}/>;}}/>
+                    <Line yAxisId="sc" type="monotone" dataKey="score" stroke={TR.ACCENT} strokeWidth={2} name="Score"
+                      dot={function(dp){var col=dp.payload.score>=4?TR.RED:dp.payload.score>=3?TR.AMBER:TR.GREEN;return <circle key={dp.key} cx={dp.cx} cy={dp.cy} r={4.5} fill={col} stroke={TR.BG2} strokeWidth={1.5}/>;}}/>
                   </ComposedChart>
                 </ResponsiveContainer>
                 <div style={{fontSize:10,color:T.TEXT4,marginTop:6,fontFamily:T.SANS}}>Líneas punteadas: umbrales de score 3 (medio) y 4 (alto).</div>
@@ -671,7 +671,7 @@ function AnalisisView(props) {
       {selPeriodo && m ? <div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
           <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
-            {sc ? <span style={{padding:'5px 14px',borderRadius:6,background:sc.col,color:'white',fontWeight:700,fontSize:13}}>RIESGO {sc.clasificacion}</span> : null}
+            {sc ? <span style={{padding:'5px 14px',borderRadius:6,background:sc.col,color:T.ON_SEMANTIC,fontWeight:700,fontSize:13}}>RIESGO {sc.clasificacion}</span> : null}
             {sc ? <span style={{fontSize:13,color:T.TEXT2}}>Score: {sc.promedio.toFixed(2)}/5 | {sigs.length} senales ({sigs.filter(function(s){return s.sev==='ALTA';}).length} ALTA)</span> : null}
             {selLegajo && safeArr(selLegajo.limitesHistorial).filter(function(x){return x.estado==='VIGENTE';}).length > 0 && (
               <span style={{marginLeft:8,padding:'3px 10px',borderRadius:3,background:'rgba(0,212,255,0.12)',color:T.CYAN,fontSize:10,fontFamily:T.MONO,fontWeight:600,border:'1px solid rgba(0,212,255,0.25)'}}>📈 aumento vigente</span>
@@ -756,8 +756,8 @@ function AnalisisView(props) {
                     <span style={{fontWeight:600,color:T.TEXT,fontSize:11}}>{s.pat}</span>
                     <SevBadge sev={s.sev}/>
                     <span style={{background:T.BG3,borderRadius:10,padding:'1px 8px',fontSize:11,color:T.TEXT2}}>{s.tip}</span>
-                    {resuelta && <span style={{background:T.GREEN,color:'white',borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>✅ RESUELTA</span>}
-                    {propuesta && <span style={{background:T.AMBER,color:'white',borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>🔄 PROP. CIERRE</span>}
+                    {resuelta && <span style={{background:T.GREEN,color:T.ON_SEMANTIC,borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>✅ RESUELTA</span>}
+                    {propuesta && <span style={{background:T.AMBER,color:T.ON_SEMANTIC,borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700}}>🔄 PROP. CIERRE</span>}
                   </div>
                   {/* Acciones según rol */}
                   <div style={{display:'flex',gap:6,flexShrink:0}}>
@@ -1048,8 +1048,8 @@ function AnalisisView(props) {
                     return (
                       <div key={i} style={{background:bg,border:'1px solid '+col,borderRadius:4,padding:'8px 10px',borderLeft:'3px solid '+col}}>
                         <div style={{display:'flex',gap:6,marginBottom:3}}>
-                          <span style={{background:col,color:'white',borderRadius:4,padding:'1px 7px',fontSize:9,fontWeight:700}}>{a.tipo}</span>
-                          <span style={{background:col,color:'white',borderRadius:4,padding:'1px 7px',fontSize:9,fontWeight:700}}>{a.urgencia}</span>
+                          <span style={{background:col,color:T.ON_SEMANTIC,borderRadius:4,padding:'1px 7px',fontSize:9,fontWeight:700}}>{a.tipo}</span>
+                          <span style={{background:col,color:T.ON_SEMANTIC,borderRadius:4,padding:'1px 7px',fontSize:9,fontWeight:700}}>{a.urgencia}</span>
                         </div>
                         <div style={{fontSize:11,color:T.TEXT,lineHeight:1.4}}>{a.texto.slice(0,90)}...</div>
                       </div>
@@ -1081,7 +1081,7 @@ function AnalisisView(props) {
               <button
                 onClick={saveMemo}
                 disabled={!newMemo.trim()}
-                style={{background:newMemo.trim()?C.VERDE:T.BG4,color:'white',border:'none',borderRadius:4,padding:'8px 20px',cursor:newMemo.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:13}}
+                style={{background:newMemo.trim()?C.VERDE:T.BG4,color:T.ON_SEMANTIC,border:'none',borderRadius:4,padding:'8px 20px',cursor:newMemo.trim()?'pointer':'not-allowed',fontWeight:700,fontSize:13}}
               >
                 💾 Guardar memo
               </button>
@@ -1099,7 +1099,7 @@ function AnalisisView(props) {
                 <div key={memo.id} style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:6,padding:'14px 16px',marginBottom:10,boxShadow:'0 1px 3px rgba(0,0,0,0.05)',borderLeft:'3px solid '+(esCompliance?'#2471A3':C.VERDE)}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
                     <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                      <div style={{background:esCompliance?'#2471A3':C.VERDE,color:'white',borderRadius:'50%',width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}}>
+                      <div style={{background:esCompliance?'#2471A3':C.VERDE,color:T.ON_SEMANTIC,borderRadius:'50%',width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}}>
                         {esCompliance?'📋':(memo.autor||'A').charAt(0).toUpperCase()}
                       </div>
                       <div>
@@ -1188,7 +1188,7 @@ function AnalisisView(props) {
                 var isOpen = rfiMode === rfi.id;
                 var altasCount = rfi.intercambios ? rfi.intercambios.filter(function(i){return i.tipo==='ENVIO';}).length : 0;
                 return (
-                  <div key={rfi.id} style={{background:T.BG2,border:'2px solid '+(isOpen?'#2471A3':'#E8EEF4'),borderRadius:6,marginBottom:12,overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
+                  <div key={rfi.id} style={{background:T.BG2,border:'2px solid '+(isOpen?T.ACCENT:T.BORDER2),borderRadius:6,marginBottom:12,overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
 
                     {/* Header del RFI */}
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',borderBottom:'1px solid '+T.BORDER,background:T.BG3,cursor:'pointer'}} onClick={function(){setRfiMode(isOpen?null:rfi.id); setRfiResp({contenido:'',tipo:'RESPUESTA',autor:''});}}>
@@ -1241,7 +1241,7 @@ function AnalisisView(props) {
                               <div style={{flex:1,background:msgBg,border:'1px solid '+msgColor+'33',borderRadius:6,padding:'10px 14px',borderLeft:'3px solid '+msgColor}}>
                                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
                                   <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                                    <span style={{background:msgColor,color:'white',borderRadius:4,padding:'1px 8px',fontSize:9,fontWeight:700}}>{msgLabel}</span>
+                                    <span style={{background:msgColor,color:T.ON_SEMANTIC,borderRadius:4,padding:'1px 8px',fontSize:9,fontWeight:700}}>{msgLabel}</span>
                                     <span style={{fontWeight:600,color:T.TEXT,fontSize:11}}>{msg.autor}</span>
                                   </div>
                                   <span style={{fontSize:11,color:T.TEXT3}}>{msg.fecha} {msg.hora&&'· '+msg.hora}</span>
