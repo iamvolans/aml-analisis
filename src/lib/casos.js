@@ -30,8 +30,17 @@ var SLA = {
   INICIO_ANALISIS:      2,  // días para tomar una caso nuevo — política interna
 };
 
-// Umbral para pintar un plazo como "próximo a vencer"
+// Antelación con la que un plazo se pinta como "próximo a vencer".
+//
+// No puede ser un número fijo: con un aviso de 3 días, un plazo de 2 días nace
+// en amarillo y el color deja de informar. La antelación se escala con el plazo
+// y nunca lo iguala — siempre queda al menos un tramo en verde.
 var DIAS_AVISO = 3;
+
+function antelacion(plazoTotal) {
+  if (!plazoTotal || plazoTotal <= 1) return 0;               // plazo de 1 día: verde hasta vencer
+  return Math.max(1, Math.min(DIAS_AVISO, Math.floor(plazoTotal / 3)));
+}
 
 // ─── CICLO DE VIDA ──────────────────────────────────────────────────────────
 var ESTADOS_CASO = [
@@ -82,8 +91,12 @@ function diasHasta(d) {
 // ─── HITOS DE PLAZO ─────────────────────────────────────────────────────────
 // Devuelve los plazos aplicables al caso según su estado, ordenados por urgencia.
 // Un caso cerrado no tiene hitos activos.
-function hitosSLA(caso) {
+// El segundo parámetro permite evaluar el caso contra plazos DISTINTOS a los
+// configurados. Lo usa el panel de calibración para responder "¿qué pasaría si
+// el plazo fuera de 10 días en vez de 15?" sin tocar la configuración real.
+function hitosSLA(caso, slaAlt) {
   if (!caso) return [];
+  var S = slaAlt || SLA;
   var est = getEstadoCaso(caso.estado);
   if (!est.abierto) return [];
 
@@ -92,28 +105,30 @@ function hitosSLA(caso) {
     var limite = sumarDias(fechaBase, dias);
     if (!limite) return;
     var rest = diasHasta(limite);
+    var aviso = antelacion(dias);
     hitos.push({
       id: id, label: label, limite: limite, dias: rest, nota: nota || '',
-      estado: rest < 0 ? 'VENCIDO' : rest <= DIAS_AVISO ? 'PROXIMO' : 'OK'
+      plazoTotal: dias, antelacion: aviso,
+      estado: rest < 0 ? 'VENCIDO' : rest <= aviso ? 'PROXIMO' : 'OK'
     });
   }
 
   if (caso.estado === 'NUEVA') {
-    add('inicio', 'Tomar el caso', caso.fechaApertura, SLA.INICIO_ANALISIS, 'Política interna');
+    add('inicio', 'Tomar el caso', caso.fechaApertura, S.INICIO_ANALISIS, 'Política interna');
   }
   if (caso.estado === 'EN_ANALISIS') {
-    add('comite', 'Elevar a comité', caso.fechaApertura, SLA.ESCALAMIENTO_COMITE, 'Política interna');
+    add('comite', 'Elevar a comité', caso.fechaApertura, S.ESCALAMIENTO_COMITE, 'Política interna');
   }
   if (caso.estado === 'RFI_ENVIADO' && caso.fechaRfi) {
-    add('rfi', 'Respuesta del cliente', caso.fechaRfi, SLA.RFI_RESPUESTA, 'Política interna');
+    add('rfi', 'Respuesta del cliente', caso.fechaRfi, S.RFI_RESPUESTA, 'Política interna');
   }
   // Plazo de reporte: corre desde que el caso se calificó como sospechoso
   if (caso.fechaCalificacion) {
-    add('ros', 'Plazo de reporte', caso.fechaCalificacion, SLA.ROS_CALIFICACION, 'Desde la calificación');
+    add('ros', 'Plazo de reporte', caso.fechaCalificacion, S.ROS_CALIFICACION, 'Desde la calificación');
   }
   // Tope duro desde la operación — corre siempre mientras el caso esté abierto
   if (caso.fechaOperacion) {
-    add('tope', 'Tope desde la operación', caso.fechaOperacion, SLA.ROS_MAX_OPERACION, 'Plazo máximo');
+    add('tope', 'Tope desde la operación', caso.fechaOperacion, S.ROS_MAX_OPERACION, 'Plazo máximo');
   }
 
   hitos.sort(function(a,b){ return a.dias - b.dias; });
@@ -121,8 +136,8 @@ function hitosSLA(caso) {
 }
 
 // El hito más urgente — es lo que se muestra en la tabla
-function slaCritico(caso) {
-  var h = hitosSLA(caso);
+function slaCritico(caso, slaAlt) {
+  var h = hitosSLA(caso, slaAlt);
   return h.length ? h[0] : null;
 }
 
@@ -237,7 +252,7 @@ function cambiarEstadoCaso(caso, nuevoEstado, autor, nota) {
 }
 
 export {
-  SLA, DIAS_AVISO,
+  SLA, DIAS_AVISO, antelacion,
   ESTADOS_CASO, getEstadoCaso, ORIGENES, getOrigen, PRIORIDADES, getPrioridad,
   hitosSLA, slaCritico, colorSLA, fmtFecha, diasHasta, sumarDias,
   nuevoCaso, refCaso, claveSenal, casosPendientesDeCrear, cambiarEstadoCaso

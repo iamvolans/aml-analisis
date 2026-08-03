@@ -4,6 +4,8 @@ import { Card, StatCard, TableCard, SortTh, EmptyState, TD, chartGrid, chartAxis
 import { auditLog } from "../lib/auth";
 import { PAT_UIF_MAP } from "../lib/constants";
 import { rangoPeriodo, metricasComite, MESES } from "../lib/comite";
+import { SLA } from "../lib/casos";
+import { PARAMS, ejercicio, sensibilidad, candidatos, concentracionVencidos, edadCasos } from "../lib/calibracion";
 import { genInformeComite } from "../lib/reports";
 import { serverLoadRuns } from "../lib/sync";
 import { T, TR } from "../lib/theme";
@@ -31,6 +33,8 @@ function ComiteView(props) {
   var idxState  = useState(function(){ var f=leerFiltros(); return f.idx !== undefined ? f.idx : hoy.getMonth(); }); var idx=idxState[0]; var setIdx=idxState[1];
   var notasState = useState(''); var notas=notasState[0]; var setNotas=notasState[1];
   var runsState = useState([]); var runs=runsState[0]; var setRuns=runsState[1];
+  var calibState = useState(false); var verCalib=calibState[0]; var setVerCalib=calibState[1];
+  var paramState = useState('ESCALAMIENTO_COMITE'); var paramSel=paramState[0]; var setParamSel=paramState[1];
 
   useEffect(function(){ guardarFiltros({tipo:tipo, anio:anio, idx:idx}); }, [tipo, anio, idx]);
 
@@ -269,6 +273,160 @@ function ComiteView(props) {
           <StatCard label="Corridas de screening" val={m.screening.corridasPeriodo}
             col={m.screening.corridasPeriodo ? T.GREEN : T.AMBER} icon="🛡"
             sub={m.screening.hitsAlta ? m.screening.hitsAlta + ' coincidencia(s) ALTA' : 'sin coincidencias'}/>
+        </div>
+
+        {/* ══ CALIBRACIÓN DE PLAZOS ═══════════════════════════════════════ */}
+        <div style={seccion}>Calibración de plazos</div>
+        <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,boxShadow:T.SHADOW.card}}>
+          <button onClick={function(){setVerCalib(!verCalib);}}
+            style={{width:'100%',background:'transparent',border:'none',padding:'13px 16px',cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:9,fontFamily:T.SANS}}>
+            <span style={{color:T.TEXT3,fontSize:11}}>{verCalib ? '▾' : '▸'}</span>
+            <span style={{flex:1,fontSize:12.5,color:T.TEXT,fontWeight:600}}>
+              Qué pasaría si moviéramos un plazo
+            </span>
+            <span style={{fontSize:11,color:T.TEXT3}}>{verCalib ? 'ocultar' : 'analizar'}</span>
+          </button>
+
+          {verCalib && (function(){
+            var ej = ejercicio(casos);
+            var conc = concentracionVencidos(casos);
+            var edad = edadCasos(casos);
+            var sens = sensibilidad(casos, paramSel, candidatos(SLA[paramSel]));
+            var pInfo = PARAMS.find(function(x){ return x.id === paramSel; }) || {};
+            var maxTot = sens.reduce(function(a,r){ return Math.max(a, r.total); }, 1);
+
+            return (
+              <div style={{padding:'0 16px 16px'}}>
+                <div style={{fontSize:11.5,color:T.TEXT2,lineHeight:1.65,marginBottom:14,paddingBottom:12,borderBottom:'1px solid '+T.BORDER}}>
+                  Este panel no dice cuál es el plazo legalmente correcto — eso sale de la resolución vigente.
+                  Dice el <strong>impacto operativo</strong> de cada valor sobre tus casos reales, que es la parte
+                  que sí se puede medir. Los marcados <span style={{color:T.ACCENT,fontWeight:600}}>internos</span> los
+                  decide GOAT y no necesitan validación externa.
+                </div>
+
+                {/* Ejercicio de cada parámetro */}
+                <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:8,fontFamily:T.SANS}}>
+                  Qué plazo manda de verdad
+                </div>
+                <div style={{overflowX:'auto',marginBottom:16}}>
+                  <table style={{width:'100%',borderCollapse:'separate',borderSpacing:0,fontSize:12}}>
+                    <thead><tr>
+                      {['Plazo','Tipo','Valor','Casos que lo tienen','Casos que gobierna','Vencidos'].map(function(h,i){
+                        return <th key={i} style={Object.assign({},TD,{background:T.BG3,color:T.TEXT3,fontSize:9.5,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',borderBottom:'1px solid '+T.BORDER2,textAlign:i>2?'right':'left'})}>{h}</th>;
+                      })}
+                    </tr></thead>
+                    <tbody>
+                      {ej.map(function(p){
+                        var esSel = p.id === paramSel;
+                        return (
+                          <tr key={p.id} onClick={function(){setParamSel(p.id);}}
+                            style={{cursor:'pointer',background:esSel?T.ACCENT_SOFT:'transparent'}}>
+                            <td style={Object.assign({},TD,{color:T.TEXT,fontWeight:esSel?700:500})}>
+                              {p.label}
+                              <div style={{fontSize:10,color:T.TEXT4,lineHeight:1.4}}>{p.desc}</div>
+                            </td>
+                            <td style={TD}>
+                              <span style={{background:p.tipo==='INTERNO'?T.ACCENT_SOFT:'rgba(255,184,48,0.12)',
+                                color:p.tipo==='INTERNO'?T.ACCENT:T.AMBER,
+                                border:'1px solid '+(p.tipo==='INTERNO'?T.ACCENT_DIM:'rgba(255,184,48,0.35)'),
+                                borderRadius:T.RADIUS.pill,padding:'1px 8px',fontSize:9,fontWeight:700,whiteSpace:'nowrap'}}>
+                                {p.tipo==='INTERNO' ? 'interno' : 'regulatorio'}
+                              </span>
+                            </td>
+                            <td style={Object.assign({},TD,{textAlign:'right',fontFamily:T.MONO,color:T.TEXT2,whiteSpace:'nowrap'})}>{p.valor} {p.unidad==='horas'?'h':'d'}</td>
+                            <td style={Object.assign({},TD,{textAlign:'right',fontFamily:T.MONO,color:T.TEXT2})}>{p.presente}</td>
+                            <td style={Object.assign({},TD,{textAlign:'right',fontFamily:T.MONO,fontWeight:700,color:p.inerte?T.TEXT4:T.TEXT})}>
+                              {p.critico}
+                              {p.inerte && <span title="Ningún caso lo tiene como plazo más urgente: moverlo no cambia lo que ve el analista" style={{marginLeft:6,fontSize:9,color:T.TEXT4,fontFamily:T.SANS}}>inerte</span>}
+                            </td>
+                            <td style={Object.assign({},TD,{textAlign:'right',fontFamily:T.MONO,fontWeight:700,color:p.vencido?T.RED:T.TEXT4})}>{p.vencido}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Sensibilidad del parámetro elegido */}
+                <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:4,fontFamily:T.SANS}}>
+                  Sensibilidad — {pInfo.label}
+                </div>
+                <div style={{fontSize:11,color:T.TEXT4,marginBottom:10}}>
+                  Sobre {sens.length ? sens[0].total : 0} caso(s) abierto(s). Clic en otra fila de arriba para cambiar de plazo.
+                </div>
+
+                {(!sens.length || sens[0].total === 0) ? (
+                  <div style={{fontSize:12,color:T.TEXT3,padding:'12px 0'}}>
+                    No hay casos abiertos para simular. La calibración empírica necesita casos con historial real.
+                  </div>
+                ) : (
+                  <div>
+                    {sens.map(function(r){
+                      var pv = Math.round(r.vencidos/maxTot*100);
+                      var pp = Math.round(r.proximos/maxTot*100);
+                      var po = Math.round(r.ok/maxTot*100);
+                      return (
+                        <div key={r.valor} style={{display:'flex',alignItems:'center',gap:11,padding:'6px 0'}}>
+                          <span style={{width:62,textAlign:'right',fontFamily:T.MONO,fontSize:12,
+                            fontWeight:r.actual?700:400,color:r.actual?T.ACCENT:T.TEXT2,whiteSpace:'nowrap'}}>
+                            {r.valor} {pInfo.unidad==='horas'?'h':'d'}
+                          </span>
+                          <div style={{flex:1,display:'flex',height:20,borderRadius:4,overflow:'hidden',background:T.BG3}}>
+                            {pv>0 && <div title={r.vencidos+' vencido(s)'} style={{width:pv+'%',background:T.RED}}/>}
+                            {pp>0 && <div title={r.proximos+' próximo(s)'} style={{width:pp+'%',background:T.AMBER}}/>}
+                            {po>0 && <div title={r.ok+' en regla'} style={{width:po+'%',background:T.GREEN}}/>}
+                          </div>
+                          <span style={{width:118,fontSize:11,fontFamily:T.MONO,color:T.TEXT3,whiteSpace:'nowrap'}}>
+                            <span style={{color:r.vencidos?T.RED:T.TEXT4,fontWeight:700}}>{r.vencidos}</span> venc ·{' '}
+                            <span style={{color:r.proximos?T.AMBER:T.TEXT4}}>{r.proximos}</span> próx
+                          </span>
+                          {r.actual && <span style={{fontSize:9,color:T.ACCENT,fontWeight:700,fontFamily:T.SANS}}>ACTUAL</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Concentración y edad */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginTop:18}}>
+                  <div>
+                    <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:8,fontFamily:T.SANS}}>Dónde se concentran los vencidos</div>
+                    {conc.length === 0 ? (
+                      <div style={{fontSize:12,color:T.GREEN}}>Ningún plazo vencido con la configuración actual.</div>
+                    ) : conc.map(function(c){
+                      return (
+                        <div key={c.param} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid '+T.BORDER,fontSize:12}}>
+                          <span style={{color:T.TEXT2}}>{c.label}</span>
+                          <span style={{fontFamily:T.MONO,color:T.RED,fontWeight:700}}>{c.n} <span style={{color:T.TEXT4,fontWeight:400}}>· hasta {c.diasMax} d</span></span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:8,fontFamily:T.SANS}}>Antigüedad de los casos abiertos</div>
+                    {edad.n === 0 ? (
+                      <div style={{fontSize:12,color:T.TEXT3}}>Sin casos abiertos.</div>
+                    ) : (
+                      <div style={{fontSize:12,color:T.TEXT2,lineHeight:1.9}}>
+                        <div>Mediana: <span style={{fontFamily:T.MONO,color:T.TEXT,fontWeight:700}}>{edad.mediana} días</span></div>
+                        <div>Rango: <span style={{fontFamily:T.MONO}}>{edad.min} – {edad.max} días</span></div>
+                        <div style={{fontSize:10.5,color:T.TEXT4,lineHeight:1.55,marginTop:6}}>
+                          Si la mediana supera holgadamente un plazo, el problema no es el umbral sino la
+                          capacidad de análisis. Bajar el plazo no lo arregla.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{fontSize:10.5,color:T.TEXT4,marginTop:16,paddingTop:12,borderTop:'1px solid '+T.BORDER,lineHeight:1.6}}>
+                  Los valores se editan en <span style={{fontFamily:T.MONO}}>src/lib/casos.js</span>, objeto <span style={{fontFamily:T.MONO}}>SLA</span>.
+                  Hay tests que fallan si el conjunto pierde coherencia — por ejemplo si el escalamiento a comité
+                  quedara después del plazo de reporte.
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Observaciones */}

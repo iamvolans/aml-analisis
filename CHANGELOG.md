@@ -2,6 +2,40 @@
 
 Formato: versión — tanda — cambios. Las tandas están descritas en `docs/PLAN_V3.md`.
 
+## 3.20.0 — Validación y calibración de plazos
+
+**Tests de coherencia** (`tests/plazos-coherencia.test.js`, 20 casos). No validan
+que los números sean los legalmente correctos —eso necesita la resolución— sino
+que el conjunto **encadene**, que es verificable sin ella: tomar el caso antes de
+elevarlo, elevar antes de que venza el plazo de reporte, el plazo desde la
+calificación dentro del tope desde la operación, y a mayor riesgo mayor
+frecuencia de actualización. Cada aserción lleva escrita su justificación.
+
+- **Encontraron una inconsistencia real**: la ventana de aviso era de 3 días
+  fijos pero el plazo más corto es de 2, así que un caso nuevo nacía en amarillo
+  y el color no informaba nada. La antelación pasó a escalar con el plazo —
+  avisa el último día en uno de 2 días, tres días antes en uno de 15 — y nunca
+  lo iguala.
+
+**Panel de calibración**, dentro de Informe de gestión:
+
+- Separa los plazos que **decide GOAT** (tomar el caso, elevar a comité, RFI) de
+  los que **fija la norma**. Tres de seis no necesitan validación externa: se
+  deciden.
+- Marca los parámetros **inertes**: los que ningún caso tiene como plazo más
+  urgente. Moverlos no cambia nada de lo que ve el analista, esté bien o mal
+  configurado el valor.
+- **Sensibilidad**: para cada valor candidato, cuántos casos abiertos quedarían
+  vencidos, próximos y en regla. Convierte "¿15 o 20 días?" en una conversación
+  sobre datos.
+- Concentración de vencimientos por hito y antigüedad de los casos abiertos: si
+  la mediana supera holgadamente un plazo, el problema es la capacidad de
+  análisis, no el umbral, y bajarlo no lo arregla.
+- `hitosSLA(caso, slaAlternativo)` acepta plazos distintos a los configurados,
+  para simular sin tocar la configuración real.
+- 14 tests, incluida la propiedad de monotonía: un plazo más largo nunca puede
+  producir más vencidos.
+
 ## 3.19.0 — Informe de gestión para el Comité
 
 - Sección nueva **Informe de gestión**, con selector de período (mes, trimestre
