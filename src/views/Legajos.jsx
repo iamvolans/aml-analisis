@@ -250,6 +250,17 @@ function LegajosView(props) {
     return window.pdfjsLib;
   }
 
+  // Un PDF "con texto" puede tener capa de texto SOLO en la carátula. Pasa
+  // siempre con las reproducciones certificadas digitalmente: la certificación
+  // es texto, las páginas escaneadas del documento no. Por eso no alcanza con
+  // mirar el total de caracteres — hay que mirar la DENSIDAD por página.
+  //
+  // Referencia: un PDF nativo rinde 1.500–3.000 caracteres por página. Un
+  // escaneo con carátula certificada ronda los 50.
+  var DENSIDAD_MIN  = 250;   // caracteres por página para considerarlo texto real
+  var COBERTURA_MIN = 0.5;   // proporción de páginas que deben tener texto propio
+  var MAX_PAGS_IMG  = 10;    // páginas a rasterizar cuando es escaneo
+
   async function pdfFileToText(file) {
     try {
       var lib = await loadPDFJS();
@@ -264,7 +275,17 @@ function LegajosView(props) {
         pages.push(ct.items.map(function(i){ return i.str; }).join(' '));
       }
       var txt = pages.join('\n\n').replace(/\s+/g, ' ').trim();
-      return txt.length > 80 ? txt.slice(0, 6000) : null; // null = PDF escaneado sin texto
+      // Cuántas de las páginas muestreadas tienen texto propio. La densidad
+      // promedio sola no distingue "una carátula cargada + 19 páginas vacías"
+      // de "20 páginas con poco texto"; la cobertura sí.
+      var conTexto = pages.filter(function(t){ return t.replace(/\s+/g,' ').trim().length > 100; }).length;
+      return {
+        texto: txt,
+        paginas: pdf.numPages,
+        muestreadas: maxPg,
+        densidad: maxPg > 0 ? Math.round(txt.length / maxPg) : 0,
+        cobertura: maxPg > 0 ? conTexto / maxPg : 0
+      };
     } catch(e) {
       console.warn('[Rebit IA] PDF.js error en ' + file.name + ':', e.message);
       return null;
@@ -279,7 +300,7 @@ function LegajosView(props) {
       var buf = await file.arrayBuffer();
       var pdf = await lib.getDocument({ data: buf }).promise;
       var images = [];
-      var maxPags = Math.min(pdf.numPages, 4); // máx 4 páginas por doc
+      var maxPags = Math.min(pdf.numPages, MAX_PAGS_IMG);
       for (var p = 1; p <= maxPags; p++) {
         var page = await pdf.getPage(p);
         var vp = page.getViewport({ scale: 1.0 });
@@ -323,25 +344,44 @@ function LegajosView(props) {
       setUploadMsg('Convirtiendo ' + files.length + ' documentos...');
 
       var contentBlocks = [];
+      var docsTruncados = [];   // documentos escaneados que no entraron completos
       for (var i = 0; i < files.length; i++) {
         var f = files[i];
         setUploadMsg('Preparando doc ' + (i+1) + ' de ' + files.length + ': ' + f.name);
         setUploadPct(15 + Math.round((i / files.length) * 35));
         if (f.type === 'application/pdf') {
           // Primero intentar extraer texto con PDF.js (rápido: ~5KB en vez de 3.5MB)
-          var extractedTxt = await pdfFileToText(f);
-          if (extractedTxt && extractedTxt.length > 80) {
+          var info = await pdfFileToText(f);
+          var hayTextoReal = info && info.texto.length > 80
+                          && info.densidad >= DENSIDAD_MIN
+                          && info.cobertura >= COBERTURA_MIN;
+          if (hayTextoReal) {
             // PDF con texto seleccionable: enviar como texto (Claude responde en 3-5s)
-            contentBlocks.push({ type:'text', text:'=== ' + f.name + ' ===\n' + extractedTxt, _isDoc: true });
-            console.log('[Rebit IA] PDF texto OK: ' + f.name + ' (' + extractedTxt.length + ' chars)');
+            contentBlocks.push({ type:'text', text:'=== ' + f.name + ' ===\n' + info.texto.slice(0, 6000), _isDoc: true });
+            console.log('[Rebit IA] PDF texto OK: ' + f.name + ' (' + info.texto.length + ' chars, ' +
+                        info.densidad + ' por pág., ' + Math.round(info.cobertura*100) + '% de páginas con texto)');
           } else {
-            // PDF escaneado: renderizar páginas como imágenes JPEG (mucho más liviano que binario)
+            // Escaneo, o PDF cuya capa de texto es solo la carátula de
+            // certificación: rasterizar las páginas para que el modelo LEA el
+            // documento en vez de la carátula.
+            if (info && info.texto.length > 80) {
+              console.log('[Rebit IA] PDF con capa de texto parcial: ' + f.name + ' (' +
+                          info.densidad + ' chars/pág., ' + Math.round(info.cobertura*100) +
+                          '% de páginas con texto) → se rasteriza');
+            }
             var pdfImgs = await pdfToImages(f);
             if (pdfImgs && pdfImgs.length > 0) {
               pdfImgs.forEach(function(imgB64) {
                 contentBlocks.push({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:imgB64 }, _fromPDF: true });
               });
-              console.log('[Rebit IA] PDF→' + pdfImgs.length + ' imágenes JPEG: ' + f.name);
+              // El texto de la carátula igual aporta (fecha, escribano, folios)
+              if (info && info.texto.length > 80) {
+                contentBlocks.push({ type:'text', text:'=== ' + f.name + ' (capa de texto / certificación) ===\n' + info.texto.slice(0, 2000), _isDoc: true });
+              }
+              if (info && info.paginas > pdfImgs.length) {
+                docsTruncados.push({ nombre: f.name, enviadas: pdfImgs.length, total: info.paginas });
+              }
+              console.log('[Rebit IA] PDF→' + pdfImgs.length + ' de ' + ((info&&info.paginas)||'?') + ' páginas como JPEG: ' + f.name);
             } else {
               // Último recurso: binario (puede fallar si es muy grande)
               var b64 = await fileToBase64(f);
@@ -404,7 +444,8 @@ function LegajosView(props) {
         kybFilled: kybFilled,
         rfCount: rfCount,
         segmento: extracted.segmento,
-        dictamen: extracted.dictamen
+        dictamen: extracted.dictamen,
+        truncados: docsTruncados
       });
 
       setForm(function(prev){
@@ -529,6 +570,30 @@ function LegajosView(props) {
                 </div>
               );})}
             </div>
+
+            {/* Documentos que no entraron completos — sin esto, un "No
+                identificado" parece un dato en vez de una lectura parcial */}
+            {safeArr(iaFields.truncados).length > 0 && (
+              <div style={{background:'rgba(255,184,48,0.08)',border:'1px solid rgba(255,184,48,0.35)',borderLeft:'3px solid '+T.AMBER,borderRadius:T.RADIUS.md,padding:'12px 14px',marginBottom:10}}>
+                <div style={{fontWeight:700,color:T.AMBER,fontSize:12,marginBottom:6}}>⚠ Documentos escaneados leídos parcialmente</div>
+                <div style={{fontSize:11.5,color:T.TEXT2,lineHeight:1.6,marginBottom:8}}>
+                  Estos PDF no tienen texto seleccionable, así que se leyeron como imágenes y solo entraron
+                  las primeras páginas. Si falta el presidente, el directorio o el beneficiario final,
+                  probablemente estén en las páginas que no se enviaron.
+                </div>
+                {iaFields.truncados.map(function(d,i){
+                  return (
+                    <div key={i} style={{fontSize:11,color:T.TEXT2,fontFamily:T.MONO,padding:'2px 0'}}>
+                      · {d.nombre} — {d.enviadas} de {d.total} páginas
+                    </div>
+                  );
+                })}
+                <div style={{fontSize:11,color:T.TEXT3,marginTop:8,lineHeight:1.55}}>
+                  Alternativa: subí por separado la parte del documento donde figuran las autoridades
+                  (por ejemplo el acta de designación), o completá esos campos en la pestaña Datos.
+                </div>
+              </div>
+            )}
 
             {/* Campos completados */}
             {iaFields.filled.length > 0 && <div style={{background:'rgba(0,230,118,0.08)',border:'1px solid rgba(0,230,118,0.2)',borderRadius:6,padding:'12px 14px',marginBottom:10}}>

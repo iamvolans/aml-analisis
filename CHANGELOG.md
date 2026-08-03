@@ -2,6 +2,26 @@
 
 Formato: versión — tanda — cambios. Las tandas están descritas en `docs/PLAN_V3.md`.
 
+## 3.18.3 — Fix: los estatutos escaneados llegaban truncados a la IA
+
+- La extracción decidía entre "mandar texto" y "rasterizar páginas" con un
+  umbral de **80 caracteres totales**. Una reproducción certificada digitalmente
+  tiene capa de texto solo en la carátula: un estatuto de 20 páginas rendía 969
+  caracteres, superaba el umbral, y al modelo le llegaba **la certificación en
+  lugar del documento**. De ahí los "No identificado en documentación
+  presentada" en presidente, representante legal y beneficiario final.
+- Ahora se enruta por **densidad de texto por página** (mínimo 250, contra los
+  1.500–3.000 de un PDF nativo) **y cobertura** (al menos la mitad de las
+  páginas con texto propio). La cobertura es la que distingue "una carátula
+  cargada + 19 páginas vacías" de "20 páginas con poco texto".
+- `pdfToImages` pasó de 4 a 10 páginas: en un estatuto, la designación de
+  autoridades rara vez está en las primeras cuatro.
+- Cuando un escaneo no entra completo, el panel de resultados **lo dice**, con
+  el nombre del archivo y cuántas páginas de cuántas se enviaron. Antes un
+  "No identificado" era indistinguible de un dato real.
+- El texto de la carátula se sigue enviando junto a las imágenes: aporta fecha,
+  escribano y folios.
+
 ## 3.18.2 — Fix: pantalla en negro tras el login
 
 - Al reescribir el import del tema en `App.jsx` quedó afuera `C`, que el archivo
