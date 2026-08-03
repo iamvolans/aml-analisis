@@ -2,6 +2,19 @@
 
 Formato: versión — tanda — cambios. Las tandas están descritas en `docs/PLAN_V3.md`.
 
+## 3.18.2 — Fix: pantalla en negro tras el login
+
+- Al reescribir el import del tema en `App.jsx` quedó afuera `C`, que el archivo
+  usa cinco veces. `ReferenceError: C is not defined` al montar → pantalla en
+  negro. El build de Vite no lo detecta: esbuild no resuelve identificadores
+  libres, así que compila sin una sola advertencia.
+- `tests/imports.test.js`: escanea todos los módulos y falla si alguno usa un
+  símbolo que no importó ni declaró. Es la tercera vez que este tipo de error
+  llega a producción (`Pill` en v3.6.0, `C` acá), así que deja de depender de
+  que alguien se acuerde de correr un script suelto.
+  Verificado en las dos direcciones: pasa con el código correcto y falla
+  señalando `App.jsx:327 C` al reintroducir el bug.
+
 ## 3.18.1 — Fix: la extracción con IA daba 401
 
 - `lib/ai.js` armaba sus cabeceras con el token compartido **escrito a mano**

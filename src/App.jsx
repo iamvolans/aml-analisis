@@ -7,7 +7,7 @@ import { setModuleKeys } from "./lib/ai";
 import { ROL_LABELS, puedeGestionarUsuarios } from "./lib/auth";
 import { authHeaders, setSesion, limpiarSesion, onSesionCaida } from "./lib/session";
 import { fetchServerConfig, serverLoad, serverLoadCasos, serverLoadRun, serverLoadRuns, serverSave, serverSaveCasos } from "./lib/sync";
-import { T, TEMAS, aplicarTema, temaActual, temaGuardado } from "./lib/theme";
+import { C, T, TEMAS, aplicarTema, temaActual, temaGuardado } from "./lib/theme";
 import { todayStr } from "./lib/utils";
 import LoginScreen from "./views/Login";
 
