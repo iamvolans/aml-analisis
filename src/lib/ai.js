@@ -1,3 +1,4 @@
+import { authHeaders } from "./session";
 import { base64ToBlob, fileToBase64, parseJsonFromResponse, sleep } from "./utils";
 
 async function extractWithClaude(filesOrBlocks) {
@@ -505,11 +506,11 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
         var stream = new Blob([payload]).stream().pipeThrough(new CompressionStream('gzip'));
         var compressed = await new Response(stream).arrayBuffer();
         proxyBody = compressed;
-        proxyHeaders = { 'Content-Type': 'application/octet-stream', 'x-encoding': 'gzip-json', 'x-app-token': '123aml2026' };
+        proxyHeaders = await authHeaders({ 'Content-Type': 'application/octet-stream', 'x-encoding': 'gzip-json' });
       } catch(compErr) {
         // Fallback sin compresión si el browser no soporta CompressionStream
         proxyBody = payload;
-        proxyHeaders = { 'Content-Type': 'application/json', 'x-app-token': '123aml2026' };
+        proxyHeaders = await authHeaders({ 'Content-Type': 'application/json' });
       }
       // Timeout preventivo del cliente: abortar a los 50s sin esperar el 504 de Vercel
       var abortCtrl = new AbortController();

@@ -2,6 +2,17 @@
 
 Formato: versión — tanda — cambios. Las tandas están descritas en `docs/PLAN_V3.md`.
 
+## 3.18.1 — Fix: la extracción con IA daba 401
+
+- `lib/ai.js` armaba sus cabeceras con el token compartido **escrito a mano**
+  (`'123aml2026'`) en lugar de importarlo de `session.js`. La migración de T8a
+  buscaba el símbolo `APP_TOKEN`, así que nunca lo tocó. Al cortar el token con
+  `ALLOW_APP_TOKEN=false`, `/api/ai` empezó a rechazar la extracción con IA.
+- `tests/auth-cliente.test.js` (4 casos) cierra la clase de error: ningún módulo
+  puede repetir el valor del token ni armar la cabecera a mano, y todo archivo
+  que llame a `/api` tiene que pasar por `authHeaders()`. Se verificó
+  reintroduciendo el bug: el test falla.
+
 ## 3.18.0 — Tema claro
 
 - **Dos temas que conviven**, alternables desde la barra lateral: el oscuro
