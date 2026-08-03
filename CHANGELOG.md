@@ -2,6 +2,30 @@
 
 Formato: versión — tanda — cambios. Las tandas están descritas en `docs/PLAN_V3.md`.
 
+## 3.19.0 — Informe de gestión para el Comité
+
+- Sección nueva **Informe de gestión**, con selector de período (mes, trimestre
+  o año) y exportación a PDF firmable.
+- `lib/comite.js`: motor de métricas puro. Movimiento de casos (arrastre,
+  abiertos, cerrados, saldo), resultado de los cierres, tiempos de resolución,
+  cumplimiento de plazos, desempeño por analista, patrones recurrentes con su
+  tipología UIF, evolución de cartera y screening.
+- **Puntos sometidos a consideración**: el informe deriva de los propios números
+  qué requiere decisión — plazos vencidos, cierres fuera de término, casos sin
+  asignar, cartera pendiente creciendo, screening sin correr. Un comité necesita
+  decidir, no solo enterarse.
+- Se informa **mediana además de promedio**: un solo caso muy extenso desplaza
+  el promedio y da una impresión equivocada del ritmo habitual.
+- Campo de observaciones del Oficial de Cumplimiento, que se incorpora al
+  informe como sección propia. Los números los calcula el sistema; la lectura
+  de esos números no.
+- **Estabilidad temporal**: las métricas se calculan con las fechas asentadas en
+  cada caso, nunca con el reloj. El informe de un período cerrado da lo mismo
+  generado hoy que dentro de un año, y hay un test que lo verifica.
+- 25 tests nuevos, con foco en los bordes: casos que cruzan el límite del
+  período, casos sin cerrar, y muestras vacías que devuelven `null` en vez de
+  cero — no es lo mismo "cero días" que "sin datos".
+
 ## 3.18.3 — Fix: los estatutos escaneados llegaban truncados a la IA
 
 - La extracción decidía entre "mandar texto" y "rasterizar páginas" con un

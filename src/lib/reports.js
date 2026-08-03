@@ -1249,4 +1249,236 @@ function genLegajoCompleto(datos) {
   return h;
 }
 
-export { pStyles, piH, r2, r3, rpH, rpF, infSec, infBadge, infCallout, infTr2, infTr3, infTbl, infTh, infTd, genINF01, genINF02, genINF07Cierre, genROS, genNotaDD, genLegajoCompleto };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INFORME DE GESTIÓN AL COMITÉ (T9)
+// ═══════════════════════════════════════════════════════════════════════════
+// A diferencia de los otros informes, que documentan UN cliente, este mide la
+// operación: cuánto entró, cuánto se resolvió, en qué plazo y quién lo hizo.
+// Cierra con una sección de puntos de atención derivados de los propios
+// números — un comité necesita decidir, no solo enterarse.
+function genInformeComite(datos) {
+  var m       = datos.metricas;
+  var usuario = datos.usuario || { nombre:'N/D', rol:'N/D' };
+  var notas   = datos.notas || '';
+  var ahora   = new Date();
+  var fecha   = ahora.toLocaleDateString('es-AR');
+  var hora    = ahora.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+
+  function esc(x) {
+    return String(x === null || x === undefined ? '' : x)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function num(x, suf) { return (x === null || x === undefined) ? '—' : esc(x) + (suf || ''); }
+  var sec = infSec, tr2 = infTr2, tbl = infTbl, th = infTh, td = infTd, callout = infCallout;
+
+  var h = '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">'
+    + '<title>Informe de gestión — ' + esc(m.rango.label) + '</title>'
+    + '<style>' + pStyles()
+    + 'h2{page-break-after:avoid;}tr{page-break-inside:avoid;}.pb{page-break-before:always;}'
+    + '</style></head><body>';
+
+  // ── Portada ──────────────────────────────────────────────────────────────
+  h += '<div style="border:2px solid #1B2A4A;border-radius:4px;padding:26px 24px;margin-bottom:18px">'
+    + '<div style="font-size:8.5pt;color:#4A6A8A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">GOAT S.A. — Rebit · Comité de Compliance</div>'
+    + '<div style="font-size:17pt;font-weight:700;color:#1B2A4A;margin-bottom:3px">INFORME DE GESTIÓN PLAFT</div>'
+    + '<div style="font-size:13pt;color:#2C4A7C;margin-bottom:16px">' + esc(m.rango.label) + '</div>'
+    + '<table style="font-size:9pt">'
+    + tr2('Período', m.rango.isoDesde + ' al ' + m.rango.isoHasta)
+    + tr2('Casos abiertos al inicio', String(m.casos.arrastre))
+    + tr2('Casos abiertos a la fecha', String(m.casos.abiertosHoy))
+    + tr2('Clientes en cartera', String(m.cartera.total))
+    + '</table>'
+    + '<div style="margin-top:16px;padding-top:12px;border-top:1px solid #D6E4F0;font-size:8.5pt;color:#555">'
+    + 'Emitido el <strong>' + fecha + ' a las ' + hora + '</strong> por <strong>' + esc(usuario.nombre) + '</strong> (' + esc(usuario.rol) + ').<br/>'
+    + 'Las cifras se calculan sobre los registros del sistema con las fechas asentadas en cada caso, '
+    + 'de modo que el informe de un período cerrado arroja el mismo resultado independientemente de cuándo se genere.'
+    + '</div></div>';
+
+  // ── 1. Resumen ───────────────────────────────────────────────────────────
+  var saldo = m.casos.arrastre + m.casos.creados - m.casos.cerrados;
+  h += sec(1, 'RESUMEN DEL PERÍODO')
+    + '<table>'
+    + tr2('Casos abiertos al inicio del período', String(m.casos.arrastre))
+    + tr2('Casos abiertos durante el período', String(m.casos.creados))
+    + tr2('Casos cerrados durante el período', String(m.casos.cerrados))
+    + tr2('Saldo teórico al cierre', String(saldo))
+    + tr2('Reportes presentados conforme al régimen aplicable', String(m.casos.conRos))
+    + tr2('Casos cerrados sin reporte, con fundamento', String(m.casos.sinRos))
+    + '</table>';
+
+  if (m.casos.creados > m.casos.cerrados) {
+    h += callout('warn', 'El período cierra con más casos abiertos que resueltos: entraron ' +
+      m.casos.creados + ' y se cerraron ' + m.casos.cerrados + '. La cartera de casos pendientes crece.');
+  } else if (m.casos.cerrados > 0) {
+    h += callout('ok', 'El período cierra con ' + m.casos.cerrados + ' caso(s) resuelto(s) sobre ' +
+      m.casos.creados + ' ingresado(s).');
+  }
+
+  if (m.casos.porOrigen.length) {
+    h += '<div style="font-size:8.5pt;color:#4A6A8A;margin-top:12px">Origen de los casos abiertos en el período</div>'
+      + tbl(th(['Origen','Casos','% del total']),
+          m.casos.porOrigen.map(function(o){
+            return td([esc(o.clave), String(o.n), (m.casos.creados ? Math.round(o.n/m.casos.creados*100) : 0) + '%']);
+          }).join(''));
+  }
+
+  // ── 2. Tiempos ───────────────────────────────────────────────────────────
+  h += sec(2, 'TIEMPOS DE RESOLUCIÓN');
+  if (!m.tiempos.muestra) {
+    h += callout('info', 'No hubo casos cerrados en el período, por lo que no se pueden calcular tiempos de resolución.');
+  } else {
+    h += '<table>'
+      + tr2('Casos cerrados considerados', String(m.tiempos.muestra))
+      + tr2('Mediana de resolución', num(m.tiempos.mediana, ' días'))
+      + tr2('Promedio', num(m.tiempos.promedio, ' días'))
+      + tr2('Percentil 90', num(m.tiempos.p90, ' días'))
+      + tr2('Caso más extenso', num(m.tiempos.max, ' días'))
+      + '</table>'
+      + '<div style="font-size:8pt;color:#666;margin-top:6px;line-height:1.5">'
+      + 'Se informa la mediana además del promedio porque un solo caso muy extenso desplaza el promedio '
+      + 'y da una impresión equivocada del ritmo habitual de resolución.'
+      + '</div>';
+  }
+
+  // ── 3. Plazos ────────────────────────────────────────────────────────────
+  h += sec(3, 'CUMPLIMIENTO DE PLAZOS');
+  if (!m.plazos.evaluados) {
+    h += callout('info', 'Sin casos cerrados con plazos aplicables en el período.');
+  } else {
+    h += '<table>'
+      + tr2('Casos cerrados con plazo evaluable', String(m.plazos.evaluados))
+      + tr2('Cerrados dentro de plazo', String(m.plazos.enPlazo))
+      + tr2('Cerrados fuera de plazo', String(m.plazos.fueraPlazo))
+      + tr2('Cumplimiento', num(m.plazos.pctEnPlazo, '%'))
+      + '</table>';
+    if (m.plazos.fueraPlazo > 0) {
+      h += callout('err', m.plazos.fueraPlazo + ' caso(s) se cerraron fuera del plazo aplicable. Corresponde analizar la causa y dejarla asentada.');
+    }
+  }
+  if (m.plazos.vencidosAbiertos > 0) {
+    h += callout('err', 'A la fecha de emisión hay ' + m.plazos.vencidosAbiertos +
+      ' caso(s) abierto(s) con al menos un plazo vencido. Requieren tratamiento inmediato.');
+  }
+
+  // ── 4. Por analista ──────────────────────────────────────────────────────
+  h += '<div class="pb"></div>' + sec(4, 'DESEMPEÑO POR ANALISTA');
+  if (!m.analistas.length) {
+    h += callout('warn', 'Ningún caso tiene analista asignado. La trazabilidad de responsabilidad queda incompleta.');
+  } else {
+    h += tbl(th(['Analista','Abiertos','Asignados en el período','Cerrados','Mediana de cierre','Con plazo vencido']),
+        m.analistas.map(function(a){
+          return td([esc(a.nombre), String(a.abiertos), String(a.creadosPeriodo), String(a.cerrados),
+                     num(a.medianaDias, ' d'),
+                     a.vencidos > 0 ? infBadge(String(a.vencidos), '#E74C3C') : '0']);
+        }).join(''));
+    if (m.casos.sinAsignar > 0) {
+      h += callout('warn', m.casos.sinAsignar + ' caso(s) abierto(s) sin analista asignado.');
+    }
+  }
+
+  // ── 5. Señales ───────────────────────────────────────────────────────────
+  h += sec(5, 'SEÑALES DE ALERTA');
+  h += '<table>'
+    + tr2('Señales activas en la cartera', String(m.senales.activas))
+    + tr2('De severidad ALTA', String(m.senales.activasAlta))
+    + tr2('Señales resueltas durante el período', String(m.senales.resueltasPeriodo))
+    + '</table>';
+
+  if (m.senales.porPatron.length) {
+    h += '<div style="font-size:8.5pt;color:#4A6A8A;margin-top:12px">Patrones más frecuentes en la cartera</div>'
+      + tbl(th(['Patrón','Tipología UIF','Señales activas']),
+          m.senales.porPatron.map(function(p){
+            var uif = PAT_UIF_MAP[p.clave];
+            return td([esc(p.clave), uif ? esc(uif.desc) : '—', String(p.n)]);
+          }).join(''))
+      + '<div style="font-size:8pt;color:#666;margin-top:6px;line-height:1.5">'
+      + 'La recurrencia de un patrón puede indicar tanto una tipología presente en la cartera como un '
+      + 'umbral de detección mal calibrado. Corresponde al comité distinguir entre ambos casos.'
+      + '</div>';
+  }
+  if (m.senales.resueltasPor.length) {
+    h += '<div style="font-size:8.5pt;color:#4A6A8A;margin-top:12px">Resolución de señales por responsable</div>'
+      + tbl(th(['Responsable','Señales resueltas']),
+          m.senales.resueltasPor.map(function(r){ return td([esc(r.clave), String(r.n)]); }).join(''));
+  }
+
+  // ── 6. Cartera ───────────────────────────────────────────────────────────
+  h += sec(6, 'EVOLUCIÓN DE LA CARTERA')
+    + '<table>'
+    + tr2('Clientes en cartera', String(m.cartera.total))
+    + tr2('Altas durante el período', String(m.cartera.altasPeriodo))
+    + tr2('Períodos transaccionales analizados', String(m.cartera.periodosAnalizados))
+    + '</table>'
+    + '<div style="display:flex;gap:14px">'
+    + '<div style="flex:1">'
+    + '<div style="font-size:8.5pt;color:#4A6A8A;margin-top:12px">Por segmento de riesgo</div>'
+    + tbl(th(['Segmento','Clientes']), m.cartera.porSegmento.map(function(x){ return td([esc(x.clave), String(x.n)]); }).join(''))
+    + '</div><div style="flex:1">'
+    + '<div style="font-size:8.5pt;color:#4A6A8A;margin-top:12px">Por estado de cuenta</div>'
+    + tbl(th(['Estado','Clientes']), m.cartera.porEstado.map(function(x){ return td([esc(x.clave), String(x.n)]); }).join(''))
+    + '</div></div>';
+
+  // ── 7. Screening ─────────────────────────────────────────────────────────
+  h += sec(7, 'SCREENING CONTRA LISTAS RESTRICTIVAS')
+    + '<table>'
+    + tr2('Corridas ejecutadas en el período', String(m.screening.corridasPeriodo))
+    + tr2('Última corrida registrada', m.screening.ultimaCorrida ? new Date(m.screening.ultimaCorrida).toLocaleString('es-AR') : '—')
+    + tr2('Coincidencias de nivel ALTA detectadas', String(m.screening.hitsAlta))
+    + '</table>';
+  if (!m.screening.corridasPeriodo) {
+    h += callout('warn', 'No se registran corridas de screening en el período informado.');
+  }
+
+  // ── 8. Puntos de atención ────────────────────────────────────────────────
+  var puntos = [];
+  if (m.plazos.vencidosAbiertos > 0)
+    puntos.push('Regularizar ' + m.plazos.vencidosAbiertos + ' caso(s) abierto(s) con plazo vencido.');
+  if (m.plazos.fueraPlazo > 0)
+    puntos.push('Analizar la causa de ' + m.plazos.fueraPlazo + ' cierre(s) fuera de plazo y asentar la conclusión.');
+  if (m.casos.sinAsignar > 0)
+    puntos.push('Asignar analista a ' + m.casos.sinAsignar + ' caso(s) sin responsable.');
+  if (m.casos.creados > m.casos.cerrados)
+    puntos.push('Evaluar capacidad de análisis: la cartera de casos pendientes creció en el período.');
+  if (!m.screening.corridasPeriodo)
+    puntos.push('Ejecutar el screening periódico: no hay corridas registradas en el período.');
+  if (m.senales.activasAlta > 0)
+    puntos.push('Tratar ' + m.senales.activasAlta + ' señal(es) de severidad ALTA sin resolver.');
+  var sobrecargado = m.analistas.filter(function(a){ return a.vencidos > 0; });
+  if (sobrecargado.length)
+    puntos.push('Revisar la carga de ' + sobrecargado.map(function(a){ return a.nombre; }).join(', ') +
+                ': registran casos con plazo vencido.');
+
+  h += '<div class="pb"></div>' + sec(8, 'PUNTOS SOMETIDOS A CONSIDERACIÓN DEL COMITÉ');
+  if (!puntos.length) {
+    h += callout('ok', 'No se identifican desvíos que requieran decisión del comité en el período informado.');
+  } else {
+    h += '<ol style="font-size:9.5pt;line-height:1.9;margin:8px 0 0 20px">'
+      + puntos.map(function(p){ return '<li>' + esc(p) + '</li>'; }).join('')
+      + '</ol>'
+      + '<div style="font-size:8pt;color:#666;margin-top:10px;line-height:1.5">'
+      + 'Los puntos precedentes se derivan automáticamente de las cifras del período y no sustituyen '
+      + 'el análisis del Oficial de Cumplimiento.'
+      + '</div>';
+  }
+
+  if (notas.trim()) {
+    h += sec(9, 'OBSERVACIONES DEL OFICIAL DE CUMPLIMIENTO')
+      + '<div style="font-size:9.5pt;line-height:1.75;white-space:pre-wrap;margin-top:8px">' + esc(notas) + '</div>';
+  }
+
+  // ── Cierre ───────────────────────────────────────────────────────────────
+  h += '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:26px">'
+    + '<tr>'
+    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Oficial de Cumplimiento</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
+    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Comité de Compliance</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
+    + '</tr></table>'
+    + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
+    + '<span>Confidencial — Uso interno del Comité de Compliance</span>'
+    + '<span>GOAT S.A. / Rebit — Informe de gestión ' + esc(m.rango.label) + ' — emitido ' + fecha + '</span>'
+    + '</div></body></html>';
+
+  return h;
+}
+
+export { pStyles, piH, r2, r3, rpH, rpF, infSec, infBadge, infCallout, infTr2, infTr3, infTbl, infTh, infTd, genINF01, genINF02, genINF07Cierre, genROS, genNotaDD, genLegajoCompleto, genInformeComite };

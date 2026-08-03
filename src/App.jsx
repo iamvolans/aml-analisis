@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
-import { LayoutDashboard, FolderOpen, BarChart3, Bell, Briefcase, CalendarClock, ShieldCheck, Share2, Scale, Radar, BookOpen, Users, Download, Upload, Settings, LogOut, Sun, Moon } from "lucide-react";
+import { LayoutDashboard, FolderOpen, BarChart3, Bell, Briefcase, CalendarClock, ShieldCheck, Share2, FileBarChart, Scale, Radar, BookOpen, Users, Download, Upload, Settings, LogOut, Sun, Moon } from "lucide-react";
 import { ReportModal } from "./components/ui";
 import { FeedbackHost, toast, uiConfirm } from "./components/feedback";
 import CommandPalette from "./components/palette";
@@ -21,6 +21,7 @@ var CasosView = lazy(function(){ return import("./views/Casos"); });
 var VencimientosView = lazy(function(){ return import("./views/Vencimientos"); });
 var ScreeningView = lazy(function(){ return import("./views/Screening"); });
 var RedView = lazy(function(){ return import("./views/Red"); });
+var ComiteView = lazy(function(){ return import("./views/Comite"); });
 var AnalisisView = lazy(function(){ return import("./views/Analisis"); });
 var DashboardView = lazy(function(){ return import("./views/Dashboard"); });
 var LegajosView = lazy(function(){ return import("./views/Legajos"); });
@@ -312,6 +313,7 @@ export default function App() {
     ['vencimientos', CalendarClock, 'Vencimientos'],
     ['screening', ShieldCheck,   'Screening'],
     ['red',       Share2,        'Red'],
+    ['comite',    FileBarChart,  'Informe de gestión'],
     ['normativa', Scale,           'Normativa'],
     ['patrones',  Radar,           'Patrones AML'],
     ['wiki',      BookOpen,        'Wiki']
@@ -599,6 +601,7 @@ export default function App() {
           {view==='legajos' ? <LegajosView ultScreening={ultScreening} casos={casos} key={'leg-'+(legTarget||'')} initSelId={legTarget} legajos={legajos} setLegajos={setLegajos} periodos={periodos} setPeriodos={setPeriodos} onAnalizar={handleAnalizar} onReport={function(html){setReportHTML(html);}} onSync={syncToCloud} currentUser={currentUser}/> : null}
           {view==='analisis' ? <AnalisisView legajos={legajos} periodos={periodos} setPeriodos={setPeriodos} onReport={function(html){setReportHTML(html);}} initLegajo={analTarget.leg} initPeriodo={analTarget.per} onSync={syncToCloud} currentUser={currentUser}/> : null}
           {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos} setPeriodos={setPeriodos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onNavAnalisis={handleAnalizar} onVerCaso={handleVerCaso} currentUser={currentUser}/> : null}
+          {view==='comite' ? <ComiteView casos={casos} legajos={legajos} periodos={periodos} onReport={function(html){setReportHTML(html);}} currentUser={currentUser}/> : null}
           {view==='red' ? <RedView legajos={legajos} periodos={periodos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onVerCaso={handleVerCaso} onOpenLegajo={function(id){setLegTarget(id);setView('legajos');}} currentUser={currentUser}/> : null}
           {view==='screening' ? <ScreeningView legajos={legajos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onVerCaso={handleVerCaso} currentUser={currentUser}/> : null}
           {view==='vencimientos' ? <VencimientosView legajos={legajos} periodos={periodos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onVerCaso={handleVerCaso} onOpenLegajo={function(id){setLegTarget(id);setView('legajos');}} currentUser={currentUser}/> : null}
