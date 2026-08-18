@@ -24,6 +24,15 @@ function calcMetricas(txns, perfil) {
   var splitDays = Object.keys(splitDaysSet).length;
   var roundCount = txns.filter(function(t) { return t.monto >= 100000 && t.monto % 100000 === 0; }).length;
   var cpAll = {}; txns.forEach(function(t) { var k=t.contraparte_nombre||t.contraparte_cuit||'Desconocido'; cpAll[k]=(cpAll[k]||0)+1; });
+
+  // ── ¿Hay realmente datos de contraparte? ─────────────────────────────────
+  // Si el archivo no traía columna de contraparte, todas las operaciones caen
+  // bajo 'Desconocido' y los cálculos de concentración dan 100% — un artefacto
+  // de lectura, no un hallazgo. Los patrones que dependen de la contraparte se
+  // desactivan en ese caso (ver detectPatrones).
+  var conCp = txns.filter(function(t){ return t.contraparte_nombre || t.contraparte_cuit; }).length;
+  var cpIdentificable = txns.length > 0 && (conCp / txns.length) >= 0.5;
+  var pctSinCp = txns.length > 0 ? Math.round((1 - conCp / txns.length) * 100) : 0;
   var totalUcp = Object.keys(cpAll).length;
   var oneShotCnt = Object.values(cpAll).filter(function(v) { return v === 1; }).length;
   var amtCount = {}; txns.forEach(function(t) { amtCount[t.monto]=(amtCount[t.monto]||0)+1; });
@@ -53,7 +62,7 @@ function calcMetricas(txns, perfil) {
   var dailyVol = dates.map(function(d) { return dailyMap[d]; });
   var withHour = txns.filter(function(t) { return t.hora; });
   var atypical = withHour.filter(function(t) { var h=parseInt((t.hora||'').split(':')[0]); return h < 8 || h >= 20; });
-return { tIn:tIn, tOut:tOut, tVol:tVol, balanceNeto:tIn-tOut, countIn:ins.length, countOut:outs.length, totalTxns:txns.length, avg:avg, maxMonto:montos[montos.length-1]||0, minMonto:montos[0]||0, cpIn:cpIn, cpOut:cpOut, sortedIn:sortedIn, sortedOut:sortedOut, uniqueCpIn:Object.keys(cpIn).length, uniqueCpOut:Object.keys(cpOut).length, top1In:tIn>0?(sortedIn[0]?sortedIn[0][1]:0)/tIn*100:0, top1Out:tOut>0?(sortedOut[0]?sortedOut[0][1]:0)/tOut*100:0, hhiIn:hhiIn, hhiOut:hhiOut, ratioCpEmbudo:Object.keys(cpIn).length/(Object.keys(cpOut).length||1), ratioIO:tVol>0?tIn/tVol:0.5, ratioVP:perfil&&perfil.facturacionMensual>0?tVol/Number(perfil.facturacionMensual):null, splitDays:splitDays, splitGroupsCount:splitGroups.length, pctRound:txns.length>0?roundCount/txns.length*100:0, pctOneShot:totalUcp>0?oneShotCnt/totalUcp*100:0, repeatedAmts:repeatedAmts, circularCps:circularCps, circularCount:circularCps.length, activeDays:dates.length, opsByDay:txns.length/(dates.length||1), dates:dates, dailyVol:dailyVol, passThrough:tIn>0?tOut/tIn:0, pctAtypicalHour:withHour.length>0?atypical.length/withHour.length*100:null, ntGroupsIn:ntGroupsIn, ntGroupsOut:ntGroupsOut };
+return { cpIdentificable:cpIdentificable, pctSinCp:pctSinCp, tIn:tIn, tOut:tOut, tVol:tVol, balanceNeto:tIn-tOut, countIn:ins.length, countOut:outs.length, totalTxns:txns.length, avg:avg, maxMonto:montos[montos.length-1]||0, minMonto:montos[0]||0, cpIn:cpIn, cpOut:cpOut, sortedIn:sortedIn, sortedOut:sortedOut, uniqueCpIn:Object.keys(cpIn).length, uniqueCpOut:Object.keys(cpOut).length, top1In:tIn>0?(sortedIn[0]?sortedIn[0][1]:0)/tIn*100:0, top1Out:tOut>0?(sortedOut[0]?sortedOut[0][1]:0)/tOut*100:0, hhiIn:hhiIn, hhiOut:hhiOut, ratioCpEmbudo:Object.keys(cpIn).length/(Object.keys(cpOut).length||1), ratioIO:tVol>0?tIn/tVol:0.5, ratioVP:perfil&&perfil.facturacionMensual>0?tVol/Number(perfil.facturacionMensual):null, splitDays:splitDays, splitGroupsCount:splitGroups.length, pctRound:txns.length>0?roundCount/txns.length*100:0, pctOneShot:totalUcp>0?oneShotCnt/totalUcp*100:0, repeatedAmts:repeatedAmts, circularCps:circularCps, circularCount:circularCps.length, activeDays:dates.length, opsByDay:txns.length/(dates.length||1), dates:dates, dailyVol:dailyVol, passThrough:tIn>0?tOut/tIn:0, pctAtypicalHour:withHour.length>0?atypical.length/withHour.length*100:null, ntGroupsIn:ntGroupsIn, ntGroupsOut:ntGroupsOut };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -118,6 +127,14 @@ function lineaBase(periodo, legajo, periodos) {
 
 function detectPatrones(m, perfil, base) {
   if (!m) return [];
+
+  // Patrones que se apoyan en la identidad de la contraparte. Si el archivo no
+  // trajo esa columna, todas las operaciones quedan bajo un mismo rótulo y los
+  // cálculos de concentración, embudo, circularidad y fraccionamiento describen
+  // el fallo de lectura, no la operatoria. Se emite en su lugar una única señal
+  // que apunta al problema real.
+  var DEPENDEN_DE_CP = ['PAT-01','PAT-02','PAT-03','PAT-04','PAT-06','PAT-09','PAT-10','PAT-11','PAT-12','PAT-14'];
+  var sinCp = m.cpIdentificable === false;
   var sigs = [];
   function add(pat, sev, titulo, desc, tip) { sigs.push({ id:uid(), pat:pat, sev:sev, titulo:titulo, desc:desc, tip:tip }); }
   if (m.splitGroupsCount > 0) add('PAT-01', m.splitDays >= 3 ? 'ALTA' : 'MEDIA', 'Fraccionamiento (structuring)', m.splitGroupsCount + ' grupo(s) con 3+ ops al mismo destino en igual dia (' + m.splitDays + ' dias afectados).', 'T-01');
@@ -226,6 +243,23 @@ function detectPatrones(m, perfil, base) {
           'T-06');
       }
     }
+  }
+
+  if (sinCp) {
+    // Se descartan las señales que no pueden sostenerse sin contraparte y se
+    // informa la causa, en vez de presentar un artefacto como hallazgo.
+    sigs = sigs.filter(function(s){ return DEPENDEN_DE_CP.indexOf(s.pat) < 0; });
+    sigs.unshift({
+      id: uid(), pat: 'DATA-01', sev: 'ALTA',
+      titulo: 'El archivo no identifica las contrapartes',
+      desc: 'El ' + (m.pctSinCp || 100) + '% de las operaciones no tiene contraparte identificable. ' +
+            'Sin ese dato no pueden evaluarse concentración, fraccionamiento, circularidad ni embudo: ' +
+            'los cálculos agruparían todas las operaciones bajo un único rótulo y arrojarían una ' +
+            'concentración del 100% que es un artefacto de lectura, no un hallazgo. ' +
+            'Verificar que el archivo incluya la columna de contraparte (ordenante o beneficiario) ' +
+            'y volver a cargar el período.',
+      tip: 'T-00'
+    });
   }
 
   return sigs;

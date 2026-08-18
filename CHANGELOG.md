@@ -2,6 +2,40 @@
 
 Formato: versión — tanda — cambios. Las tandas están descritas en `docs/PLAN_V3.md`.
 
+## 3.20.2 — Fix: todas las contrapartes se leían como "Desconocido"
+
+**Síntoma.** Señales ALTA de concentración del 100%, fraccionamiento y embudo en
+períodos donde la operatoria estaba diversificada. En el detalle, la contraparte
+figuraba siempre como "Desconocido".
+
+**Causa raíz.** El buscador de columnas del parser hacía coincidencia por
+subcadena, y el alias `'to'` (destinatario, en inglés) coincidía dentro de
+**"Mon-to"**. La columna de importes se tomaba como columna de destinatario, la
+de contraparte quedaba sin identificar, y aguas abajo `calcMetricas` agrupaba
+todas las operaciones bajo un único rótulo. La concentración del 100% describía
+el fallo de lectura, no al cliente.
+
+**Correcciones:**
+
+- `fc()` hace ahora dos pasadas: coincidencia **exacta** con todos los alias
+  primero, y recién después coincidencia parcial, solo con alias de 4 caracteres
+  o más. Los alias de dos letras se eliminaron.
+- **Ordenante y beneficiario como columnas separadas.** Un extracto bancario
+  suele traer ambas: para un ingreso la contraparte es quien ordena, para un
+  egreso quien recibe. Tomar una sola invertía la lectura en la mitad de las
+  operaciones. Se reconocen además titular, origen, destino, remitente,
+  destinatario, contrapartida y razón social.
+- **`calcMetricas` marca si la contraparte es identificable.** Cuando menos de la
+  mitad de las operaciones la tiene, `detectPatrones` **suprime los diez patrones
+  que dependen de ella** y emite en su lugar una única señal `DATA-01` que
+  explica la causa. Una concentración real en una contraparte identificada se
+  sigue reportando: la protección no ciega hallazgos legítimos.
+- **Diagnóstico visible al cargar el archivo**, antes de guardar el período:
+  qué columna se tomó para fecha, tipo, monto, contraparte y CUIT, y aviso
+  destacado con las cabeceras del archivo si la contraparte no se reconoció.
+- 23 tests: once formatos de cabecera, columnas separadas, la colisión de
+  subcadena que originó el problema, y la protección en ambos sentidos.
+
 ## 3.20.1 — Manual de operación y consistencia de roles
 
 - **Manual de Operación** (`manual/generar_manual.py`): documento corporativo de

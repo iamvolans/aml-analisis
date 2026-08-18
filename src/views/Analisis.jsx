@@ -275,7 +275,7 @@ function AnalisisView(props) {
         toast('⚠ No se encontraron transacciones en el archivo.\n\nVerificá que el archivo tenga columnas de: fecha, tipo (IN/OUT o débito/crédito), monto, y opcionalmente contraparte.\n\nSi el archivo tiene otro formato de columnas, abrilo en Excel y guardalo como CSV separado por comas.');
         setLoadingFile(false); e.target.value=''; return;
       }
-      setCsv({name:f.name, txns:txns});
+      setCsv({name:f.name, txns:txns, diag:txns.diagnostico || null});
     } catch(err) {
       toast('Error al leer el archivo: ' + err.message);
     }
@@ -655,6 +655,54 @@ function AnalisisView(props) {
           <div style={{fontSize:13,color:T.CYAN,fontWeight:700}}>{loadingFile?'Procesando archivo...':csv?csv.name+' — '+csv.txns.length+' transacciones detectadas':'📂 Subir archivo de transacciones'}</div>
           <div style={{fontSize:11,color:T.TEXT2,marginTop:3}}>Formatos: <strong>CSV, XLS, XLSX</strong> · Columnas: fecha, tipo (IN/OUT o débito/crédito), monto, contraparte</div>
         </div>
+        {/* Diagnóstico de la lectura del archivo — antes de guardar, no después */}
+        {csv && csv.diag ? (function(){
+          var d = csv.diag;
+          var cols = d.columnas;
+          var nom = function(i){ return i >= 0 ? (d.cabeceras[i] || '(col ' + (i+1) + ')') : null; };
+          var cpCol = nom(cols.contraparte) || nom(cols.ordenante) || nom(cols.destinatario);
+          var falla = d.contraparteAusente;
+          return (
+            <div style={{background: falla ? 'rgba(255,68,85,0.07)' : T.BG3,
+              border:'1px solid '+(falla ? 'rgba(255,68,85,0.35)' : T.BORDER),
+              borderLeft:'3px solid '+(falla ? T.RED : T.GREEN),
+              borderRadius:T.RADIUS.md, padding:'12px 14px', marginBottom:10}}>
+              <div style={{fontSize:11.5,fontWeight:700,color: falla ? T.RED : T.GREEN, marginBottom:7}}>
+                {falla ? '⚠ El archivo no identifica las contrapartes' : '✓ Columnas reconocidas'}
+              </div>
+              <div style={{display:'flex',gap:14,flexWrap:'wrap',fontSize:11,color:T.TEXT2,marginBottom: falla ? 9 : 0}}>
+                {[['Fecha', nom(cols.fecha)], ['Tipo', nom(cols.tipo)], ['Monto', nom(cols.monto)],
+                  ['Contraparte', cpCol], ['CUIT', nom(cols.cuit)]].map(function(par,i){
+                  return (
+                    <span key={i}>
+                      <span style={{color:T.TEXT3}}>{par[0]}: </span>
+                      <span style={{fontFamily:T.MONO, color: par[1] ? T.TEXT : T.RED, fontWeight: par[1] ? 400 : 700}}>
+                        {par[1] || 'no encontrada'}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+              {falla ? (
+                <div style={{fontSize:11,color:T.TEXT2,lineHeight:1.65}}>
+                  Las {d.parseadas} operaciones quedarían agrupadas bajo una única contraparte, lo que produce
+                  una concentración del 100% que <strong>no refleja la operatoria</strong>. Los patrones de
+                  concentración, fraccionamiento, circularidad y embudo quedan desactivados para este período.
+                  <div style={{marginTop:6,color:T.TEXT3}}>
+                    Columnas del archivo: <span style={{fontFamily:T.MONO,fontSize:10}}>{d.cabeceras.join(' · ')}</span>
+                  </div>
+                  <div style={{marginTop:6}}>
+                    Se reconocen, entre otras: <span style={{fontFamily:T.MONO,fontSize:10}}>contraparte, ordenante,
+                    beneficiario, origen, destino, remitente, destinatario, titular, razón social</span>.
+                    Si el archivo trae columnas separadas de ordenante y beneficiario, se usa la que corresponda
+                    a cada sentido.
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          );
+        })() : null}
+
         {csv ? <button onClick={handleSavePeriodo} style={{background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',borderRadius:3,padding:'8px 18px',cursor:'pointer',fontWeight:700,fontSize:13}}>Cargar y analizar ({csv.txns.length} txns)</button> : null}
       </Card> : null}
 

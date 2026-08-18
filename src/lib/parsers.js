@@ -11,12 +11,27 @@ function normalizeRows(rows) {
       .replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/ñ/g,'n')
       .replace(/[^a-z0-9_]/g,'_').replace(/__+/g,'_').replace(/^_|_$/g,'');
   });
+  // Busca la columna que corresponde a un campo, probando los alias en orden.
+  //
+  // Dos pasadas, y el orden importa: primero coincidencia EXACTA con todos los
+  // alias, después coincidencia por subcadena y solo con alias de 4 caracteres
+  // o más. Sin esa restricción un alias corto colisiona con palabras que lo
+  // contienen: 'to' hacía que la columna "Monto" se tomara como destinatario, y
+  // de ahí salían señales de concentración del 100% que eran un artefacto de
+  // lectura, no un hallazgo.
+  var LARGO_MIN_SUBCADENA = 4;
   function fc() {
     var keys = [];
     for (var ai = 0; ai < arguments.length; ai++) keys.push(arguments[ai]);
-    for (var k=0; k<keys.length; k++) {
-      for (var j=0; j<hdrs.length; j++) {
-        if (hdrs[j] === keys[k] || hdrs[j].includes(keys[k])) return j;
+    for (var k = 0; k < keys.length; k++) {
+      for (var j = 0; j < hdrs.length; j++) {
+        if (hdrs[j] === keys[k]) return j;
+      }
+    }
+    for (var k2 = 0; k2 < keys.length; k2++) {
+      if (keys[k2].length < LARGO_MIN_SUBCADENA) continue;
+      for (var j2 = 0; j2 < hdrs.length; j2++) {
+        if (hdrs[j2].indexOf(keys[k2]) >= 0) return j2;
       }
     }
     return -1;
@@ -24,8 +39,17 @@ function normalizeRows(rows) {
   var iF=fc('fecha','date','fec'), iH=fc('hora','time','hh');
   var iT=fc('tipo','type','direction','sentido','operacion','op');
   var iM=fc('monto','amount','importe','valor','total','credito','debito','credit','debit');
-  var iCN=fc('contraparte_nombre','cpname','cp_nombre','contraparte','beneficiario','nombre','razon_social','denominacion');
-  var iCC=fc('contraparte_cuit','cvalue','cp_cuit','cuit','cuil');
+  // ── Contraparte ───────────────────────────────────────────────────────────
+  // Un extracto bancario suele traer DOS columnas: quién ordena (para los
+  // ingresos) y quién recibe (para los egresos). Tomar una sola invierte la
+  // lectura en la mitad de las operaciones. Se buscan por separado y se elige
+  // según el sentido de cada operación.
+  var iOrd = fc('ordenante','remitente','origen','emisor','pagador','deudor','desde','originador','ordenante_nombre');
+  var iDes = fc('beneficiario','destinatario','destino','receptor','acreedor','hacia','cobrador','beneficiario_nombre');
+  // Columna única de contraparte, para formatos que ya la traen resuelta
+  var iCN = fc('contraparte_nombre','cpname','cp_nombre','contraparte','contrapartida',
+               'titular','denominacion','razon_social','nombre_cliente','cliente','nombre');
+  var iCC = fc('contraparte_cuit','cvalue','cp_cuit','cuit_contraparte','cuit','cuil','documento','identificacion','tax_id');
   var iCh=fc('canal','channel','medio');
   var iR=fc('referencia','concepto','descripcion','detalle','ref','glosa');
 
@@ -92,17 +116,48 @@ function normalizeRows(rows) {
       } catch(e) { fechaStr = fechaRaw; }
     }
 
+    // Para un ingreso la contraparte es quien ordena; para un egreso, quien
+    // recibe. Si el archivo trae columna única de contraparte, se usa esa.
+    var cpNombre = getVal(row, iCN);
+    if (!cpNombre) {
+      cpNombre = tipo === 'IN' ? getVal(row, iOrd) : getVal(row, iDes);
+      // Si solo existe una de las dos columnas, sirve para ambos sentidos
+      if (!cpNombre) cpNombre = getVal(row, iOrd) || getVal(row, iDes);
+    }
+
     txns.push({
       fecha: fechaStr,
       hora: getVal(row, iH),
       tipo: tipo,
       monto: monto,
-      contraparte_nombre: getVal(row, iCN),
+      contraparte_nombre: cpNombre,
       contraparte_cuit: getVal(row, iCC),
       canal: getVal(row, iCh),
       referencia: getVal(row, iR)
     });
   }
+
+  // ── Diagnóstico de la lectura ─────────────────────────────────────────────
+  // Sin esto, un archivo cuya columna de contraparte no se reconoce produce
+  // operaciones con contraparte vacía, que aguas abajo se agrupan todas bajo
+  // "Desconocido" y disparan señales de concentración del 100% que son un
+  // artefacto de parseo, no un hallazgo.
+  var sinCp = txns.filter(function(t){ return !t.contraparte_nombre && !t.contraparte_cuit; }).length;
+  txns.diagnostico = {
+    filas: rows.length - 1,
+    parseadas: txns.length,
+    cabeceras: rows[0].map(function(h){ return String(h == null ? '' : h); }),
+    columnas: {
+      fecha: iF, hora: iH, tipo: iT, monto: iM,
+      contraparte: iCN, ordenante: iOrd, destinatario: iDes,
+      cuit: iCC, canal: iCh, referencia: iR
+    },
+    sinContraparte: sinCp,
+    // true = ninguna operación tiene contraparte identificable
+    contraparteAusente: txns.length > 0 && sinCp === txns.length,
+    sinFecha: txns.filter(function(t){ return !t.fecha; }).length,
+    sinTipoExplicito: iT < 0
+  };
   return txns;
 }
 
