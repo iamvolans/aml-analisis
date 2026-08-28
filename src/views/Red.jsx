@@ -3,8 +3,15 @@ import { SortTh, TableCard, Drawer, EmptyState, StatCard, TD } from "../componen
 import { auditLog } from "../lib/auth";
 import { nuevoCaso, refCaso } from "../lib/casos";
 import { GRAFO, contrapartesCompartidas, layoutGrafo } from "../lib/grafo";
+import { toast, uiConfirm } from "../components/feedback";
+import { serverLoadKV, serverSaveKV } from "../lib/sync";
 import { T, TR } from "../lib/theme";
-import { fmtM, segColor, segColorR } from "../lib/utils";
+import { fmtM, parseFechaAR, segColor, segColorR, todayStr } from "../lib/utils";
+
+// El punto de corte se guarda en el servidor y no en el navegador: es una
+// decisión de alcance del análisis, no una preferencia personal. Todo el equipo
+// tiene que ver la misma red.
+var CORTE_KV = 'red_punto_corte';
 
 var FILTROS_KEY = 'rebit_red_filtros_v3';
 function leerFiltros() {
@@ -33,9 +40,72 @@ function RedView(props) {
   var selState = useState(null); var selCp=selState[0]; var setSelCp=selState[1];
   var hoverState = useState(null); var hover=hoverState[0]; var setHover=hoverState[1];
 
+  // ── Punto de corte ─────────────────────────────────────────────────────────
+  // Red no almacena nada propio: calcula sobre los períodos. "Reiniciarla" sin
+  // borrar datos consiste en acotar qué períodos entran en el cálculo. Los
+  // períodos anteriores permanecen intactos y siguen disponibles en el resto de
+  // la aplicación; solo dejan de computar en esta vista.
+  var corteState = useState(null); var corte=corteState[0]; var setCorte=corteState[1];
+  var cargandoState = useState(true); var cargandoCorte=cargandoState[0]; var setCargandoCorte=cargandoState[1];
+  var panelState = useState(false); var verPanel=panelState[0]; var setVerPanel=panelState[1];
+  var motivoState = useState(''); var motivo=motivoState[0]; var setMotivo=motivoState[1];
+
+  useEffect(function(){
+    var vivo = true;
+    serverLoadKV(CORTE_KV).then(function(c){
+      if (!vivo) return;
+      setCorte(c && c.fecha ? c : null);
+      setCargandoCorte(false);
+    }).catch(function(){ if (vivo) setCargandoCorte(false); });
+    return function(){ vivo = false; };
+  }, []);
+
+  async function definirCorte(desdeISO) {
+    if (!desdeISO) { toast('Elegí una fecha de corte.'); return; }
+    var partes = desdeISO.split('-');
+    var fechaAR = Number(partes[2]) + '/' + Number(partes[1]) + '/' + partes[0];
+    var quedan = periodos.filter(function(p){
+      var f = parseFechaAR(p.createdAt);
+      return f && f >= new Date(partes[0], partes[1]-1, partes[2]);
+    }).length;
+    if (!(await uiConfirm(
+      'La red pasará a calcularse solo con los períodos cargados desde el ' + fechaAR + '.\n\n' +
+      'Quedan dentro ' + quedan + ' de ' + periodos.length + ' períodos.\n\n' +
+      'Ningún dato se elimina: los períodos anteriores siguen disponibles en Análisis, Alertas y ' +
+      'los legajos. Solo dejan de computar en esta vista.',
+      {confirmLabel:'Aplicar corte'}))) return;
+
+    var nuevo = { fecha: fechaAR, iso: desdeISO, autor: currentUser.nombre || 'N/D',
+                  definidoEl: todayStr(), motivo: (motivo || '').trim() };
+    var ok = await serverSaveKV(CORTE_KV, nuevo);
+    if (!ok) { toast('No se pudo guardar el punto de corte.'); return; }
+    setCorte(nuevo); setVerPanel(false); setMotivo('');
+    auditLog(currentUser, 'definir_corte_red', 'red', fechaAR,
+             { desde: fechaAR, periodosDentro: quedan, periodosTotales: periodos.length, motivo: nuevo.motivo });
+    toast('✓ Red acotada a los períodos desde el ' + fechaAR);
+  }
+
+  async function quitarCorte() {
+    if (!(await uiConfirm('La red volverá a considerar la totalidad de los períodos cargados.',
+      {confirmLabel:'Quitar corte'}))) return;
+    var ok = await serverSaveKV(CORTE_KV, {});
+    if (!ok) { toast('No se pudo quitar el punto de corte.'); return; }
+    setCorte(null); setVerPanel(false);
+    auditLog(currentUser, 'quitar_corte_red', 'red', '', {});
+    toast('Corte quitado. La red considera todos los períodos.');
+  }
+
   function toggleSort(k) { setSortBy(function(p){ return p.k===k ? {k:k,d:-p.d} : {k:k,d:1}; }); }
 
-  var compartidas = contrapartesCompartidas(legajos, periodos, Number(minLeg));
+  // Períodos que efectivamente entran en el cálculo
+  var desde = corte && corte.iso ? new Date(corte.iso.split('-')[0], corte.iso.split('-')[1]-1, corte.iso.split('-')[2]) : null;
+  var periodosEnRed = desde ? periodos.filter(function(p){
+    var f = parseFechaAR(p.createdAt);
+    return f && f >= desde;
+  }) : periodos;
+  var excluidos = periodos.length - periodosEnRed.length;
+
+  var compartidas = contrapartesCompartidas(legajos, periodosEnRed, Number(minLeg));
   var conAlerta = compartidas.filter(function(c){ return c.alerta; });
 
   var q = search.trim().toLowerCase();
@@ -72,7 +142,10 @@ function RedView(props) {
           return '· ' + l.nombre + ' (' + l.segmento + ') — ' + fmtM(l.monto) + ' en ' + l.periodos + ' período(s)';
         }).join('\n') +
         '\n\nRevisar si existe vinculación societaria o económica entre los clientes, o si la contraparte ' +
-        'actúa como punto de concentración.',
+        'actúa como punto de concentración.' +
+        (corte ? '\n\nAlcance del análisis: períodos cargados desde el ' + corte.fecha +
+                 ' (' + periodosEnRed.length + ' de ' + periodos.length + ' períodos).'
+               : '\n\nAlcance del análisis: todos los períodos cargados (' + periodos.length + ').'),
       redKey: c.clave,
       analista: currentUser.nombre || 'Analista',
     });
@@ -140,7 +213,85 @@ function RedView(props) {
         );
       })()}
 
-      <h2 style={{color:T.TEXT,margin:'0 0 16px',fontSize:19,fontWeight:700}}>Red de contrapartes</h2>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}}>
+        <h2 style={{color:T.TEXT,margin:0,fontSize:19,fontWeight:700}}>Red de contrapartes</h2>
+        <button onClick={function(){setVerPanel(!verPanel);}}
+          style={{background:corte?'rgba(255,184,48,0.14)':'transparent',
+            color:corte?T.AMBER:T.TEXT2,
+            border:'1px solid '+(corte?'rgba(255,184,48,0.4)':T.BORDER2),
+            borderRadius:T.RADIUS.sm,padding:'7px 13px',cursor:'pointer',fontSize:12,
+            fontWeight:corte?600:500,fontFamily:T.SANS}}>
+          {corte ? '📅 Corte desde ' + corte.fecha : '📅 Definir punto de corte'}
+        </button>
+      </div>
+
+      {/* Estado del corte — siempre visible cuando hay uno activo, para que
+          nadie interprete la red como si fuera la cartera completa */}
+      {corte && (
+        <div style={{background:'rgba(255,184,48,0.07)',border:'1px solid rgba(255,184,48,0.3)',
+          borderLeft:'3px solid '+T.AMBER,borderRadius:T.RADIUS.md,padding:'11px 14px',marginBottom:14,
+          fontSize:11.5,color:T.TEXT2,lineHeight:1.65}}>
+          <strong style={{color:T.AMBER}}>Alcance acotado.</strong> La red considera únicamente los{' '}
+          <strong>{periodosEnRed.length}</strong> período(s) cargado(s) desde el{' '}
+          <span style={{fontFamily:T.MONO}}>{corte.fecha}</span>.
+          {excluidos > 0 && <> Quedan fuera del cálculo {excluidos} período(s) anteriores, que
+          <strong> siguen disponibles</strong> en Análisis, Alertas y los legajos.</>}
+          <div style={{fontSize:10.5,color:T.TEXT3,marginTop:5}}>
+            Definido por {corte.autor} el {corte.definidoEl}
+            {corte.motivo ? ' — ' + corte.motivo : ''}
+          </div>
+        </div>
+      )}
+
+      {/* Panel de configuración */}
+      {verPanel && (
+        <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,
+          padding:'16px 18px',marginBottom:14,boxShadow:T.SHADOW.card}}>
+          <div style={{fontSize:13,fontWeight:600,color:T.TEXT,marginBottom:8}}>Punto de corte del análisis de red</div>
+          <div style={{fontSize:11.5,color:T.TEXT2,lineHeight:1.7,marginBottom:14}}>
+            La red no almacena información propia: se calcula sobre los períodos transaccionales
+            cargados. Acotarla por fecha permite trabajar solo con datos nuevos <strong>sin eliminar
+            nada</strong>. Los períodos anteriores conservan sus métricas, señales y conclusiones, y
+            siguen computando en el resto de la aplicación.
+            <div style={{marginTop:7,color:T.TEXT3}}>
+              El corte es compartido por todo el equipo y queda registrado en la auditoría con su autor
+              y su motivo.
+            </div>
+          </div>
+
+          <div style={{display:'flex',gap:10,alignItems:'flex-end',flexWrap:'wrap'}}>
+            <div>
+              <label style={{display:'block',fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:5}}>Considerar desde</label>
+              <input id="corteFecha" type="date" defaultValue={corte && corte.iso ? corte.iso : new Date().toISOString().slice(0,10)}
+                style={{border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'7px 10px',fontSize:12,color:T.TEXT,fontFamily:T.MONO}}/>
+            </div>
+            <div style={{flex:'1 1 240px'}}>
+              <label style={{display:'block',fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:5}}>Motivo</label>
+              <input value={motivo} onChange={function(e){setMotivo(e.target.value);}}
+                placeholder="Ej: reinicio del análisis de red tras corrección en la lectura de contrapartes"
+                style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'7px 10px',fontSize:12,color:T.TEXT,boxSizing:'border-box'}}/>
+            </div>
+            <button onClick={function(){
+                var el = document.getElementById('corteFecha');
+                definirCorte(el ? el.value : '');
+              }}
+              style={{background:T.ACCENT,color:T.ON_ACCENT,border:'none',borderRadius:T.RADIUS.sm,padding:'8px 16px',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:T.SANS}}>
+              Aplicar
+            </button>
+            {corte && (
+              <button onClick={quitarCorte}
+                style={{background:'transparent',color:T.TEXT2,border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'8px 14px',cursor:'pointer',fontSize:12,fontFamily:T.SANS}}>
+                Quitar corte
+              </button>
+            )}
+          </div>
+
+          <div style={{fontSize:10.5,color:T.TEXT4,marginTop:12,lineHeight:1.6}}>
+            Si lo que buscás es eliminar definitivamente períodos cargados por error, eso se hace desde
+            Análisis, período por período, y sí borra los datos.
+          </div>
+        </div>
+      )}
 
       {/* KPIs */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}}>
@@ -149,7 +300,7 @@ function RedView(props) {
         <StatCard label={'Alertas (' + GRAFO.MIN_LEGAJOS_ALERTA + '+ legajos)'} val={conAlerta.length}
           col={conAlerta.length?T.RED:T.GREEN} icon="🚨"/>
         <StatCard label="Legajos en la red" val={new Set(compartidas.reduce(function(a,c){ return a.concat(c.legajos.map(function(l){return l.id;})); },[])).size} col={T.VIOLET} icon="📁"/>
-        <StatCard label="Períodos analizados" val={periodos.filter(function(p){return p.metricas;}).length} col={T.TEXT3} icon="📊"/>
+        <StatCard label="Períodos analizados" val={periodosEnRed.filter(function(p){return p.metricas;}).length} col={T.TEXT3} icon="📊"/>
       </div>
 
       {/* Grafo */}
