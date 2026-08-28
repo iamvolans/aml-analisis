@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { BarChart, Bar, LineChart, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, Pill, StatCard, chartGrid, chartAxis, chartTooltip } from "../components/ui";
-import { calcScoring, detectPatrones, lineaBase, metricasDe } from "../lib/aml";
+import { calcScoring, detectPatrones, lineaBase, metricasDe, resolucionDe } from "../lib/aml";
 import { getEstadoCaso, slaCritico, colorSLA } from "../lib/casos";
 import { todosLosVencimientos, fmtFecha, colorVenc, esConfiable } from "../lib/vencimientos";
 import { ESTADOS_CUENTA, getEstado } from "../lib/constants";
@@ -77,7 +77,7 @@ function DashboardView(props) {
   // Helper: obtener señales activas (no resueltas) de un período
   function getSigsActivas(sigs, sigsResolucion) {
     if (!sigsResolucion) return sigs;
-    return sigs.filter(function(s){ var r = sigsResolucion[s.pat]; return !r || r.estado !== 'RESUELTA'; });
+    return sigs.filter(function(s){ var r = resolucionDe(sigsResolucion, s); return !r || r.estado !== 'RESUELTA'; });
   }
 
   var allSigs = [];

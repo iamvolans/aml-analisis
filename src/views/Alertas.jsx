@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { SevBadge, SortTh, TableCard, Drawer, EmptyState, TD } from "../components/ui";
+import { toast, uiConfirm } from "../components/feedback";
+import { auditLog, puedeAprobar } from "../lib/auth";
 import { nuevoCaso, refCaso } from "../lib/casos";
-import { senalesActivas } from "../lib/aml";
+import { senalesActivas, claveResolucion, periodosDuplicados } from "../lib/aml";
 import { serverLoadKVPrefix } from "../lib/sync";
+import { uid } from "../lib/utils";
 import { T } from "../lib/theme";
 import { parseFechaAR, sevColor, todayStr } from "../lib/utils";
 
@@ -88,6 +91,107 @@ function AlertasView(props) {
   // Señal abierta en el drawer
   var selSigState = useState(null); var selSigKey=selSigState[0]; var setSelSigKey=selSigState[1];
 
+  // ── Regularización masiva ──────────────────────────────────────────────────
+  // Alertas que fueron efectivamente resueltas fuera del sistema, contra
+  // documentación recibida del cliente, y que quedaron abiertas por no haberse
+  // asentado. Cerrarlas de a una es inviable cuando son cientos.
+  //
+  // El registro NO simula un análisis individual: cada resolución queda marcada
+  // como regularización masiva, con su lote, su fundamento y dónde se encuentra
+  // el respaldo. Un revisor tiene que poder distinguirlas de un análisis caso a
+  // caso, porque no lo son.
+  var masivoState = useState(false); var verMasivo=masivoState[0]; var setVerMasivo=masivoState[1];
+  var mSelState = useState([]); var mSel=mSelState[0]; var setMSel=mSelState[1];
+  var mFundState = useState(''); var mFund=mFundState[0]; var setMFund=mFundState[1];
+  var mRespState = useState(''); var mResp=mRespState[0]; var setMResp=mRespState[1];
+  var mHastaState = useState(''); var mHasta=mHastaState[0]; var setMHasta=mHastaState[1];
+
+  function toggleMasivo(clave) {
+    setMSel(function(prev){
+      return prev.indexOf(clave) >= 0 ? prev.filter(function(x){return x!==clave;}) : prev.concat([clave]);
+    });
+  }
+
+  async function regularizarSeleccionadas(lista) {
+    if (!lista.length) { toast('No seleccionaste ninguna alerta.'); return; }
+    if (!mFund.trim()) { toast('El fundamento es obligatorio: queda como evidencia de por qué se cierran.'); return; }
+    if (!mResp.trim()) { toast('Indicá dónde se encuentra la documentación de respaldo.'); return; }
+
+    if (!(await uiConfirm(
+      'Se van a cerrar ' + lista.length + ' alerta(s) como REGULARIZACIÓN MASIVA.\n\n' +
+      'Cada una queda asentada como cierre por lote, no como análisis individual, con el ' +
+      'fundamento y la ubicación del respaldo que indicaste.\n\n' +
+      'La acción queda registrada en la auditoría y es reversible señal por señal.',
+      {danger:true, confirmLabel:'Cerrar ' + lista.length + ' alerta(s)'}))) return;
+
+    var lote = 'REG-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' +
+               Math.random().toString(36).slice(2,6).toUpperCase();
+    var porPeriodo = {};
+    lista.forEach(function(h){
+      if (!porPeriodo[h.periodoId]) porPeriodo[h.periodoId] = [];
+      porPeriodo[h.periodoId].push(h);
+    });
+
+    var updated = periodos.map(function(p){
+      var delP = porPeriodo[p.id];
+      if (!delP) return p;
+      var newRes = Object.assign({}, p.sigsResolucion || {});
+      delP.forEach(function(h){
+        newRes[claveResolucion(h)] = {
+          estado: 'RESUELTA',
+          explicacion: mFund.trim(),
+          respaldo: mResp.trim(),
+          lote: lote,
+          regularizacionMasiva: true,
+          aprobadoPor: currentUser.nombre || 'Analista',
+          aprobadoAt: todayStr(),
+        };
+      });
+      return Object.assign({}, p, { sigsResolucion: newRes });
+    });
+
+    setPeriodos(updated);
+    setMSel([]); setVerMasivo(false); setMFund(''); setMResp(''); setMHasta('');
+    auditLog(currentUser, 'regularizacion_masiva_senales', 'alertas', lote, {
+      lote: lote, cantidad: lista.length,
+      periodos: Object.keys(porPeriodo).length,
+      fundamento: mFund.trim(), respaldo: mResp.trim()
+    });
+    toast('✓ ' + lista.length + ' alerta(s) regularizadas — lote ' + lote);
+  }
+
+  // ── Mantenimiento (solo supervisor u Oficial de Cumplimiento) ─────────────
+  var mantState = useState(false); var verMant=mantState[0]; var setVerMant=mantState[1];
+  var justState = useState(''); var justLote=justState[0]; var setJustLote=justState[1];
+  var corteLoteState = useState(''); var corteLote=corteLoteState[0]; var setCorteLote=corteLoteState[1];
+  var trabajandoState = useState(false); var trabajando=trabajandoState[0]; var setTrabajando=trabajandoState[1];
+  var puedeMantener = puedeAprobar(currentUser.rol);
+
+  // ── Períodos duplicados ───────────────────────────────────────────────────
+  // Mismo legajo y mismo nombre de período. Cada duplicado genera su propio
+  // juego de señales, y por eso una misma alerta aparece repetida en la lista.
+  var gruposDup = (function(){
+    var m = {};
+    periodos.forEach(function(p){
+      var k = p.legajoId + '||' + (p.nombre || '').trim().toLowerCase();
+      (m[k] = m[k] || []).push(p);
+    });
+    return Object.keys(m).map(function(k){ return m[k]; })
+      .filter(function(g){ return g.length > 1; })
+      .map(function(g){
+        // Se conserva el más reciente por fecha de carga; los demás sobran
+        var ord = g.slice().sort(function(a,b){
+          var fa = parseFechaAR(a.createdAt), fb = parseFechaAR(b.createdAt);
+          return (fb ? fb.getTime() : 0) - (fa ? fa.getTime() : 0);
+        });
+        var leg = legajos.find(function(l){ return l.id === ord[0].legajoId; });
+        return { conservar: ord[0], sobrantes: ord.slice(1),
+                 legajoNom: (leg && leg.razonSocial) || 'N/D', nombre: ord[0].nombre };
+      })
+      .sort(function(a,b){ return b.sobrantes.length - a.sobrantes.length; });
+  })();
+  var totalSobrantes = gruposDup.reduce(function(a,g){ return a + g.sobrantes.length; }, 0);
+
   // RFIs de TODOS los legajos — cargados desde Supabase KV ('rfi_<legajoId>') en
   // una sola query. Reemplaza el loop muerto de localStorage que dejaba la
   // pestaña de RFIs vencidos siempre en cero.
@@ -162,12 +266,95 @@ function AlertasView(props) {
     }
   });
 
+  // ── Eliminar períodos duplicados ─────────────────────────────────────────
+  async function limpiarDuplicados() {
+    if (!totalSobrantes) return;
+    if (!(await uiConfirm(
+      'Se eliminarán ' + totalSobrantes + ' período(s) duplicado(s), conservando en cada caso el de ' +
+      'carga más reciente.\n\nEsto elimina esos períodos y sus transacciones. Las señales que hoy ' +
+      'aparecen repetidas dejarán de duplicarse.\n\nNo se puede deshacer.',
+      {danger:true, confirmLabel:'Eliminar ' + totalSobrantes + ' duplicado(s)'}))) return;
+
+    setTrabajando(true);
+    var aBorrar = [];
+    gruposDup.forEach(function(g){ g.sobrantes.forEach(function(p){ aBorrar.push(p.id); }); });
+    var quedan = periodos.filter(function(p){ return aBorrar.indexOf(p.id) < 0; });
+    setPeriodos(quedan);
+    if (props.onSync) props.onSync(legajos, quedan, [], aBorrar);
+    auditLog(currentUser, 'eliminar_periodos_duplicados', 'periodo', '',
+             { cantidad: aBorrar.length, grupos: gruposDup.length });
+    setTrabajando(false);
+    toast('✓ ' + aBorrar.length + ' período(s) duplicado(s) eliminado(s).');
+  }
+
+  // ── Resolución en lote ────────────────────────────────────────────────────
+  // Existe para regularizar señales que fueron analizadas y cerradas fuera del
+  // sistema. Se restringe deliberadamente: exige rol de decisión, una fecha de
+  // corte que impide barrer señales nuevas, y un fundamento escrito que se
+  // asienta en CADA señal junto con un identificador de lote, de modo que una
+  // revisión posterior pueda distinguir un cierre masivo de un análisis
+  // individual.
+  function senalesDelLote() {
+    if (!corteLote) return [];
+    var pz = corteLote.split('-');
+    var limite = new Date(pz[0], pz[1]-1, pz[2], 23, 59, 59);
+    return allSigs.filter(function(sg){
+      var f = parseFechaAR(sg.per && sg.per.createdAt);
+      return f && f <= limite;
+    });
+  }
+
+  async function resolverLote() {
+    var lote = senalesDelLote();
+    if (!lote.length) { toast('No hay señales anteriores a esa fecha.'); return; }
+    if (justLote.trim().length < 25) {
+      toast('El fundamento debe ser específico: describí qué documentación respalda estos cierres.');
+      return;
+    }
+    if (!(await uiConfirm(
+      'Se cerrarán ' + lote.length + ' señal(es) de períodos cargados hasta el ' +
+      corteLote.split('-').reverse().join('/') + '.\n\nCada una quedará asentada con tu nombre, la ' +
+      'fecha y el fundamento, e identificada como cierre en lote.\n\nLas señales posteriores a esa ' +
+      'fecha no se tocan.',
+      {danger:true, confirmLabel:'Cerrar ' + lote.length + ' señal(es)'}))) return;
+
+    setTrabajando(true);
+    var loteId = 'LOTE-' + todayStr().replace(/\//g,'') + '-' + uid().slice(0,4).toUpperCase();
+    var porPeriodo = {};
+    lote.forEach(function(sg){ (porPeriodo[sg.periodoId] = porPeriodo[sg.periodoId] || []).push(sg.pat); });
+
+    var actualizados = periodos.map(function(p){
+      var pats = porPeriodo[p.id];
+      if (!pats) return p;
+      var res = Object.assign({}, p.sigsResolucion || {});
+      pats.forEach(function(pat){
+        res[pat] = {
+          estado: 'RESUELTA',
+          explicacion: justLote.trim(),
+          aprobadoPor: currentUser.nombre || 'N/D',
+          aprobadoAt: todayStr(),
+          masiva: true,
+          loteId: loteId
+        };
+      });
+      return Object.assign({}, p, { sigsResolucion: res });
+    });
+
+    setPeriodos(actualizados);
+    if (props.onSync) props.onSync(legajos, actualizados, [], []);
+    auditLog(currentUser, 'resolver_senales_lote', 'senal', loteId,
+             { loteId: loteId, cantidad: lote.length, hasta: corteLote, fundamento: justLote.trim() });
+    setTrabajando(false);
+    setJustLote(''); setVerMant(false);
+    toast('✓ ' + lote.length + ' señal(es) cerradas — lote ' + loteId);
+  }
+
   // ── Resolver señal ───────────────────────────────────────────────────────────
   function resolverSenal(sig, justificacion) {
     var updatedPers = periodos.map(function(p){
       if (p.id !== sig.periodoId) return p;
       var newRes = Object.assign({}, p.sigsResolucion||{});
-      newRes[sig.pat] = {
+      newRes[claveResolucion(sig)] = {
         estado: 'RESUELTA',
         explicacion: justificacion || 'Resuelta desde panel de Alertas.',
         aprobadoPor: currentUser.nombre || 'Analista',
@@ -312,10 +499,62 @@ function AlertasView(props) {
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
         <h2 style={{color:T.TEXT,margin:0,fontSize:19,fontWeight:700}}>Centro de Alertas</h2>
+        {tab==='senales' && puedeAprobar(currentUser.rol) && (
+          <button onClick={function(){setVerMasivo(!verMasivo); setMSel([]);}}
+            style={{marginLeft:'auto',background:verMasivo?T.ACCENT_SOFT:'transparent',
+              color:verMasivo?T.ACCENT:T.TEXT2,border:'1px solid '+(verMasivo?T.ACCENT_DIM:T.BORDER2),
+              borderRadius:T.RADIUS.sm,padding:'6px 13px',cursor:'pointer',fontSize:12,
+              fontWeight:verMasivo?600:500,fontFamily:T.SANS}}>
+            {verMasivo ? '✕ Salir de regularización' : '☑ Regularizar en lote'}
+          </button>
+        )}
         <span style={{background:totalAlertas>0?'rgba(255,68,85,0.16)':'rgba(0,230,118,0.16)',color:totalAlertas>0?T.RED:T.GREEN,borderRadius:T.RADIUS.pill,padding:'2px 11px',fontSize:10,fontWeight:700,fontFamily:T.MONO}}>
           {totalAlertas > 0 ? totalAlertas+' activas' : '✓ Sin alertas'}
         </span>
       </div>
+
+      {/* ── Períodos duplicados ────────────────────────────────────────────
+          La misma alerta repetida N veces casi siempre significa N períodos
+          idénticos, no una falla de detección. */}
+      {(function(){
+        var dups = periodosDuplicados(periodos);
+        if (!dups.length) return null;
+        var redundantes = dups.reduce(function(a,d){ return a + d.redundantes.length; }, 0);
+        return (
+          <div style={{background:'rgba(255,184,48,0.07)',border:'1px solid rgba(255,184,48,0.3)',
+            borderLeft:'3px solid '+T.AMBER,borderRadius:T.RADIUS.md,padding:'12px 15px',marginBottom:14}}>
+            <div style={{fontSize:11.5,fontWeight:700,color:T.AMBER,marginBottom:7}}>
+              ⚠ {dups.length} período(s) cargado(s) más de una vez
+            </div>
+            <div style={{fontSize:11.5,color:T.TEXT2,lineHeight:1.7,marginBottom:9}}>
+              Hay <strong>{redundantes} período(s) redundante(s)</strong>: mismo cliente, mismo nombre y
+              mismas métricas. Cada copia emite su propio juego de señales, y por eso una misma alerta
+              aparece repetida en la bandeja. No es un error de detección.
+              <div style={{marginTop:5,color:T.TEXT3}}>
+                Se depuran desde <strong>Análisis</strong>, eliminando las copias sobrantes de cada período.
+                Conviene hacerlo antes de regularizar, para no cerrar alertas de períodos que van a borrarse.
+              </div>
+            </div>
+            {dups.slice(0,6).map(function(d,i){
+              var leg = legajos.find(function(l){ return l.id === d.legajoId; });
+              return (
+                <div key={i} style={{display:'flex',gap:10,alignItems:'center',padding:'4px 0',
+                  borderTop:'1px solid '+T.BORDER,fontSize:11}}>
+                  <span style={{flex:1,color:T.TEXT2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                    {(leg && leg.razonSocial) || 'N/D'} · <span style={{fontFamily:T.MONO}}>{d.nombre}</span>
+                  </span>
+                  <span style={{fontFamily:T.MONO,fontWeight:700,color:T.AMBER,whiteSpace:'nowrap'}}>
+                    {d.copias} copias
+                  </span>
+                </div>
+              );
+            })}
+            {dups.length > 6 && (
+              <div style={{fontSize:10.5,color:T.TEXT3,marginTop:7}}>y {dups.length-6} más.</div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Tabs */}
       <div style={{display:'flex',gap:4,marginBottom:14,background:T.BG3,borderRadius:T.RADIUS.sm+2,padding:4,border:'1px solid '+T.BORDER}}>
@@ -364,6 +603,77 @@ function AlertasView(props) {
         )}
       </div>
 
+      {/* ── Panel de regularización masiva ── */}
+      {verMasivo && tab==='senales' && (function(){
+        var elegidas = sigsFiltradas.filter(function(h){ return mSel.indexOf(h.clave) >= 0; });
+        return (
+          <div style={{background:T.BG2,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.md,
+            padding:'16px 18px',marginBottom:14,boxShadow:T.SHADOW.card}}>
+            <div style={{fontSize:13,fontWeight:600,color:T.TEXT,marginBottom:8}}>
+              Regularización de alertas resueltas fuera del sistema
+            </div>
+            <div style={{fontSize:11.5,color:T.TEXT2,lineHeight:1.7,marginBottom:14}}>
+              Para alertas que <strong>ya fueron analizadas y resueltas</strong> contra documentación
+              recibida del cliente, y que quedaron abiertas por no haberse asentado en la herramienta.
+              <div style={{marginTop:6,color:T.TEXT3}}>
+                Cada cierre queda marcado como <strong>regularización por lote</strong>, con su fundamento
+                y la ubicación del respaldo. No se registra como análisis individual, porque no lo fue:
+                un revisor tiene que poder distinguirlos.
+              </div>
+            </div>
+
+            <div style={{display:'flex',gap:9,marginBottom:11,flexWrap:'wrap',alignItems:'center'}}>
+              <button onClick={function(){
+                  setMSel(elegidas.length === sigsFiltradas.length ? [] : sigsFiltradas.map(function(h){return h.clave;}));
+                }}
+                style={{background:'transparent',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,
+                  padding:'6px 12px',cursor:'pointer',fontSize:11,fontWeight:600,color:T.TEXT2,fontFamily:T.SANS}}>
+                {elegidas.length === sigsFiltradas.length ? 'Desmarcar todas' : 'Marcar las ' + sigsFiltradas.length + ' visibles'}
+              </button>
+              <span style={{fontSize:11,color:T.TEXT3,fontFamily:T.MONO}}>
+                {elegidas.length} de {sigsFiltradas.length} seleccionadas
+              </span>
+              <span style={{fontSize:10.5,color:T.TEXT4}}>
+                Usá los filtros de arriba para acotar por cliente o severidad antes de marcar.
+              </span>
+            </div>
+
+            <div style={{marginBottom:10}}>
+              <label style={{display:'block',fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:5}}>
+                Fundamento del cierre <span style={{color:T.RED}}>*</span>
+              </label>
+              <textarea value={mFund} onChange={function(e){setMFund(e.target.value);}} rows={3}
+                placeholder="Ej: alertas analizadas y resueltas entre marzo y junio de 2026 contra documentación respaldatoria remitida por los clientes, con anterioridad a la puesta en régimen de la herramienta."
+                style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'9px 11px',fontSize:12,resize:'vertical',lineHeight:1.6,boxSizing:'border-box'}}/>
+            </div>
+
+            <div style={{marginBottom:12}}>
+              <label style={{display:'block',fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:5}}>
+                Dónde está el respaldo <span style={{color:T.RED}}>*</span>
+              </label>
+              <input value={mResp} onChange={function(e){setMResp(e.target.value);}}
+                placeholder="Ej: carpeta compartida Compliance/2026/Respaldos alertas — expedientes por cliente"
+                style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'8px 11px',fontSize:12,boxSizing:'border-box'}}/>
+              <div style={{fontSize:10.5,color:T.TEXT4,marginTop:4}}>
+                Un cierre sin indicación de dónde está la documentación no es acreditable ante una revisión.
+              </div>
+            </div>
+
+            <button onClick={function(){regularizarSeleccionadas(elegidas);}}
+              disabled={!elegidas.length || !mFund.trim() || !mResp.trim()}
+              style={{width:'100%',
+                background:(elegidas.length && mFund.trim() && mResp.trim()) ? 'rgba(0,230,118,0.15)' : T.BG3,
+                color:(elegidas.length && mFund.trim() && mResp.trim()) ? T.GREEN : T.TEXT4,
+                border:'1px solid '+((elegidas.length && mFund.trim() && mResp.trim()) ? 'rgba(0,230,118,0.3)' : T.BORDER),
+                borderRadius:T.RADIUS.sm,padding:'10px 0',
+                cursor:(elegidas.length && mFund.trim() && mResp.trim()) ? 'pointer' : 'not-allowed',
+                fontWeight:700,fontSize:13,fontFamily:T.SANS}}>
+              {elegidas.length ? '✓ Regularizar ' + elegidas.length + ' alerta(s)' : 'Seleccioná al menos una alerta'}
+            </button>
+          </div>
+        );
+      })()}
+
       {/* ── TAB: SEÑALES ── */}
       {tab==='senales' && (
         allSigs.length===0 ? (
@@ -374,6 +684,7 @@ function AlertasView(props) {
           <TableCard>
             <thead>
               <tr>
+                {verMasivo && <th style={Object.assign({},TD,{width:36,background:T.BG3,position:'sticky',top:0,zIndex:2,borderBottom:'1px solid '+T.BORDER2})}></th>}
                 <SortTh k="sev" label="Sev." sortBy={sortBy} onSort={toggleSort} extra={{width:86}}/>
                 <SortTh k="pat" label="Patrón" sortBy={sortBy} onSort={toggleSort} extra={{width:86}}/>
                 <SortTh k="titulo" label="Señal" sortBy={sortBy} onSort={toggleSort}/>
@@ -385,8 +696,13 @@ function AlertasView(props) {
             <tbody>
               {sigsFiltradas.map(function(s){
                 return (
-                  <tr key={s.key} onClick={function(){setSelSigKey(s.key);}}
-                    style={{cursor:'pointer',background:selSigKey===s.key?T.ACCENT_SOFT:'transparent',transition:T.TRANS}}>
+                  <tr key={s.key} onClick={function(){ if (verMasivo) { toggleMasivo(s.clave); } else { setSelSigKey(s.key); } }}
+                    style={{cursor:'pointer',background:(verMasivo && mSel.indexOf(s.clave)>=0)?T.ACCENT_SOFT:(selSigKey===s.key?T.ACCENT_SOFT:'transparent'),transition:T.TRANS}}>
+                    {verMasivo && (
+                      <td style={Object.assign({},TD,{width:36})}>
+                        <input type="checkbox" readOnly checked={mSel.indexOf(s.clave)>=0} style={{pointerEvents:'none'}}/>
+                      </td>
+                    )}
                     <td style={Object.assign({},TD,{borderLeft:'3px solid '+sevColor(s.sev)})}><SevBadge sev={s.sev}/></td>
                     <td style={Object.assign({},TD,{fontFamily:T.MONO,fontSize:11,color:T.ACCENT,fontWeight:600})}>{s.pat}</td>
                     <td style={Object.assign({},TD,{color:T.TEXT,fontWeight:500})}>{s.titulo}</td>

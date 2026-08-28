@@ -307,19 +307,69 @@ function metricasDe(periodo, legajo) {
 // El tercer parámetro es el array COMPLETO de períodos. Sin él los patrones de
 // comportamiento (PAT-13/14/15) no activan, porque no hay contra qué comparar.
 // Todos los call sites lo tienen en scope: pasarlo siempre.
+// Clave con la que se guarda la resolución de una señal.
+//
+// Antes se usaba solo el código de patrón, pero un mismo patrón puede emitir
+// señales distintas en el mismo período: PAT-06 produce una para cash-in y otra
+// para cash-out. Con la clave vieja, resolver una resolvía la otra en silencio.
+//
+// Las resoluciones ya guardadas usan la clave vieja, así que la lectura la
+// contempla como alternativa: lo anterior sigue funcionando y lo nuevo es
+// preciso.
+function claveResolucion(s) {
+  return s.pat + '::' + (s.titulo || '');
+}
+function resolucionDe(res, s) {
+  if (!res) return null;
+  return res[claveResolucion(s)] || res[s.pat] || null;
+}
+
 function senalesActivas(periodo, legajo, periodos) {
   var m = metricasDe(periodo, legajo);
   if (!m) return [];
   var base = periodos ? lineaBase(periodo, legajo, periodos) : null;
   var res = (periodo && periodo.sigsResolucion) || {};
   return detectPatrones(m, legajo, base).filter(function(s) {
-    var r = res[s.pat];
+    var r = resolucionDe(res, s);
     return !r || r.estado !== 'RESUELTA';
   });
+}
+
+// ── Períodos duplicados ─────────────────────────────────────────────────────
+// Cargar dos veces el mismo archivo crea dos períodos independientes, y cada uno
+// emite su propio juego de señales. En la bandeja se ven como la misma alerta
+// repetida, cuando en realidad son períodos distintos con idéntico contenido.
+function periodosDuplicados(periodos) {
+  var porClave = {};
+  (periodos || []).forEach(function(p){
+    // Mismo legajo, mismo nombre y mismas métricas agregadas = mismo período
+    var m = p.metricas;
+    var firma = p.legajoId + '|' + (p.nombre || '') + '|' +
+                (m ? [m.totalTxns, Math.round(m.tIn), Math.round(m.tOut)].join(',') : 'sin-metricas');
+    if (!porClave[firma]) porClave[firma] = [];
+    porClave[firma].push(p);
+  });
+  return Object.keys(porClave)
+    .filter(function(k){ return porClave[k].length > 1; })
+    .map(function(k){
+      var grupo = porClave[k].slice().sort(function(a,b){
+        return String(a.createdAt||'').localeCompare(String(b.createdAt||''));
+      });
+      return {
+        firma: k,
+        legajoId: grupo[0].legajoId,
+        nombre: grupo[0].nombre,
+        copias: grupo.length,
+        // Se conserva el primero; los demás son los redundantes
+        conservar: grupo[0],
+        redundantes: grupo.slice(1)
+      };
+    })
+    .sort(function(a,b){ return b.copias - a.copias; });
 }
 
 function contarAlta(periodo, legajo, periodos) {
   return senalesActivas(periodo, legajo, periodos).filter(function(s){ return s.sev === 'ALTA'; }).length;
 }
 
-export { calcMetricas, detectPatrones, calcScoring, metricasDe, senalesActivas, contarAlta, lineaBase, COMPORTAMIENTO };
+export { calcMetricas, detectPatrones, calcScoring, metricasDe, senalesActivas, contarAlta, lineaBase, COMPORTAMIENTO, claveResolucion, resolucionDe, periodosDuplicados };

@@ -312,7 +312,11 @@ export default function App() {
     ['casos',     Briefcase,       'Casos'],
     ['vencimientos', CalendarClock, 'Vencimientos'],
     ['screening', ShieldCheck,   'Screening'],
-    ['red',       Share2,        'Red'],
+    // Red — OCULTA TEMPORALMENTE a pedido de Compliance (28/08/2026).
+    // La vista y su ruta siguen existiendo: solo se quita del menú mientras se
+    // depuran las alertas y los períodos duplicados. Para reactivarla, quitar
+    // el comentario de la línea siguiente.
+    // ['red',       Share2,        'Red'],
     ['comite',    FileBarChart,  'Informe de gestión'],
     ['normativa', Scale,           'Normativa'],
     ['patrones',  Radar,           'Patrones AML'],
@@ -600,7 +604,7 @@ export default function App() {
           {view==='dashboard' ? <DashboardView casos={casos} ultScreening={ultScreening} onVerCaso={handleVerCaso} onNavigate={function(v){setView(v);}} legajos={legajos} periodos={periodos} setLegajos={setLegajos}/> : null}
           {view==='legajos' ? <LegajosView ultScreening={ultScreening} casos={casos} key={'leg-'+(legTarget||'')} initSelId={legTarget} legajos={legajos} setLegajos={setLegajos} periodos={periodos} setPeriodos={setPeriodos} onAnalizar={handleAnalizar} onReport={function(html){setReportHTML(html);}} onSync={syncToCloud} currentUser={currentUser}/> : null}
           {view==='analisis' ? <AnalisisView legajos={legajos} periodos={periodos} setPeriodos={setPeriodos} onReport={function(html){setReportHTML(html);}} initLegajo={analTarget.leg} initPeriodo={analTarget.per} onSync={syncToCloud} currentUser={currentUser}/> : null}
-          {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos} setPeriodos={setPeriodos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onNavAnalisis={handleAnalizar} onVerCaso={handleVerCaso} currentUser={currentUser}/> : null}
+          {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos} setPeriodos={setPeriodos} onSync={syncToCloud} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onNavAnalisis={handleAnalizar} onVerCaso={handleVerCaso} currentUser={currentUser}/> : null}
           {view==='comite' ? <ComiteView casos={casos} legajos={legajos} periodos={periodos} onReport={function(html){setReportHTML(html);}} currentUser={currentUser}/> : null}
           {view==='red' ? <RedView legajos={legajos} periodos={periodos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onVerCaso={handleVerCaso} onOpenLegajo={function(id){setLegTarget(id);setView('legajos');}} currentUser={currentUser}/> : null}
           {view==='screening' ? <ScreeningView legajos={legajos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onVerCaso={handleVerCaso} currentUser={currentUser}/> : null}
