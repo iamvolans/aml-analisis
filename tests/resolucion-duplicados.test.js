@@ -120,3 +120,42 @@ describe('períodos duplicados', () => {
     expect(periodosDuplicados(pers)[0].copias).toBe(3);
   });
 });
+
+// ── Identificador de señal en la bandeja de alertas ────────────────────────
+// La bandeja arma una clave por señal para poder seleccionarlas y resolverlas.
+// Dos defectos reales que tuvo:
+//   · la clave era `periodoId + '_' + pat`, y como PAT-06 emite dos variantes,
+//     ambas compartían identificador;
+//   · el modo de selección múltiple leía `s.clave`, propiedad que no existe en
+//     este objeto —se llama `key`—, con lo que todas las filas alternaban el
+//     mismo valor `undefined` y se marcaban o desmarcaban en bloque.
+describe('identificador de señal en la bandeja', () => {
+  function claveBandeja(periodoId, s) { return periodoId + '::' + claveResolucion(s); }
+
+  it('dos variantes del mismo patrón tienen identificadores distintos', () => {
+    const sigs = detectPatrones(calcMetricas(concentrado()), {}).filter(s => s.pat === 'PAT-06');
+    expect(sigs.length).toBe(2);
+    const a = claveBandeja('p1', sigs[0]);
+    const b = claveBandeja('p1', sigs[1]);
+    expect(a).not.toBe(b);
+  });
+
+  it('la misma señal en períodos distintos tiene identificadores distintos', () => {
+    const s0 = detectPatrones(calcMetricas(concentrado()), {})[0];
+    expect(claveBandeja('p1', s0)).not.toBe(claveBandeja('p2', s0));
+  });
+
+  it('todas las señales de un período producen identificadores únicos', () => {
+    const sigs = detectPatrones(calcMetricas(concentrado()), {});
+    const claves = sigs.map(s => claveBandeja('p1', s));
+    expect(new Set(claves).size).toBe(claves.length);
+  });
+
+  it('el identificador no es undefined para ninguna señal', () => {
+    detectPatrones(calcMetricas(concentrado()), {}).forEach(s => {
+      const k = claveBandeja('p1', s);
+      expect(k).toBeTruthy();
+      expect(k).not.toContain('undefined');
+    });
+  });
+});

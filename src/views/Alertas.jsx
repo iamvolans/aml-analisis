@@ -223,7 +223,11 @@ function AlertasView(props) {
     var leg = legajos.find(function(l){return l.id===p.legajoId;});
     senalesActivas(p, leg, periodos).forEach(function(s) {
       allSigs.push(Object.assign({}, s, {
-        key: p.id + '_' + s.pat,
+        // Identificador único de la señal dentro del período. Debe incluir el
+        // título porque un mismo patrón emite variantes distintas —PAT-06 da
+        // una para cash-in y otra para cash-out— y con la clave por patrón
+        // ambas quedaban indistinguibles al seleccionarlas o resolverlas.
+        key: p.id + '::' + claveResolucion(s),
         legajoNom: (leg&&leg.razonSocial)||'N/D',
         legajoId:  p.legajoId,
         periodoId: p.id,
@@ -364,7 +368,7 @@ function AlertasView(props) {
     });
     setPeriodos(updatedPers);
     var newMap = Object.assign({}, justMap);
-    delete newMap[sig.periodoId+'_'+sig.pat];
+    delete newMap[sig.key];
     setJustMap(newMap);
     setSelSigKey(null);
   }
@@ -605,7 +609,7 @@ function AlertasView(props) {
 
       {/* ── Panel de regularización masiva ── */}
       {verMasivo && tab==='senales' && (function(){
-        var elegidas = sigsFiltradas.filter(function(h){ return mSel.indexOf(h.clave) >= 0; });
+        var elegidas = sigsFiltradas.filter(function(h){ return mSel.indexOf(h.key) >= 0; });
         return (
           <div style={{background:T.BG2,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.md,
             padding:'16px 18px',marginBottom:14,boxShadow:T.SHADOW.card}}>
@@ -624,7 +628,7 @@ function AlertasView(props) {
 
             <div style={{display:'flex',gap:9,marginBottom:11,flexWrap:'wrap',alignItems:'center'}}>
               <button onClick={function(){
-                  setMSel(elegidas.length === sigsFiltradas.length ? [] : sigsFiltradas.map(function(h){return h.clave;}));
+                  setMSel(elegidas.length === sigsFiltradas.length ? [] : sigsFiltradas.map(function(h){return h.key;}));
                 }}
                 style={{background:'transparent',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,
                   padding:'6px 12px',cursor:'pointer',fontSize:11,fontWeight:600,color:T.TEXT2,fontFamily:T.SANS}}>
@@ -696,11 +700,11 @@ function AlertasView(props) {
             <tbody>
               {sigsFiltradas.map(function(s){
                 return (
-                  <tr key={s.key} onClick={function(){ if (verMasivo) { toggleMasivo(s.clave); } else { setSelSigKey(s.key); } }}
-                    style={{cursor:'pointer',background:(verMasivo && mSel.indexOf(s.clave)>=0)?T.ACCENT_SOFT:(selSigKey===s.key?T.ACCENT_SOFT:'transparent'),transition:T.TRANS}}>
+                  <tr key={s.key} onClick={function(){ if (verMasivo) { toggleMasivo(s.key); } else { setSelSigKey(s.key); } }}
+                    style={{cursor:'pointer',background:(verMasivo && mSel.indexOf(s.key)>=0)?T.ACCENT_SOFT:(selSigKey===s.key?T.ACCENT_SOFT:'transparent'),transition:T.TRANS}}>
                     {verMasivo && (
                       <td style={Object.assign({},TD,{width:36})}>
-                        <input type="checkbox" readOnly checked={mSel.indexOf(s.clave)>=0} style={{pointerEvents:'none'}}/>
+                        <input type="checkbox" readOnly checked={mSel.indexOf(s.key)>=0} style={{pointerEvents:'none'}}/>
                       </td>
                     )}
                     <td style={Object.assign({},TD,{borderLeft:'3px solid '+sevColor(s.sev)})}><SevBadge sev={s.sev}/></td>
