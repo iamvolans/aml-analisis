@@ -4,7 +4,8 @@ import { toast, uiConfirm } from "../components/feedback";
 import { auditLog } from "../lib/auth";
 import { nuevoCaso, refCaso } from "../lib/casos";
 import { parseTabla, parseTablaExcel, parseTablaJson } from "../lib/parsers";
-import { UMBRALES, correrScreening, filasAEntradasMapeo, sugerirMapeo } from "../lib/screening";
+import { UMBRALES, correrScreening, filasAEntradasMapeo, sugerirMapeo, sujetosDe } from "../lib/screening";
+import { genInformeScreening } from "../lib/reports";
 import { serverLoadKV, serverSaveKV, serverLoadListas, serverSaveLista, serverDeleteLista, serverLoadRuns, serverLoadRun, serverSaveRun } from "../lib/sync";
 import { T } from "../lib/theme";
 import { todayStr } from "../lib/utils";
@@ -20,6 +21,7 @@ function ScreeningView(props) {
   var onSyncCasos = props.onSyncCasos;
   var onVerCaso = props.onVerCaso;
   var currentUser = props.currentUser || {rol:'analista', nombre:'Analista'};
+  var onReport = props.onReport || function(){};
 
   var tabState = useState('resultados'); var tab=tabState[0]; var setTab=tabState[1];
   var listasState = useState([]); var listas=listasState[0]; var setListas=listasState[1];
@@ -34,6 +36,54 @@ function ScreeningView(props) {
   var searchState = useState(''); var search=searchState[0]; var setSearch=searchState[1];
   var sortState = useState({k:'score',d:-1}); var sortBy=sortState[0]; var setSortBy=sortState[1];
   var fileRef = useRef(null);
+
+  // ── Informe de screening por cliente ───────────────────────────────────────
+  var legSelState = useState(''); var legSel=legSelState[0]; var setLegSel=legSelState[1];
+  var generandoState = useState(false); var generando=generandoState[0]; var setGenerando=generandoState[1];
+
+  async function generarInforme(legajoId) {
+    var leg = legajos.find(function(l){ return l.id === legajoId; });
+    if (!leg) { toast('Elegí un cliente.'); return; }
+    if (!listas.length) {
+      toast('No hay listados cargados: el informe diría "sin coincidencias" sin haber cotejado nada.');
+      return;
+    }
+    setGenerando(true);
+    try {
+      // Se recargan las listas completas: el listado en pantalla puede venir
+      // sin entradas si se cargó en modo resumen.
+      var completas = listas.some(function(l){ return !l.entradas; }) ? await serverLoadListas(false) : listas;
+
+      // El motor evalúa la cartera; se acota a este cliente para el informe.
+      var run = correrScreening([leg], completas, descartes, { soloActivos: false });
+
+      // Descartes previos que aplican a este legajo, para informarlos aparte
+      var mios = Object.keys(descartes).filter(function(k){ return k.indexOf(leg.id + '::') === 0; })
+        .map(function(k){
+          var d = descartes[k];
+          return { clave: k, sujeto: k.split('::')[1] || k, motivo: d.motivo, autor: d.autor, fecha: d.fecha };
+        });
+
+      var html = genInformeScreening({
+        legajo: leg,
+        sujetos: sujetosDe(leg),
+        listas: run.listas,
+        hits: run.hits,
+        descartes: mios,
+        umbrales: run.umbrales,
+        usuario: currentUser,
+      });
+      onReport(html);
+      auditLog(currentUser, 'informe_screening_cliente', 'legajo', leg.id, {
+        razonSocial: leg.razonSocial, cuit: leg.cuit,
+        listas: run.listas.length, hits: run.hits.length,
+        sujetos: sujetosDe(leg).length
+      });
+    } catch(e) {
+      toast('No se pudo generar el informe: ' + e.message);
+    }
+    setGenerando(false);
+  }
   // Importación con mapeo de columnas
   var impState = useState(null); var imp=impState[0]; var setImp=impState[1];
 
@@ -425,7 +475,7 @@ function ScreeningView(props) {
 
       {/* Tabs */}
       <div style={{display:'flex',gap:4,marginBottom:14,background:T.BG3,borderRadius:T.RADIUS.sm+2,padding:4,border:'1px solid '+T.BORDER}}>
-        {[['resultados','Resultados'],['listas','Listados ('+listas.length+')'],['historial','Historial ('+runs.length+')'],['descartes','Descartes ('+clavesDesc.length+')']].map(function(t){
+        {[['resultados','Resultados'],['informe','Informe por cliente'],['listas','Listados ('+listas.length+')'],['historial','Historial ('+runs.length+')'],['descartes','Descartes ('+clavesDesc.length+')']].map(function(t){
           var on = tab===t[0];
           return (
             <button key={t[0]} onClick={function(){setTab(t[0]);}}
@@ -505,6 +555,103 @@ function ScreeningView(props) {
             )}
           </div>
         )
+      )}
+
+      {/* ── INFORME POR CLIENTE ── */}
+      {tab==='informe' && (
+        <div>
+          <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,
+            padding:'18px 20px',marginBottom:14,boxShadow:T.SHADOW.card}}>
+            <div style={{fontSize:13,fontWeight:600,color:T.TEXT,marginBottom:7}}>
+              Constancia de cotejo contra listas restrictivas
+            </div>
+            <div style={{fontSize:11.5,color:T.TEXT2,lineHeight:1.7,marginBottom:15}}>
+              Genera un informe firmable del cotejo de un cliente contra la totalidad de los listados
+              cargados. Evalúa <strong>los cinco sujetos del legajo</strong> —razón social con su CUIT,
+              representante legal, presidente, beneficiario final y personas vinculadas—, no únicamente
+              la persona jurídica.
+              <div style={{marginTop:7,color:T.TEXT3}}>
+                El informe declara contra qué listados y con qué versión se cotejó. Un resultado sin
+                coincidencias solo acredita algo si se sabe cuál fue el universo comparado.
+              </div>
+            </div>
+
+            {!listas.length ? (
+              <div style={{background:'rgba(255,68,85,0.07)',border:'1px solid rgba(255,68,85,0.35)',
+                borderLeft:'3px solid '+T.RED,borderRadius:T.RADIUS.md,padding:'12px 14px'}}>
+                <div style={{fontSize:12,fontWeight:700,color:T.RED,marginBottom:5}}>
+                  No hay listados cargados
+                </div>
+                <div style={{fontSize:11.5,color:T.TEXT2,lineHeight:1.65}}>
+                  El informe no se genera sin listados. Emitido en estas condiciones diría
+                  «sin coincidencias» para cualquier cliente, lo que constituiría evidencia engañosa:
+                  no significaría que el cliente está limpio, sino que no había contra qué cotejar.
+                  <div style={{marginTop:6}}>
+                    Cargá al menos un listado desde la pestaña <strong>Listados</strong>.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{display:'flex',gap:9,alignItems:'flex-end',flexWrap:'wrap'}}>
+                  <div style={{flex:'1 1 280px'}}>
+                    <label style={{display:'block',fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:5}}>Cliente</label>
+                    <select value={legSel} onChange={function(e){setLegSel(e.target.value);}}
+                      style={Object.assign({},inputSt,{width:'100%'})}>
+                      <option value="">— Seleccionar cliente —</option>
+                      {legajos.slice().sort(function(a,b){
+                        return (a.razonSocial||'').localeCompare(b.razonSocial||'');
+                      }).map(function(l){
+                        return <option key={l.id} value={l.id}>{(l.razonSocial||'Sin nombre')+' — '+(l.cuit||'CUIT N/D')}</option>;
+                      })}
+                    </select>
+                  </div>
+                  <button onClick={function(){generarInforme(legSel);}} disabled={!legSel || generando}
+                    style={{background:(legSel && !generando)?T.ACCENT:T.BG3,
+                      color:(legSel && !generando)?T.ON_ACCENT:T.TEXT4,
+                      border:'none',borderRadius:T.RADIUS.sm,padding:'9px 18px',
+                      cursor:(legSel && !generando)?'pointer':'not-allowed',
+                      fontSize:12,fontWeight:600,fontFamily:T.SANS}}>
+                    {generando ? '⏳ Generando…' : '📄 Generar informe'}
+                  </button>
+                </div>
+
+                {legSel && (function(){
+                  var leg = legajos.find(function(l){ return l.id === legSel; });
+                  if (!leg) return null;
+                  var sj = sujetosDe(leg);
+                  return (
+                    <div style={{marginTop:16,paddingTop:14,borderTop:'1px solid '+T.BORDER}}>
+                      <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:8}}>
+                        Sujetos que se van a cotejar ({sj.length})
+                      </div>
+                      {sj.length === 0 ? (
+                        <div style={{fontSize:11.5,color:T.AMBER}}>
+                          El legajo no registra sujetos identificables. Completá razón social,
+                          representante legal, presidente o beneficiario final antes de emitir el informe.
+                        </div>
+                      ) : sj.map(function(x,i){
+                        return (
+                          <div key={i} style={{display:'flex',gap:10,padding:'4px 0',fontSize:11.5,alignItems:'center'}}>
+                            <span style={{width:130,color:T.TEXT3,fontSize:10.5}}>{x.rol}</span>
+                            <span style={{flex:1,color:T.TEXT}}>{x.nombre}</span>
+                            <span style={{fontFamily:T.MONO,fontSize:10,color:x.doc?T.TEXT2:T.TEXT4}}>
+                              {x.doc || 'sin documento'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      <div style={{fontSize:10.5,color:T.TEXT4,marginTop:10,lineHeight:1.6}}>
+                        Se cotejarán contra {listas.length} listado(s), totalizando{' '}
+                        {listas.reduce(function(a,l){return a+(l.cantidad||0);},0).toLocaleString('es-AR')} entrada(s).
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── LISTADOS ── */}

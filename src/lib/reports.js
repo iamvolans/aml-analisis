@@ -1481,4 +1481,184 @@ function genInformeComite(datos) {
   return h;
 }
 
-export { pStyles, piH, r2, r3, rpH, rpF, infSec, infBadge, infCallout, infTr2, infTr3, infTbl, infTh, infTd, genINF01, genINF02, genINF07Cierre, genROS, genNotaDD, genLegajoCompleto, genInformeComite };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INFORME DE SCREENING POR CLIENTE
+// ═══════════════════════════════════════════════════════════════════════════
+// Constancia del cotejo de un cliente contra las listas restrictivas cargadas.
+//
+// Su valor probatorio no está en decir "sin coincidencias", sino en declarar
+// CONTRA QUÉ se cotejó: qué listas, con qué versión, cuántas entradas, qué
+// sujetos del legajo se evaluaron y con qué umbrales. Un "sin coincidencias"
+// sin ese encuadre no acredita nada.
+function genInformeScreening(datos) {
+  var legajo   = datos.legajo || {};
+  var sujetos  = datos.sujetos || [];
+  var listas   = datos.listas || [];
+  var hits     = datos.hits || [];
+  var descartes= datos.descartes || [];
+  var umbrales = datos.umbrales || {};
+  var usuario  = datos.usuario || { nombre:'N/D', rol:'N/D' };
+  var ahora = new Date();
+  var fecha = ahora.toLocaleDateString('es-AR');
+  var hora  = ahora.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+
+  function esc(x) {
+    return String(x === null || x === undefined ? '' : x)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function dash(x) { return (x === null || x === undefined || x === '') ? '—' : esc(x); }
+  var sec = infSec, tr2 = infTr2, tbl = infTbl, th = infTh, td = infTd, callout = infCallout;
+
+  var totalEntradas = listas.reduce(function(a,l){ return a + (l.cantidad || 0); }, 0);
+  var pct = function(u){ return Math.round((u || 0) * 100); };
+  var altas  = hits.filter(function(h){ return h.nivel === 'ALTA'; });
+  var medias = hits.filter(function(h){ return h.nivel === 'MEDIA'; });
+  var bajas  = hits.filter(function(h){ return h.nivel === 'BAJA'; });
+
+  var h = '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">'
+    + '<title>Informe de screening — ' + esc(legajo.razonSocial || '') + '</title>'
+    + '<style>' + pStyles()
+    + 'h2{page-break-after:avoid;}tr{page-break-inside:avoid;}.pb{page-break-before:always;}'
+    + '</style></head><body>';
+
+  // ── Portada ──────────────────────────────────────────────────────────────
+  h += '<div style="border:2px solid #1B2A4A;border-radius:4px;padding:26px 24px;margin-bottom:18px">'
+    + '<div style="font-size:8.5pt;color:#4A6A8A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">GOAT S.A. — Rebit · Compliance &amp; PLA/FT</div>'
+    + '<div style="font-size:17pt;font-weight:700;color:#1B2A4A;margin-bottom:3px">INFORME DE COTEJO CONTRA LISTAS RESTRICTIVAS</div>'
+    + '<div style="font-size:13pt;color:#2C4A7C;margin-bottom:16px">' + esc(legajo.razonSocial || 'Sin razón social') + '</div>'
+    + '<table style="font-size:9pt">'
+    + tr2('CUIT', dash(legajo.cuit))
+    + tr2('Segmento de riesgo', dash(legajo.segmento))
+    + tr2('Estado de cuenta', dash(legajo.estadoCuenta))
+    + tr2('Sujetos evaluados', String(sujetos.length))
+    + tr2('Listas consultadas', String(listas.length))
+    + tr2('Entradas cotejadas', totalEntradas.toLocaleString('es-AR'))
+    + tr2('Resultado', hits.length === 0
+        ? '<strong style="color:#27AE60">Sin coincidencias</strong>'
+        : '<strong style="color:#E74C3C">' + hits.length + ' coincidencia(s)</strong>')
+    + '</table>'
+    + '<div style="margin-top:16px;padding-top:12px;border-top:1px solid #D6E4F0;font-size:8.5pt;color:#555">'
+    + 'Emitido el <strong>' + fecha + ' a las ' + hora + '</strong> por <strong>' + esc(usuario.nombre) + '</strong> (' + esc(usuario.rol) + ').<br/>'
+    + 'El cotejo se realiza de forma determinística y local contra los listados detallados en la sección 2. '
+    + 'No se consultan servicios externos durante su ejecución, de modo que el resultado es reproducible '
+    + 'por un tercero que disponga de los mismos listados.'
+    + '</div></div>';
+
+  // ── 1. Sujetos evaluados ─────────────────────────────────────────────────
+  h += sec(1, 'SUJETOS SOMETIDOS A COTEJO');
+  if (!sujetos.length) {
+    h += callout('warn', 'El legajo no registra sujetos identificables para cotejar.');
+  } else {
+    h += tbl(th(['Rol en el legajo','Denominación / Nombre','Documento']),
+        sujetos.map(function(s){
+          return td([esc(s.rol), esc(s.nombre), s.doc ? esc(s.doc) : '<span style="color:#999">no informado</span>']);
+        }).join(''))
+      + '<div style="font-size:8pt;color:#666;margin-top:6px;line-height:1.5">'
+      + 'El cotejo alcanza a la persona jurídica y a quienes la representan o controlan. La ausencia de '
+      + 'documento en un sujeto limita el cotejo a la coincidencia por denominación.'
+      + '</div>';
+  }
+
+  // ── 2. Listas consultadas ────────────────────────────────────────────────
+  h += sec(2, 'LISTADOS CONSULTADOS');
+  if (!listas.length) {
+    h += callout('err', 'No hay listados cargados en el sistema. Sin listados no existe cotejo posible, '
+      + 'y la ausencia de coincidencias en el presente NO debe interpretarse como resultado negativo.');
+  } else {
+    h += tbl(th(['Listado','Fuente','Versión cargada','Entradas']),
+        listas.map(function(l){
+          return td([esc(l.nombre || l.id), dash(l.fuente), dash(l.version),
+                     (l.cantidad || 0).toLocaleString('es-AR')]);
+        }).join(''))
+      + callout('info', 'La versión de cada listado queda registrada para permitir la reproducción del '
+        + 'cotejo. Un resultado solo es verificable si se conoce contra qué universo se comparó.');
+  }
+
+  // ── 3. Metodología ───────────────────────────────────────────────────────
+  h += sec(3, 'METODOLOGÍA Y UMBRALES')
+    + tbl(th(['Criterio','Aplicación','Puntaje']), [
+        td(['Documento', 'Coincidencia exacta de CUIT, CUIL o DNI, con independencia de la grafía del nombre.', '100%']),
+        td(['Denominación exacta', 'Coincidencia literal tras normalizar mayúsculas, tildes y puntuación.', '100%']),
+        td(['Sin sufijo societario', 'Coincidencia ignorando las formas societarias (S.A., S.R.L., S.A.S. y equivalentes).', '98%']),
+        td(['Aproximado', 'Tolera orden invertido de nombre y apellido, plurales y errores de tipeo, con penalización cuando una denominación se encuentra meramente contenida en otra.', 'variable'])
+      ].join(''))
+    + '<table>'
+    + tr2('Umbral de nivel ALTA', '≥ ' + pct(umbrales.ALTA) + '%')
+    + tr2('Umbral de nivel MEDIA', '≥ ' + pct(umbrales.MEDIA) + '%')
+    + tr2('Umbral de nivel BAJA', '≥ ' + pct(umbrales.BAJA) + '%')
+    + '</table>'
+    + '<div style="font-size:8pt;color:#666;margin-top:6px;line-height:1.5">'
+    + 'Los umbrales se encuentran calibrados hacia la sensibilidad: se prefiere revisar coincidencias que '
+    + 'luego resulten descartadas antes que omitir una verdadera. El descarte fundado es el mecanismo '
+    + 'previsto para absorber ese margen.'
+    + '</div>';
+
+  // ── 4. Resultado ─────────────────────────────────────────────────────────
+  h += sec(4, 'RESULTADO DEL COTEJO');
+  if (!listas.length) {
+    h += callout('err', 'Cotejo no ejecutado por ausencia de listados cargados.');
+  } else if (!hits.length) {
+    h += callout('ok', 'No se registraron coincidencias entre los ' + sujetos.length + ' sujeto(s) '
+      + 'evaluado(s) y las ' + totalEntradas.toLocaleString('es-AR') + ' entrada(s) de los '
+      + listas.length + ' listado(s) consultado(s), con los umbrales indicados en la sección 3.');
+  } else {
+    h += '<table>'
+      + tr2('Coincidencias de nivel ALTA', String(altas.length))
+      + tr2('Coincidencias de nivel MEDIA', String(medias.length))
+      + tr2('Coincidencias de nivel BAJA', String(bajas.length))
+      + '</table>'
+      + tbl(th(['Nivel','Puntaje','Sujeto evaluado','Rol','Entrada del listado','Listado','Criterio']),
+          hits.map(function(x){
+            var col = x.nivel==='ALTA' ? '#E74C3C' : x.nivel==='MEDIA' ? '#F39C12' : '#888';
+            return td([infBadge(x.nivel, col), (x.score*100).toFixed(1)+'%',
+                       esc(x.sujeto), esc(x.rol), esc(x.entradaNom),
+                       esc(x.lista), esc(x.criterio)]);
+          }).join(''));
+    if (altas.length) {
+      h += callout('err', 'Las coincidencias de nivel ALTA requieren análisis documentado y decisión '
+        + 'del Oficial de Cumplimiento antes de continuar la relación comercial.');
+    }
+    hits.forEach(function(x){
+      if (!x.entradaDetalle) return;
+      h += '<div style="font-size:8.5pt;margin-top:8px;padding:8px 11px;background:#F8FAFC;border-left:3px solid #D6E4F0">'
+        + '<strong>' + esc(x.entradaNom) + '</strong> — ' + esc(x.entradaDetalle) + '</div>';
+    });
+  }
+
+  // ── 5. Descartes previos ─────────────────────────────────────────────────
+  if (descartes.length) {
+    h += sec(5, 'COINCIDENCIAS DESCARTADAS CON ANTERIORIDAD')
+      + callout('info', 'Las siguientes coincidencias fueron evaluadas y descartadas como falso positivo '
+        + 'en instancias previas, por lo que no integran el resultado de la sección 4. Se informan por '
+        + 'completitud.')
+      + tbl(th(['Coincidencia','Motivo del descarte','Analista','Fecha']),
+          descartes.map(function(d){
+            return td([esc(d.sujeto || d.clave), esc(d.motivo), esc(d.autor), esc(d.fecha)]);
+          }).join(''));
+  }
+
+  // ── Cierre ───────────────────────────────────────────────────────────────
+  h += sec(descartes.length ? 6 : 5, 'CONSTANCIA DE EMISIÓN')
+    + '<div style="font-size:9pt;line-height:1.7;margin:10px 0">'
+    + 'Se deja constancia de que con fecha ' + fecha + ' se ejecutó el cotejo de <strong>'
+    + esc(legajo.razonSocial || 'el cliente') + '</strong> (CUIT ' + dash(legajo.cuit) + ') y de los '
+    + 'sujetos detallados en la sección 1, contra los listados individualizados en la sección 2, '
+    + 'aplicando los criterios y umbrales de la sección 3.<br/><br/>'
+    + 'El presente informe refleja el estado de los listados a la versión indicada. La vigencia del '
+    + 'cotejo se encuentra sujeta a la actualización periódica de dichos listados conforme al '
+    + 'procedimiento establecido.'
+    + '</div>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:24px"><tr>'
+    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Analista de Compliance</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
+    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Oficial de Cumplimiento</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
+    + '</tr></table>'
+    + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
+    + '<span>Confidencial — Uso interno y ante requerimiento de autoridad competente</span>'
+    + '<span>GOAT S.A. / Rebit — Informe de screening — ' + fecha + ' ' + hora + '</span>'
+    + '</div></body></html>';
+
+  return h;
+}
+
+export { pStyles, piH, r2, r3, rpH, rpF, infSec, infBadge, infCallout, infTr2, infTr3, infTbl, infTh, infTd, genINF01, genINF02, genINF07Cierre, genROS, genNotaDD, genLegajoCompleto, genInformeComite, genInformeScreening };

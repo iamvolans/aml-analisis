@@ -15,6 +15,8 @@
 import { describe, it, expect } from 'vitest';
 import { normalizeRows } from '../src/lib/parsers.js';
 import { calcMetricas, detectPatrones } from '../src/lib/aml.js';
+import { correrScreening, sujetosDe, UMBRALES } from '../src/lib/screening.js';
+import { genInformeScreening } from '../src/lib/reports.js';
 
 const fila = (f, t, m, ...resto) => [f, t, m, ...resto];
 
@@ -152,5 +154,73 @@ describe('protección: sin contraparte no se emiten señales que dependan de ell
   it('con la mitad de las operaciones identificadas se considera utilizable', () => {
     const mitad = ops('ACME', 50).concat(ops('', 50));
     expect(calcMetricas(mitad).cpIdentificable).toBe(true);
+  });
+});
+
+// ── Informe de screening por cliente ───────────────────────────────────────
+// El valor probatorio del informe no está en decir "sin coincidencias", sino en
+// declarar contra qué se cotejó. Un informe emitido sin listados cargados diría
+// "sin coincidencias" para cualquier cliente, y eso sería evidencia engañosa:
+// no significa que el cliente esté limpio, sino que no había contra qué cotejar.
+describe('informe de screening por cliente', () => {
+  const leg = {
+    id:'L1', razonSocial:'Holtz S.A.', cuit:'30-71234567-8', segmento:'ALTO', estadoCuenta:'ACTIVA',
+    representanteLegal:'Ana Gomez', presidente:'Juan Carlos Perez',
+    beneficiarioFinal:'Juan Carlos Perez', vinculados:'Pedro Ruiz, Luis Diaz'
+  };
+  const listas = [
+    { id:'repet', nombre:'REPET', fuente:'https://argentina.gob.ar/justicia/repet',
+      version:'repet_2026-08.csv', entradas:[{nombre:'PEREZ, JUAN CARLOS', detalle:'Res. 123/2024'}] },
+    { id:'ofac', nombre:'OFAC SDN', fuente:'https://ofac.treasury.gov',
+      version:'sdn_20260820.csv', entradas:[{nombre:'UNRELATED CORP', doc:'99999'}] },
+  ];
+
+  it('cotejа los cinco tipos de sujeto del legajo, no solo la razón social', () => {
+    const roles = sujetosDe(leg).map(s => s.rol);
+    ['Sociedad','Representante legal','Presidente','Beneficiario final','Vinculado']
+      .forEach(r => expect(roles, 'falta el rol ' + r).toContain(r));
+  });
+
+  it('el informe declara la versión de cada listado consultado', () => {
+    const run = correrScreening([leg], listas, {}, { soloActivos:false });
+    const html = genInformeScreening({ legajo:leg, sujetos:sujetosDe(leg), listas:run.listas,
+      hits:run.hits, descartes:[], umbrales:run.umbrales, usuario:{nombre:'T',rol:'compliance'} });
+    expect(html).toContain('repet_2026-08.csv');
+    expect(html).toContain('sdn_20260820.csv');
+  });
+
+  it('un resultado sin coincidencias declara el universo comparado', () => {
+    const limpio = { id:'L2', razonSocial:'Clean Managers SRL', cuit:'30-71695295-5' };
+    const run = correrScreening([limpio], listas, {}, { soloActivos:false });
+    expect(run.hits.length).toBe(0);
+    const html = genInformeScreening({ legajo:limpio, sujetos:sujetosDe(limpio), listas:run.listas,
+      hits:run.hits, descartes:[], umbrales:run.umbrales, usuario:{nombre:'T',rol:'compliance'} });
+    // No alcanza con decir "sin coincidencias": tiene que decir contra cuántas entradas
+    expect(html).toMatch(/No se registraron coincidencias/);
+    expect(html).toContain('entrada(s) de los');
+  });
+
+  it('sin listados NO concluye "sin coincidencias" y advierte la causa', () => {
+    const html = genInformeScreening({ legajo:leg, sujetos:sujetosDe(leg), listas:[], hits:[],
+      descartes:[], umbrales:UMBRALES, usuario:{nombre:'T',rol:'compliance'} });
+    expect(html).toContain('NO debe interpretarse como resultado negativo');
+    expect(html).not.toContain('No se registraron coincidencias');
+  });
+
+  it('informa los descartes previos por separado del resultado', () => {
+    const run = correrScreening([leg], listas, {}, { soloActivos:false });
+    const html = genInformeScreening({ legajo:leg, sujetos:sujetosDe(leg), listas:run.listas,
+      hits:run.hits,
+      descartes:[{ clave:'L1::X', sujeto:'Pedro Ruiz', motivo:'homónimo, CUIT distinto', autor:'Frann', fecha:'1/8/2026' }],
+      umbrales:run.umbrales, usuario:{nombre:'T',rol:'compliance'} });
+    expect(html).toContain('DESCARTADAS CON ANTERIORIDAD');
+    expect(html).toContain('homónimo, CUIT distinto');
+  });
+
+  it('no emite HTML roto con un legajo mínimo', () => {
+    const html = genInformeScreening({ legajo:{id:'X'}, sujetos:[], listas:[], hits:[],
+      descartes:[], umbrales:UMBRALES, usuario:{} });
+    expect(html.trim().endsWith('</html>')).toBe(true);
+    expect(html).not.toContain('undefined');
   });
 });

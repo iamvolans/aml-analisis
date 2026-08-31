@@ -607,7 +607,7 @@ export default function App() {
           {view==='alertas' ? <AlertasView periodos={periodos} legajos={legajos} setPeriodos={setPeriodos} onSync={syncToCloud} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onNavAnalisis={handleAnalizar} onVerCaso={handleVerCaso} currentUser={currentUser}/> : null}
           {view==='comite' ? <ComiteView casos={casos} legajos={legajos} periodos={periodos} onReport={function(html){setReportHTML(html);}} currentUser={currentUser}/> : null}
           {view==='red' ? <RedView legajos={legajos} periodos={periodos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onVerCaso={handleVerCaso} onOpenLegajo={function(id){setLegTarget(id);setView('legajos');}} currentUser={currentUser}/> : null}
-          {view==='screening' ? <ScreeningView legajos={legajos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onVerCaso={handleVerCaso} currentUser={currentUser}/> : null}
+          {view==='screening' ? <ScreeningView legajos={legajos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onVerCaso={handleVerCaso} onReport={function(html){setReportHTML(html);}} currentUser={currentUser}/> : null}
           {view==='vencimientos' ? <VencimientosView legajos={legajos} periodos={periodos} casos={casos} setCasos={setCasos} onSyncCasos={syncCasos} onVerCaso={handleVerCaso} onOpenLegajo={function(id){setLegTarget(id);setView('legajos');}} currentUser={currentUser}/> : null}
           {view==='casos' ? <CasosView key={'cas-'+(casoTarget||'')} initCasoId={casoTarget} casos={casos} setCasos={setCasos} legajos={legajos} periodos={periodos} onNavAnalisis={handleAnalizar} onSyncCasos={syncCasos} currentUser={currentUser}/> : null}
           {view==='normativa' ? <NormativaView/> : null}
