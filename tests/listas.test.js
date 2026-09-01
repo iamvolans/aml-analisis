@@ -17,7 +17,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { detectarFormato, normalizarLista, normalizarREPET, normalizarOFAC,
-         normalizarONU, normalizarUE, limpio, filasCSV } from '../src/lib/listas.js';
+         normalizarONU, normalizarUE, normalizarUEXML, atributoXML, etiquetasXML,
+         limpio, filasCSV } from '../src/lib/listas.js';
 import { similitud, nivelDe, normalizar, sinSufijos } from '../src/lib/screening.js';
 
 const puntaje = (a, b) => {
@@ -289,5 +290,93 @@ describe('volumen de un listado grande', () => {
 
   it('un listado chico no necesita compresión', () => {
     expect(JSON.stringify(listaSintetica(500)).length).toBeLessThan(4.5 * 1024 * 1024);
+  });
+});
+
+// ── XML de la Unión Europea ───────────────────────────────────────────────
+// La UE guarda los datos en ATRIBUTOS, no en elementos hijos como la ONU, de
+// modo que necesita su propio lector. Es además el formato preferible del mismo
+// organismo: viene agrupado por entidad en lugar de repetir una fila por cada
+// combinación de nombre y dirección.
+const UE_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<export xmlns="http://eu.europa.ec/fpi/fsd/export" generationDate="2026-08-05">
+  <sanctionEntity designationDetails="" unitedNationId="" logicalId="13">
+    <remark>UNSC RESOLUTION 1483</remark>
+    <regulation regulationType="regulation" programme="IRQ" logicalId="348"/>
+    <subjectType code="person" classificationCode="P"/>
+    <identification number="AB1234567" identificationTypeCode="passport"/>
+    <nameAlias firstName="Saddam" middleName="" lastName="Hussein Al-Tikriti"
+      wholeName="Saddam Hussein Al-Tikriti" strong="true" logicalId="17"/>
+    <nameAlias firstName="" middleName="" lastName="" wholeName="Abu Ali" strong="true" logicalId="19"/>
+  </sanctionEntity>
+  <sanctionEntity logicalId="27">
+    <regulation programme="SYR" logicalId="400"/>
+    <subjectType code="enterprise" classificationCode="E"/>
+    <nameAlias wholeName="Volksfront fuer die Befreiung Palaestinas" logicalId="55"/>
+  </sanctionEntity>
+</export>`;
+
+describe('lectura de atributos XML', () => {
+  it('extrae el valor de un atributo', () => {
+    expect(atributoXML('<subjectType code="person" classificationCode="P"/>', 'code')).toBe('person');
+  });
+  it('devuelve cadena vacía si el atributo no está', () => {
+    expect(atributoXML('<subjectType code="person"/>', 'inexistente')).toBe('');
+  });
+  it('encuentra etiquetas con cierre propio y con cierre separado', () => {
+    expect(etiquetasXML(UE_XML, 'nameAlias').length).toBe(3);
+    expect(etiquetasXML(UE_XML, 'subjectType').length).toBe(2);
+  });
+  it('no confunde una etiqueta con otra que empiece igual', () => {
+    expect(etiquetasXML('<regulation a="1"/><regulationSummary b="2"/>', 'regulation').length).toBe(1);
+  });
+});
+
+describe('Unión Europea en XML', () => {
+  it('se detecta por el espacio de nombres del organismo', () => {
+    expect(detectarFormato('20260805-FULL_xsd_.xml', UE_XML)).toBe('ue-xml');
+  });
+
+  it('no se confunde con el XML de Naciones Unidas', () => {
+    expect(detectarFormato('consolidated.xml', ONU)).toBe('onu-xml');
+  });
+
+  it('toma el primer nombre como principal y el resto como alias', () => {
+    const r = normalizarUEXML(UE_XML);
+    const p = r.entradas.find(e => e.nombre === 'Saddam Hussein Al-Tikriti');
+    const a = r.entradas.find(e => e.nombre === 'Abu Ali');
+    expect(p.aliasDe).toBe('');
+    expect(a.aliasDe).toBe('Saddam Hussein Al-Tikriti');
+  });
+
+  it('distingue persona de entidad por el código de subjectType', () => {
+    const r = normalizarUEXML(UE_XML);
+    expect(r.entradas.find(e => /Saddam/.test(e.nombre)).tipo).toBe('persona');
+    expect(r.entradas.find(e => /Volksfront/.test(e.nombre)).tipo).toBe('entidad');
+  });
+
+  it('rescata el documento y el programa de sanción', () => {
+    const r = normalizarUEXML(UE_XML);
+    const p = r.entradas.find(e => /Saddam/.test(e.nombre));
+    expect(p.doc).toBe('AB1234567');
+    expect(p.detalle).toContain('IRQ');
+  });
+
+  it('compone el nombre desde las partes si falta wholeName', () => {
+    const sinWhole = UE_XML.replace('wholeName="Saddam Hussein Al-Tikriti" ', '');
+    const r = normalizarUEXML(sinWhole);
+    expect(r.entradas.some(e => e.nombre === 'Saddam Hussein Al-Tikriti')).toBe(true);
+  });
+
+  it('un XML vacío no rompe', () => {
+    expect(normalizarUEXML('<export></export>').entradas).toEqual([]);
+  });
+});
+
+describe('los tres formatos XML se distinguen entre sí', () => {
+  it('cada uno se enruta a su normalizador', () => {
+    expect(normalizarLista('onu.xml', ONU).label).toBe('Naciones Unidas');
+    expect(normalizarLista('ue.xml', UE_XML).label).toBe('Unión Europea (XML)');
+    expect(normalizarLista('ue.csv', UE).label).toBe('Unión Europea (CSV)');
   });
 });

@@ -814,7 +814,7 @@ function ScreeningView(props) {
               columna es el nombre, cuál el documento y cuál el detalle, viendo una muestra de las filas antes
               de confirmar. Descargá el archivo del sitio oficial y subilo tal cual.
             </div>
-            <input ref={fileRef} type="file" accept=".csv,.json,.xlsx,.xls" style={{display:'none'}}
+            <input ref={fileRef} type="file" accept=".csv,.json,.xml,.txt,.xlsx,.xls" style={{display:'none'}}
               onChange={function(e){ var f=e.target.files&&e.target.files[0]; if(f) leerArchivo(f); e.target.value=''; }}/>
             <button onClick={function(){ if(fileRef.current) fileRef.current.click(); }}
               style={{background:T.ACCENT_SOFT,color:T.ACCENT,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.sm,padding:'8px 16px',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:T.SANS}}>

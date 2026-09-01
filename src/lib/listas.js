@@ -67,6 +67,24 @@ function textoXML(frag, etiqueta) {
   return desescapar(frag.slice(a + etiqueta.length + 2, b));
 }
 
+// Lee el valor de un atributo. El XML de la Unión Europea guarda los datos en
+// atributos —wholeName, code, number— y no en elementos hijos como el de la ONU.
+function atributoXML(frag, atributo) {
+  var re = new RegExp('\\b' + atributo + '="([^"]*)"');
+  var m = re.exec(frag);
+  return m ? desescapar(m[1]) : '';
+}
+
+// Devuelve las etiquetas de un elemento, con o sin cierre propio:
+//   <nameAlias .../>  y  <nameAlias ...>...</nameAlias>
+function etiquetasXML(xml, etiqueta) {
+  var out = [];
+  var re = new RegExp('<' + etiqueta + '\\b[^>]*?(/>|>)', 'g');
+  var m;
+  while ((m = re.exec(xml))) out.push(m[0]);
+  return out;
+}
+
 function desescapar(s) {
   return String(s || '')
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
@@ -106,6 +124,8 @@ function detectarFormato(nombreArchivo, texto) {
   var cabeza = String(texto || '').slice(0, 3000);
 
   if (cabeza.indexOf('<CONSOLIDATED_LIST') >= 0) return 'onu-xml';
+  if (cabeza.indexOf('eu.europa.ec/fpi/fsd/export') >= 0 ||
+      cabeza.indexOf('<sanctionEntity') >= 0) return 'ue-xml';
   if (/^\s*[\[{]/.test(cabeza) && cabeza.indexOf('REFERENCE_NUMBER') >= 0) return 'repet-json';
   if (cabeza.indexOf('Naal_wholename') >= 0 || cabeza.indexOf('Entity_logical_id') >= 0) return 'ue-csv';
 
@@ -306,12 +326,66 @@ function normalizarUE(texto) {
   };
 }
 
+// ── Unión Europea (XML) ─────────────────────────────────────────────────────
+// Formato preferible al CSV del mismo organismo: viene estructurado por entidad
+// en lugar de repetir una fila por cada combinación de nombre y dirección.
+// El primer nameAlias de cada entidad se toma como denominación principal y los
+// restantes como alias.
+function normalizarUEXML(texto) {
+  var out = [];
+  var bloques = [];
+  var i = 0;
+  while (true) {
+    var a = texto.indexOf('<sanctionEntity', i);
+    if (a < 0) break;
+    var b = texto.indexOf('</sanctionEntity>', a);
+    if (b < 0) break;
+    bloques.push(texto.slice(a, b));
+    i = b + 17;
+  }
+
+  bloques.forEach(function(bl) {
+    var id = atributoXML(bl.slice(0, 300), 'logicalId');
+    var st = etiquetasXML(bl, 'subjectType')[0] || '';
+    var tipo = atributoXML(st, 'code').toLowerCase() === 'person' ? 'persona' : 'entidad';
+
+    var reg = etiquetasXML(bl, 'regulation')[0] || '';
+    var prog = atributoXML(reg, 'programme');
+
+    var docs = etiquetasXML(bl, 'identification')
+      .map(function(d){ return limpio(atributoXML(d, 'number')); }).filter(Boolean);
+
+    var principal = '';
+    etiquetasXML(bl, 'nameAlias').forEach(function(na) {
+      var nombre = limpio(atributoXML(na, 'wholeName'))
+                || unir(atributoXML(na, 'firstName'), atributoXML(na, 'middleName'), atributoXML(na, 'lastName'));
+      if (!nombre || nombre.length < 3) return;
+      if (!principal) principal = nombre;
+
+      var detalle = [];
+      if (prog) detalle.push('Programa: ' + prog);
+      if (principal !== nombre) detalle.push('Variante de ' + principal);
+
+      out.push({
+        nombre: nombre, doc: docs[0] || '', detalle: detalle.join(' · '),
+        tipo: tipo, ref: id, aliasDe: principal === nombre ? '' : principal
+      });
+    });
+  });
+
+  return { entradas: out, avisos: [
+    'Formato XML de la Unión Europea: cada entidad trae sus variantes de nombre '
+    + 'agrupadas. Es preferible al CSV del mismo organismo, que repite una fila por '
+    + 'combinación de nombre y dirección.'] };
+}
+
 // ── Punto de entrada ────────────────────────────────────────────────────────
 var FORMATOS = {
   'repet-json': { label: 'REPET (Argentina)', fn: normalizarREPET },
   'onu-xml':    { label: 'Naciones Unidas',   fn: normalizarONU },
   'ofac-csv':   { label: 'OFAC (Estados Unidos)', fn: normalizarOFAC },
-  'ue-csv':     { label: 'Unión Europea',     fn: normalizarUE },
+  'ue-csv':     { label: 'Unión Europea (CSV)', fn: normalizarUE },
+  'ue-xml':     { label: 'Unión Europea (XML)', fn: normalizarUEXML },
 };
 
 function normalizarLista(nombreArchivo, texto) {
@@ -342,5 +416,6 @@ function normalizarLista(nombreArchivo, texto) {
 
 export {
   detectarFormato, normalizarLista, normalizarREPET, normalizarONU,
-  normalizarOFAC, normalizarUE, filasCSV, nodosXML, textoXML, limpio, FORMATOS
+  normalizarOFAC, normalizarUE, normalizarUEXML,
+  filasCSV, nodosXML, textoXML, atributoXML, etiquetasXML, limpio, FORMATOS
 };
