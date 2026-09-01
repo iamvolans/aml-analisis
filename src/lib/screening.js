@@ -119,11 +119,20 @@ function tokenSetRatio(na, nb) {
 // Cobertura tolerante a tipeos: qué proporción de los tokens de cada lado tiene
 // contraparte razonable en el otro. "TRANSPORTES" y "TRANSPORTE" cuentan como
 // cubiertos; "NORTE" y "SUR" no.
+// Cuántos tokens de `ta` encuentran correspondencia en `tb`.
+//
+// El umbral por proporción es demasiado exigente para tokens cortos: MARIA y
+// MARIO difieren en una letra sobre cinco, lo que da 0,80 y quedaba por debajo
+// del corte. Un error de una letra en un nombre de pila es justamente el caso
+// que hay que reportar, así que se admite además una única edición cuando el
+// token tiene al menos cuatro caracteres.
 function cubiertos(ta, tb) {
   var n = 0;
   for (var i = 0; i < ta.length; i++) {
     for (var k = 0; k < tb.length; k++) {
-      if (ta[i] === tb[k] || ratio(ta[i], tb[k]) >= 0.85) { n++; break; }
+      var a = ta[i], b = tb[k];
+      if (a === b || ratio(a, b) >= 0.85 ||
+          (Math.min(a.length, b.length) >= 4 && levenshtein(a, b) <= 1)) { n++; break; }
     }
   }
   return n;
@@ -151,10 +160,27 @@ function similitud(na, nb) {
   }
   if (j < 0.2) return 0;
 
+  // Una entrada de una sola palabra no puede coincidir de forma aproximada con
+  // un nombre compuesto. Los listados oficiales contienen fragmentos —"MARIA",
+  // "ESPERANZA", "ROBERTO"— que de otro modo coinciden al 94% con cualquier
+  // nombre que los contenga. Con 55.000 entradas eso produce más ruido que
+  // señal. La coincidencia exacta de cadena completa ya se resolvió más arriba,
+  // de modo que un nombre de una sola palabra idéntico sigue detectándose.
+  // Solo se rechaza cuando una entrada de UNA palabra pretende coincidir con un
+  // nombre MÁS LARGO: ahí es un fragmento contenido, no una coincidencia. Dos
+  // denominaciones de una sola palabra sí se comparan entre sí, que es el caso
+  // de "HOLTZ S.A." contra "HOLTZ SOCIEDAD ANONIMA" una vez quitados los
+  // sufijos societarios.
+  if (Math.min(ta.length, tb.length) < 2 && ta.length !== tb.length) return 0;
+
   var base = Math.max(j, tokenSetRatio(na, nb));
   var cobertura = (cubiertos(ta, tb) + cubiertos(tb, ta)) / (ta.length + tb.length);
   if (cobertura >= 0.999) return base;         // se cubren mutuamente: sin castigo
-  return base * (0.82 + 0.18 * cobertura);
+  // El piso de la penalización determina cuánto se tolera que un nombre esté
+  // apenas contenido en otro. Con 0,82 un solo token compartido alcanzaba el
+  // nivel MEDIA; 0,62 exige que la coincidencia explique buena parte de ambos
+  // nombres para superar el umbral.
+  return base * (0.62 + 0.38 * cobertura);
 }
 
 function nivelDe(score) {

@@ -4,6 +4,7 @@ import { toast, uiConfirm } from "../components/feedback";
 import { auditLog } from "../lib/auth";
 import { nuevoCaso, refCaso } from "../lib/casos";
 import { parseTabla, parseTablaExcel, parseTablaJson } from "../lib/parsers";
+import { normalizarLista } from "../lib/listas";
 import { UMBRALES, correrScreening, filasAEntradasMapeo, sugerirMapeo, sujetosDe } from "../lib/screening";
 import { genInformeScreening } from "../lib/reports";
 import { serverLoadKV, serverSaveKV, serverLoadListas, serverSaveLista, serverDeleteLista, serverLoadRuns, serverLoadRun, serverSaveRun } from "../lib/sync";
@@ -117,11 +118,37 @@ function ScreeningView(props) {
     if (!file) return;
     try {
       var nombreArch = file.name || 'listado';
+
+      // Los listados oficiales tienen formato propio y ninguno entra directo:
+      // REPET parte el nombre en cuatro campos, OFAC no trae cabecera y usa
+      // '-0-' como vacío, la ONU publica XML anidado y la UE repite cada
+      // entidad por variante. Si el archivo es uno de esos, se normaliza sin
+      // pedir mapeo y se expanden los alias como entradas propias.
+      if (!/\.(xlsx|xls)$/i.test(nombreArch)) {
+        var crudo = await file.text();
+        var norm = normalizarLista(nombreArch, crudo);
+        if (norm.formato && norm.entradas.length) {
+          setImp({
+            archivo: nombreArch,
+            auto: norm,
+            headers: [], filas: {}, mapeo: {},
+            id: norm.formato.split('-')[0],
+            nombre: norm.label,
+            fuente: '',
+          });
+          return;
+        }
+        if (norm.formato && !norm.entradas.length) {
+          toast(norm.avisos[0] || 'El archivo tiene un formato conocido pero no se pudo procesar.');
+          return;
+        }
+      }
+
       var tabla;
       if (/\.(xlsx|xls)$/i.test(nombreArch)) {
         tabla = await parseTablaExcel(file);
       } else {
-        var texto = await file.text();
+        var texto = crudo !== undefined ? crudo : await file.text();
         tabla = /^\s*[\[{]/.test(texto.replace(/^\uFEFF/, '')) ? parseTablaJson(texto) : parseTabla(texto);
       }
       if (!tabla.headers.length || !tabla.filas.length) {
@@ -152,7 +179,8 @@ function ScreeningView(props) {
 
   async function confirmarImportacion() {
     if (!imp) return;
-    var entradas = filasAEntradasMapeo(imp.filas, imp.mapeo);
+    // Formato oficial reconocido: las entradas ya vienen normalizadas
+    var entradas = imp.auto ? imp.auto.entradas : filasAEntradasMapeo(imp.filas, imp.mapeo);
     if (!entradas.length) {
       toast('Con esa columna de nombre no se obtuvo ninguna entrada válida. Probá con otra.');
       return;
@@ -282,6 +310,7 @@ function ScreeningView(props) {
 
   var totalEntradas = listas.reduce(function(a,l){ return a + (l.cantidad||0); }, 0);
   var clavesDesc = Object.keys(descartes);
+  var lblSt = {display:'block',fontSize:10,color:'var(--text3)',fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:5};
   var inputSt = {border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'7px 10px',fontSize:12,color:T.TEXT,fontFamily:T.SANS};
 
   return (
@@ -289,6 +318,82 @@ function ScreeningView(props) {
 
       {/* Drawer de importación con mapeo de columnas */}
       {imp && (function(){
+        if (imp.auto) {
+          var a = imp.auto;
+          var porTipo = {};
+          a.entradas.forEach(function(e){ porTipo[e.tipo||'—'] = (porTipo[e.tipo||'—']||0)+1; });
+          return (
+            <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,padding:'18px 20px',marginBottom:14,boxShadow:T.SHADOW.card}}>
+              <div style={{display:'flex',alignItems:'center',gap:9,marginBottom:6}}>
+                <span style={{background:'rgba(0,230,118,0.15)',color:T.GREEN,border:'1px solid rgba(0,230,118,0.3)',
+                  borderRadius:T.RADIUS.pill,padding:'2px 10px',fontSize:10,fontWeight:700}}>FORMATO RECONOCIDO</span>
+                <span style={{fontSize:13,fontWeight:600,color:T.TEXT}}>{a.label}</span>
+              </div>
+              <div style={{fontSize:11.5,color:T.TEXT2,lineHeight:1.7,marginBottom:14}}>
+                <span style={{fontFamily:T.MONO,fontSize:11}}>{imp.archivo}</span> — no hace falta mapear columnas.
+                <div style={{marginTop:6}}>
+                  <strong>{a.principales.toLocaleString('es-AR')}</strong> registro(s) principal(es) y{' '}
+                  <strong>{a.alias.toLocaleString('es-AR')}</strong> alias, que se cargan como entradas
+                  propias: un designado suele figurar con varias grafías, y sin los alias se pierde la
+                  mayoría de las coincidencias posibles.
+                </div>
+                <div style={{marginTop:6,fontFamily:T.MONO,fontSize:10.5,color:T.TEXT3}}>
+                  {Object.keys(porTipo).map(function(k){ return k+': '+porTipo[k].toLocaleString('es-AR'); }).join(' · ')}
+                </div>
+              </div>
+
+              {a.avisos.map(function(av,i){
+                return (
+                  <div key={i} style={{background:'rgba(255,184,48,0.07)',border:'1px solid rgba(255,184,48,0.28)',
+                    borderRadius:T.RADIUS.sm,padding:'8px 11px',marginBottom:7,fontSize:11,color:T.TEXT2,lineHeight:1.6}}>
+                    ⚠ {av}
+                  </div>
+                );
+              })}
+
+              <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',margin:'12px 0 7px'}}>
+                Primeras entradas
+              </div>
+              <div style={{background:T.BG3,borderRadius:T.RADIUS.sm,padding:'9px 11px',marginBottom:14}}>
+                {a.entradas.slice(0,5).map(function(e,i){
+                  return (
+                    <div key={i} style={{display:'flex',gap:9,padding:'2px 0',fontSize:11,alignItems:'baseline'}}>
+                      <span style={{flex:1,color:T.TEXT,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.nombre}</span>
+                      {e.doc && <span style={{fontFamily:T.MONO,fontSize:10,color:T.TEXT2}}>{e.doc}</span>}
+                      {e.aliasDe && <span style={{fontSize:9.5,color:T.VIOLET}}>alias</span>}
+                      <span style={{fontSize:9.5,color:T.TEXT4,width:60,textAlign:'right'}}>{e.tipo}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{display:'flex',gap:9,flexWrap:'wrap',alignItems:'flex-end'}}>
+                <div style={{width:120}}>
+                  <label style={lblSt}>Identificador</label>
+                  <input value={imp.id} onChange={function(e){setImp(Object.assign({},imp,{id:e.target.value}));}} style={Object.assign({},inputSt,{width:'100%'})}/>
+                </div>
+                <div style={{width:170}}>
+                  <label style={lblSt}>Nombre visible</label>
+                  <input value={imp.nombre} onChange={function(e){setImp(Object.assign({},imp,{nombre:e.target.value}));}} style={Object.assign({},inputSt,{width:'100%'})}/>
+                </div>
+                <div style={{flex:'1 1 220px'}}>
+                  <label style={lblSt}>Fuente (URL oficial de descarga)</label>
+                  <input value={imp.fuente} onChange={function(e){setImp(Object.assign({},imp,{fuente:e.target.value}));}}
+                    placeholder="https://…" style={Object.assign({},inputSt,{width:'100%'})}/>
+                </div>
+                <button onClick={confirmarImportacion}
+                  style={{background:T.ACCENT,color:T.ON_ACCENT,border:'none',borderRadius:T.RADIUS.sm,padding:'9px 18px',cursor:'pointer',fontSize:12,fontWeight:600}}>
+                  Cargar {a.entradas.length.toLocaleString('es-AR')} entradas
+                </button>
+                <button onClick={function(){setImp(null);}}
+                  style={{background:'transparent',color:T.TEXT3,border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'9px 14px',cursor:'pointer',fontSize:12}}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          );
+        }
+
         var entradas = filasAEntradasMapeo(imp.filas, imp.mapeo);
         var muestra = entradas.slice(0, 5);
         var opciones = [''].concat(imp.headers);
