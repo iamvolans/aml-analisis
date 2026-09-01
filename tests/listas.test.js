@@ -202,3 +202,56 @@ describe('fragmentos de una sola palabra', () => {
                            'DISTRIBUIDORA E IMPORTADORA DE PRODUCTOS'))).toBeNull();
   });
 });
+
+// ── Identificador de la lista ─────────────────────────────────────────────
+// Bug real: el identificador por defecto se derivaba del FORMATO, de modo que
+// personas_repet.json y repet_entidades.json recibían ambos el id "repet" y el
+// segundo reemplazaba al primero en silencio. Lo mismo con los dos de OFAC.
+describe('identificador derivado del archivo', () => {
+  // Misma derivación que aplica la vista de Screening
+  function idDesdeArchivo(n) {
+    return String(n || 'listado')
+      .replace(/\.[^.]+$/, '').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      .slice(0, 32) || 'listado';
+  }
+
+  const ARCHIVOS = ['personas_repet.json', 'repet_entidades.json',
+                    'consolidatedLegacyByNAME.xml', 'sdn.csv', 'cons_prim.csv',
+                    '20260805-FULL-1_0.csv'];
+
+  it('los seis listados oficiales producen identificadores distintos', () => {
+    const ids = ARCHIVOS.map(idDesdeArchivo);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('los dos archivos de REPET no colisionan', () => {
+    expect(idDesdeArchivo('personas_repet.json'))
+      .not.toBe(idDesdeArchivo('repet_entidades.json'));
+  });
+
+  it('los dos archivos de OFAC no colisionan', () => {
+    expect(idDesdeArchivo('sdn.csv')).not.toBe(idDesdeArchivo('cons_prim.csv'));
+  });
+
+  it('produce identificadores válidos: minúsculas, sin acentos ni espacios', () => {
+    ARCHIVOS.concat(['Listado Interno ñandú.csv']).forEach(f => {
+      const id = idDesdeArchivo(f);
+      expect(id).toMatch(/^[a-z0-9-]+$/);
+      expect(id.length).toBeGreaterThan(0);
+      expect(id.length).toBeLessThanOrEqual(32);
+    });
+  });
+
+  it('nunca devuelve cadena vacía', () => {
+    expect(idDesdeArchivo('')).toBe('listado');
+    expect(idDesdeArchivo('...')).toBe('listado');
+    expect(idDesdeArchivo(null)).toBe('listado');
+  });
+
+  it('un mismo archivo recargado conserva su identificador, para poder actualizarlo', () => {
+    // Cargar la versión nueva de un listado debe reemplazar a la anterior
+    expect(idDesdeArchivo('personas_repet.json')).toBe(idDesdeArchivo('personas_repet.json'));
+  });
+});

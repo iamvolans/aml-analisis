@@ -114,6 +114,20 @@ function ScreeningView(props) {
   // No se interpreta nada a ciegas: se leen las filas tal cual, se sugiere el
   // mapeo de columnas y el usuario confirma viendo una muestra. La versión
   // anterior rechazaba el archivo sin decir qué columnas había encontrado.
+  // El identificador de la lista se deriva del nombre del archivo, no del
+  // formato. Derivarlo del formato hacía que personas_repet.json y
+  // repet_entidades.json recibieran ambos el id "repet", y el segundo pisaba al
+  // primero en silencio. Lo mismo ocurría con los dos archivos de OFAC.
+  function idDesdeArchivo(nombreArch) {
+    return String(nombreArch || 'listado')
+      .replace(/\.[^.]+$/, '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 32) || 'listado';
+  }
+
   async function leerArchivo(file) {
     if (!file) return;
     try {
@@ -132,7 +146,7 @@ function ScreeningView(props) {
             archivo: nombreArch,
             auto: norm,
             headers: [], filas: {}, mapeo: {},
-            id: norm.formato.split('-')[0],
+            id: idDesdeArchivo(nombreArch),
             nombre: norm.label,
             fuente: '',
           });
@@ -160,7 +174,7 @@ function ScreeningView(props) {
         headers: tabla.headers,
         filas: tabla.filas,
         mapeo: sugerirMapeo(tabla.headers),
-        id: 'repet',
+        id: idDesdeArchivo(nombreArch),
         nombre: '',
         fuente: '',
       });
@@ -187,6 +201,22 @@ function ScreeningView(props) {
     }
     var idLista = (imp.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');
     if (!idLista) { toast('Poné un identificador para la lista.'); return; }
+
+    // Guardar con un identificador ya usado reemplaza esa lista. Es el
+    // comportamiento correcto al actualizar un listado a su versión nueva, pero
+    // tiene que ser una decisión y no una sorpresa: antes de este control, dos
+    // archivos distintos con el mismo id se pisaban en silencio.
+    var existente = listas.find(function(l){ return l.id === idLista; });
+    if (existente) {
+      var ok0 = await uiConfirm(
+        'Ya existe una lista con el identificador "' + idLista + '":\n' +
+        (existente.nombre || idLista) + ' — ' + (existente.cantidad || 0) + ' entradas\n' +
+        (existente.version ? '(' + existente.version + ')\n' : '') +
+        '\nSi continuás, esa lista se REEMPLAZA por las ' + entradas.length + ' entradas del archivo nuevo.\n\n' +
+        'Si querés conservar ambas, cancelá y cambiá el identificador.',
+        { danger:true, confirmLabel:'Reemplazar', cancelLabel:'Cancelar' });
+      if (!ok0) return;
+    }
     var lista = {
       id: idLista,
       nombre: (imp.nombre || '').trim() || idLista.toUpperCase(),
@@ -385,6 +415,14 @@ function ScreeningView(props) {
                   style={{background:T.ACCENT,color:T.ON_ACCENT,border:'none',borderRadius:T.RADIUS.sm,padding:'9px 18px',cursor:'pointer',fontSize:12,fontWeight:600}}>
                   Cargar {a.entradas.length.toLocaleString('es-AR')} entradas
                 </button>
+                {listas.some(function(l){ return l.id === (imp.id||'').trim().toLowerCase(); }) && (
+                  <div style={{width:'100%',marginTop:8,background:'rgba(255,184,48,0.09)',
+                    border:'1px solid rgba(255,184,48,0.35)',borderRadius:T.RADIUS.sm,
+                    padding:'8px 11px',fontSize:11,color:T.TEXT2,lineHeight:1.6}}>
+                    ⚠ Ya hay una lista con el identificador <span style={{fontFamily:T.MONO}}>{imp.id}</span>.
+                    Al cargar, esa lista se reemplaza. Cambiá el identificador si querés conservar las dos.
+                  </div>
+                )}
                 <button onClick={function(){setImp(null);}}
                   style={{background:'transparent',color:T.TEXT3,border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'9px 14px',cursor:'pointer',fontSize:12}}>
                   Cancelar
