@@ -1,5 +1,6 @@
 import { calcMetricas, calcScoring, detectPatrones } from "./aml";
 import { CHECKLIST_ITEMS, KYB_FACTORS, PAT_UIF_MAP, SCREENING, getEstado } from "./constants";
+import { firmanteAnalista, firmanteOC, firmanteResponsable } from "./firmantes";
 import { T } from "./theme";
 import { fmtM, safeArr, segColor, sevColor, todayStr } from "./utils";
 
@@ -34,6 +35,48 @@ function r3(a, b, c) { return '<tr><td>' + a + '</td><td>' + b + '</td><td style
 function rpH(e, f) { return '<div class="hdr"><span>GOAT S.A./Rebit — Informe Compliance — ' + e + '</span><span>' + f + '</span></div>'; }
 
 function rpF() { return '<div class="ftr"><span>Confidencial — Uso interno</span><span>GOAT S.A./Rebit — Compliance & AML — Design System v2.1.3</span></div>'; }
+
+
+// ─── BLOQUE DE FIRMAS ───────────────────────────────────────────────────────
+// Las líneas salen con el nombre y el cargo de quien corresponde firmar, para
+// que el informe se imprima y se firme sin completar nada a mano.
+function celdaFirma(f, ancho) {
+  return '<td style="padding:26px 18px;border:1px solid #ddd;text-align:center;width:' + ancho + '">'
+    + '____________________________<br/>'
+    + '<strong>' + f.nombre + '</strong><br/>'
+    + '<span style="font-size:8pt;color:#555">' + f.cargo + '</span><br/>'
+    + '<span style="font-size:7.5pt;color:#999">Firma y aclaración</span></td>';
+}
+
+// Dos firmas: analista y Oficial de Cumplimiento
+function firmasDobles(usuario) {
+  return '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:24px"><tr>'
+    + celdaFirma(firmanteAnalista(usuario), '50%')
+    + celdaFirma(firmanteOC(), '50%')
+    + '</tr></table>';
+}
+
+// Oficial de Cumplimiento y Comité, para el informe de gestión
+function firmasComite() {
+  var oc = firmanteOC();
+  return '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:26px"><tr>'
+    + celdaFirma(oc, '50%')
+    + '<td style="padding:26px 18px;border:1px solid #ddd;text-align:center;width:50%">'
+    + '____________________________<br/><strong>Comité de Compliance</strong><br/>'
+    + '<span style="font-size:8pt;color:#555">Por acta de la sesión</span><br/>'
+    + '<span style="font-size:7.5pt;color:#999">Firma y aclaración</span></td>'
+    + '</tr></table>';
+}
+
+// Tres firmas: analista, responsable de Compliance y Oficial de Cumplimiento
+function firmasTriples(usuario) {
+  return '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:24px"><tr>'
+    + celdaFirma(firmanteAnalista(usuario), '33%')
+    + celdaFirma(firmanteResponsable(), '33%')
+    + celdaFirma(firmanteOC(), '33%')
+    + '</tr></table>';
+}
+
 
 function infSec(n, title) {
   return '<h2 style="background:#2C4A7C;color:#E2EAF4;padding:9px 14px;font-size:10pt;margin:20px 0 0;border-radius:3px 3px 0 0;border-left:3px solid #3B6DAA;font-weight:600;letter-spacing:0.5px">'
@@ -397,12 +440,7 @@ function genINF01(legajo, periodos, memosList) {
       : '')
 
     + '<div style="margin-top:36px;page-break-inside:avoid">'
-    + '<table style="width:100%;border-collapse:collapse;font-size:9.5pt">'
-    + '<tr>'
-    + '<td style="padding:24px 20px;border:1px solid #ddd;text-align:center;width:33%">____________________<br/><strong>Analista Compliance</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '<td style="padding:24px 20px;border:1px solid #ddd;text-align:center;width:33%">____________________<br/><strong>Responsable Compliance</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '<td style="padding:24px 20px;border:1px solid #ddd;text-align:center;width:33%">____________________<br/><strong>Oficial de Cumplimiento</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '</tr></table></div>'
+    + firmasTriples(usuario)
 
     // ── PIE ────────────────────────────────────────────────────────────────
     + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
@@ -472,7 +510,7 @@ function genINF02(legajo, periodo, m, sigs, sc, memosList) {
     + '<table><tr><th>Factor</th><th>Score</th><th>Referencia</th></tr>' + scRows + '<tr style="background:#1B2A4A"><td style="color:white;font-weight:700">PROMEDIO</td><td style="color:white;font-weight:700">' + promScore + '/5</td><td style="background:white;color:' + clColor + ';font-weight:700">RIESGO ' + clasif + '</td></tr></table>'
     + '<h1 class="bar">5. Acciones y RFI</h1>' + rfiHtml
     + '<h1 class="bar">6. Tipologias AML (UIF/GAFI)</h1>' + tipHtml
-    + '<h1 class="bar">7. Firma</h1><table style="margin-top:20px"><tr><td style="padding:20px 30px;border:1px solid #ddd;text-align:center">_____________________<br/><b>Analista Compliance</b></td><td style="padding:20px 30px;border:1px solid #ddd;text-align:center">_____________________<br/><b>Responsable Compliance</b></td></tr></table>'
+    + '<h1 class="bar">7. Firma</h1>' + firmasAnalistaResponsable(null)
     + rpF() + '</body></html>';
 }
 
@@ -624,12 +662,7 @@ function genINF07Cierre(legajo, periodos, motivoCierre, tipoMotivo, analisisIA) 
     + '</tbody></table></div>'
 
     // Firma
-    + '<div style="margin-top:36px"><table style="width:100%;border-collapse:collapse;font-size:9.5pt">'
-    + '<tr>'
-    + '<td style="padding:24px 20px;border:1px solid #ddd;text-align:center;width:33%">____________________<br/><strong>Analista Compliance</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '<td style="padding:24px 20px;border:1px solid #ddd;text-align:center;width:33%">____________________<br/><strong>Responsable Compliance</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '<td style="padding:24px 20px;border:1px solid #ddd;text-align:center;width:33%">____________________<br/><strong>Oficial de Cumplimiento</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '</tr></table></div>'
+    + firmasTriples(usuario)
     + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
     + '<span>Confidencial — Uso interno y para terceros bajo acuerdo</span>'
     + '<span>GOAT S.A. / Rebit — Compliance &amp; AML — v2.2.0</span>'
@@ -807,7 +840,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     + '<table style="margin-top:20px"><tbody><tr>'
     + '<td style="padding:30px 20px;border:1px solid #ddd;text-align:center;width:50%">'
     + '<div style="border-bottom:1px solid #333;margin:0 auto 8px;width:200px;height:40px"></div>'
-    + '<strong>'+oficial+'</strong><br/>'
+    + '<strong>'+firmanteOC().nombre+'</strong><br/>'
     + '<span style="font-size:8.5pt">Oficial de Cumplimiento — GOAT S.A.</span><br/>'
     + '<span style="font-size:8.5pt;color:#888">Fecha: '+hoy+'</span>'
     + '</td>'
@@ -1236,11 +1269,7 @@ function genLegajoCompleto(datos) {
     + 'La documentación respaldatoria listada en la sección 10 se conserva archivada en el repositorio '
     + 'documental del sistema y se encuentra disponible ante requerimiento.'
     + '</div>'
-    + '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:22px">'
-    + '<tr>'
-    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Analista de Compliance</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Oficial de Cumplimiento</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '</tr></table>'
+    + firmasDobles(usuario)
     + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
     + '<span>Confidencial — Uso interno y ante requerimiento de autoridad competente</span>'
     + '<span>GOAT S.A. / Rebit — Legajo completo — emitido ' + fecha + ' ' + hora + '</span>'
@@ -1468,11 +1497,7 @@ function genInformeComite(datos) {
   }
 
   // ── Cierre ───────────────────────────────────────────────────────────────
-  h += '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:26px">'
-    + '<tr>'
-    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Oficial de Cumplimiento</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Comité de Compliance</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '</tr></table>'
+  h += firmasComite(usuario)
     + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
     + '<span>Confidencial — Uso interno del Comité de Compliance</span>'
     + '<span>GOAT S.A. / Rebit — Informe de gestión ' + esc(m.rango.label) + ' — emitido ' + fecha + '</span>'
@@ -1649,10 +1674,7 @@ function genInformeScreening(datos) {
     + 'cotejo se encuentra sujeta a la actualización periódica de dichos listados conforme al '
     + 'procedimiento establecido.'
     + '</div>'
-    + '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:24px"><tr>'
-    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Analista de Compliance</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '<td style="padding:26px 20px;border:1px solid #ddd;text-align:center;width:50%">____________________<br/><strong>Oficial de Cumplimiento</strong><br/><span style="font-size:8pt;color:#888">Firma y aclaración</span></td>'
-    + '</tr></table>'
+    + firmasDobles(usuario)
     + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
     + '<span>Confidencial — Uso interno y ante requerimiento de autoridad competente</span>'
     + '<span>GOAT S.A. / Rebit — Informe de screening — ' + fecha + ' ' + hora + '</span>'
