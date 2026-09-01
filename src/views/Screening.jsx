@@ -372,6 +372,12 @@ function ScreeningView(props) {
                 </div>
               </div>
 
+              {a.entradas.length > 5000 && (
+                <div style={{background:T.BG3,border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,
+                  padding:'8px 11px',marginBottom:7,fontSize:11,color:T.TEXT3,lineHeight:1.6}}>
+                  Listado extenso: se envía comprimido. La carga puede tardar unos segundos.
+                </div>
+              )}
               {a.avisos.map(function(av,i){
                 return (
                   <div key={i} style={{background:'rgba(255,184,48,0.07)',border:'1px solid rgba(255,184,48,0.28)',

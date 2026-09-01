@@ -255,3 +255,39 @@ describe('identificador derivado del archivo', () => {
     expect(idDesdeArchivo('personas_repet.json')).toBe(idDesdeArchivo('personas_repet.json'));
   });
 });
+
+// ── Tamaño del envío al servidor ──────────────────────────────────────────
+// El SDN de OFAC son 19.321 entradas: 5,79 MB de JSON contra un límite de 4,5 MB
+// de cuerpo en Vercel. El servidor rechazaba la carga con "No se pudo guardar la
+// lista". Comprimido baja a 0,86 MB, y el servidor ya descomprime esa ruta.
+describe('volumen de un listado grande', () => {
+  function listaSintetica(n) {
+    const entradas = [];
+    for (let i = 0; i < n; i++) {
+      entradas.push({
+        nombre: 'ENTIDAD DE PRUEBA NUMERO ' + i + ' SOCIEDAD ANONIMA',
+        doc: '', tipo: 'entidad', ref: String(i), aliasDe: '',
+        detalle: 'Programa: CUBA · Observaciones extensas del organismo emisor '
+               + 'que describen la designación y su fundamento normativo ' + i
+      });
+    }
+    return { id: 'x', nombre: 'X', fuente: 'u', version: 'v', entradas: entradas };
+  }
+
+  it('un listado del tamaño del SDN excede el límite de cuerpo sin comprimir', () => {
+    const bytes = JSON.stringify(listaSintetica(19321)).length;
+    expect(bytes).toBeGreaterThan(4.5 * 1024 * 1024);
+  });
+
+  it('el detalle es la mayor parte del peso', () => {
+    const l = listaSintetica(19321);
+    const con = JSON.stringify(l).length;
+    const sin = JSON.stringify({ ...l,
+      entradas: l.entradas.map(e => ({ nombre:e.nombre, doc:e.doc, tipo:e.tipo, ref:e.ref, aliasDe:e.aliasDe })) }).length;
+    expect(sin).toBeLessThan(con / 2);
+  });
+
+  it('un listado chico no necesita compresión', () => {
+    expect(JSON.stringify(listaSintetica(500)).length).toBeLessThan(4.5 * 1024 * 1024);
+  });
+});

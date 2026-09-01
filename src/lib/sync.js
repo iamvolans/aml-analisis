@@ -220,14 +220,22 @@ async function serverLoadListas(soloMeta) {
   } catch(e) { console.warn('[Sync] Error cargando listas:', e.message); return []; }
 }
 
+// Los listados oficiales superan holgadamente el límite de 4,5 MB de cuerpo de
+// Vercel: el SDN de OFAC son 19.321 entradas y 5,8 MB de JSON. Comprimido baja a
+// 0,86 MB. Se usa el mismo mecanismo que ya emplean los períodos transaccionales.
 async function serverSaveLista(lista) {
   try {
+    var gz = await gzipPayload({ lista: lista });
     var r = await fetchRetry('/api/sync?action=screening_listas', {
-      method: 'POST',
-      headers: await authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ lista: lista })
+      method: 'POST', headers: gz.headers, body: gz.body
     }, 2);
-    return !!(r && r.ok);
+    if (r && r.ok) return true;
+    // Se informa el motivo en consola: un fallo silencioso acá deja al analista
+    // creyendo que la lista quedó cargada.
+    var detalle = '';
+    try { detalle = r ? (r.status + ' ' + (await r.text()).slice(0, 200)) : 'sin respuesta'; } catch(e2) {}
+    console.warn('[Sync] La lista no se guardó:', detalle);
+    return false;
   } catch(e) { console.warn('[Sync] Error guardando lista:', e.message); return false; }
 }
 
