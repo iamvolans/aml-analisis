@@ -34,13 +34,21 @@ describe('identidad de marca', () => {
     expect(culpables, 'reemplazar por GOAT:\n' + culpables.join('\n')).toEqual([]);
   });
 
+  it('index.html conserva el script anti-parpadeo', () => {
+    // Sin él, quien usa el tema claro ve un destello negro en cada carga
+    const html = fs.readFileSync(path.join(RAIZ, 'index.html'), 'utf8');
+    expect(html, 'falta el script anti-parpadeo en index.html').toMatch(/localStorage\.getItem/);
+  });
+
   it('la clave del tema coincide entre index.html y theme.js', () => {
-    // Si divergen, el script anti-parpadeo fija un tema y React aplica el otro
+    // Si divergen, el script fija un tema y React aplica el otro
     const theme = fs.readFileSync(path.join(RAIZ, 'src/lib/theme.js'), 'utf8');
     const html = fs.readFileSync(path.join(RAIZ, 'index.html'), 'utf8');
-    const enTheme = /TEMA_KEY\s*=\s*'([^']+)'/.exec(theme)[1];
-    const enHtml = /localStorage\.getItem\('([^']+)'\)/.exec(html)[1];
-    expect(enHtml).toBe(enTheme);
+    const mTheme = /TEMA_KEY\s*=\s*'([^']+)'/.exec(theme);
+    const mHtml = /localStorage\.getItem\(['"]([^'"]+)['"]\)/.exec(html);
+    expect(mTheme, 'no se encontró TEMA_KEY en theme.js').not.toBeNull();
+    expect(mHtml, 'no se encontró la lectura de localStorage en index.html').not.toBeNull();
+    expect(mHtml[1], 'la clave de index.html no coincide con la de theme.js').toBe(mTheme[1]);
   });
 
   it('las claves de almacenamiento usan un prefijo único y consistente', () => {
