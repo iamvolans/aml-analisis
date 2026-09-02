@@ -151,7 +151,7 @@ var C  = { AC: T.ACCENT,  VERDE: T.GREEN,  AMARILLO: T.AMBER,  NARANJA: T.NARANJ
 var CR = { AC: TR.ACCENT, VERDE: TR.GREEN, AMARILLO: TR.AMBER, NARANJA: TR.NARANJA, ROJO: TR.RED };
 
 // ── Aplicación del tema ─────────────────────────────────────────────────────
-var TEMA_KEY = 'rebit_tema';
+var TEMA_KEY = 'goat_tema';
 var _temaActual = 'oscuro';
 
 function temaActual() { return _temaActual; }

@@ -37,7 +37,7 @@ function LoginScreen(props) {
         <div style={{fontFamily:T.MONO,marginBottom:8}}>
           <div style={{width:40,height:40,background:C.AC,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'#fff',borderRadius:3,letterSpacing:'-0.5px',margin:'0 auto 12px'}}>RB</div>
         </div>
-        <div style={{color:T.TEXT,fontWeight:700,fontSize:18,letterSpacing:'3px',textTransform:'uppercase'}}>REBIT AML TOOL</div>
+        <div style={{color:T.TEXT,fontWeight:700,fontSize:18,letterSpacing:'3px',textTransform:'uppercase'}}>SISTEMA AML & KYB</div>
         <div style={{color:T.TEXT3,fontSize:10,marginTop:6,letterSpacing:'2px'}}>GOAT S.A. // COMPLIANCE & AML</div>
         <div style={{color:T.TEXT4,fontSize:9,marginTop:3,letterSpacing:'1px'}}>UIF/BCRA REGULATED · v2.4.0</div>
       </div>

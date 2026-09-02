@@ -4,7 +4,7 @@ import { Badge, Card, Pill } from "../components/ui";
 import { _KEYS, callProxyOrDirect, extractWithClaude, extractWithGPT } from "../lib/ai";
 import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase, senalesActivas } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEliminar } from "../lib/auth";
-import { CHECKLIST_ITEMS, ESTADOS_CUENTA, KYB_FACTORS, getEstado } from "../lib/constants";
+import { CHECKLIST_ITEMS, ESTADOS_CUENTA, KYB_FACTORS, TIPOS_OPERATORIA, getEstado } from "../lib/constants";
 import { genINF01, genINF07Cierre, genLegajoCompleto, genROS } from "../lib/reports";
 import { authHeaders } from "../lib/session";
 import { gzipPayload, serverLoadKV } from "../lib/sync";
@@ -30,7 +30,7 @@ function deISO(iso) {
 // El shell remonta LegajosView cada vez que se navega (key={'leg-'+legTarget}),
 // así que el estado de filtros se perdía al ir y volver. sessionStorage los
 // mantiene mientras dure la pestaña, sin ensuciar Supabase ni el legajo.
-var FILTROS_KEY = 'rebit_legajos_filtros_v3';
+var FILTROS_KEY = 'goat_legajos_filtros_v3';
 function leerFiltros() {
   try { var raw = window.sessionStorage.getItem(FILTROS_KEY); return raw ? JSON.parse(raw) : {}; }
   catch(e) { return {}; }
@@ -185,14 +185,14 @@ function LegajosView(props) {
   function mkNew() {
     var cl = {}; CHECKLIST_ITEMS.forEach(function(item){cl[item]='Pendiente';});
     var kybSc = {}; KYB_FACTORS.forEach(function(f){kybSc[f]=2;});
-    return { id:uid(), razonSocial:'', cuit:'', actividad:'', facturacionMensual:0, limiteDiario:0, limiteMensual:0, segmento:'MEDIO', dictamen:'CONDICIONAL', beneficiarioFinal:'', domicilio:'',
+    return { id:uid(), razonSocial:'', cuit:'', actividad:'', tipoOperatoria:'CUENTA_PAGO', comisionPactada:0.6, facturacionMensual:0, limiteDiario:0, limiteMensual:0, segmento:'MEDIO', dictamen:'CONDICIONAL', beneficiarioFinal:'', domicilio:'',
       representanteLegal:'', presidente:'', vinculados:'', tipoSociedad:'SA', paisConstitucion:'Argentina', cotizaBolsa:false, grupoEconomico:'',
       limitesHistorial:[],
       checklist:cl, kybScores:kybSc, redFlags:[], observaciones:[], docsIA:[], createdAt:todayStr(), estadoCuenta:'EN_ONBOARDING', estadoCuentaUpdatedAt:todayStr(), estadoHistorial:[{estado:'EN_ONBOARDING', fecha:todayStr(), hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}), analista:'Sistema'}] };
   }
   function saveList(updated) { setLegajos(updated); onSync(updated, periodos); }
   async function handleSave() {
-    console.log('[Rebit] Guardando legajo:', form.razonSocial, form.cuit, form);
+    console.log('[GOAT] Guardando legajo:', form.razonSocial, form.cuit, form);
     if (!form.razonSocial && !form.cuit) {
       if (!(await uiConfirm('Este legajo no tiene Razón Social ni CUIT cargados.\n\nSi ya subiste los documentos pero los campos están vacíos, puede que la extracción IA haya fallado — verificá tu API key.\n\n¿Guardar igual?', {danger:false, confirmLabel:'Guardar igual'}))) return;
     }
@@ -287,7 +287,7 @@ function LegajosView(props) {
         cobertura: maxPg > 0 ? conTexto / maxPg : 0
       };
     } catch(e) {
-      console.warn('[Rebit IA] PDF.js error en ' + file.name + ':', e.message);
+      console.warn('[GOAT IA] PDF.js error en ' + file.name + ':', e.message);
       return null;
     }
   }
@@ -317,7 +317,7 @@ function LegajosView(props) {
       }
       return images.length > 0 ? images : null;
     } catch(e) {
-      console.warn('[Rebit IA] PDF→imagen error en ' + file.name + ':', e.message);
+      console.warn('[GOAT IA] PDF→imagen error en ' + file.name + ':', e.message);
       return null;
     }
   }
@@ -358,14 +358,14 @@ function LegajosView(props) {
           if (hayTextoReal) {
             // PDF con texto seleccionable: enviar como texto (Claude responde en 3-5s)
             contentBlocks.push({ type:'text', text:'=== ' + f.name + ' ===\n' + info.texto.slice(0, 6000), _isDoc: true });
-            console.log('[Rebit IA] PDF texto OK: ' + f.name + ' (' + info.texto.length + ' chars, ' +
+            console.log('[GOAT IA] PDF texto OK: ' + f.name + ' (' + info.texto.length + ' chars, ' +
                         info.densidad + ' por pág., ' + Math.round(info.cobertura*100) + '% de páginas con texto)');
           } else {
             // Escaneo, o PDF cuya capa de texto es solo la carátula de
             // certificación: rasterizar las páginas para que el modelo LEA el
             // documento en vez de la carátula.
             if (info && info.texto.length > 80) {
-              console.log('[Rebit IA] PDF con capa de texto parcial: ' + f.name + ' (' +
+              console.log('[GOAT IA] PDF con capa de texto parcial: ' + f.name + ' (' +
                           info.densidad + ' chars/pág., ' + Math.round(info.cobertura*100) +
                           '% de páginas con texto) → se rasteriza');
             }
@@ -381,12 +381,12 @@ function LegajosView(props) {
               if (info && info.paginas > pdfImgs.length) {
                 docsTruncados.push({ nombre: f.name, enviadas: pdfImgs.length, total: info.paginas });
               }
-              console.log('[Rebit IA] PDF→' + pdfImgs.length + ' de ' + ((info&&info.paginas)||'?') + ' páginas como JPEG: ' + f.name);
+              console.log('[GOAT IA] PDF→' + pdfImgs.length + ' de ' + ((info&&info.paginas)||'?') + ' páginas como JPEG: ' + f.name);
             } else {
               // Último recurso: binario (puede fallar si es muy grande)
               var b64 = await fileToBase64(f);
               contentBlocks.push({ type:'document', source:{ type:'base64', media_type:'application/pdf', data:b64 }, title:f.name });
-              console.log('[Rebit IA] PDF binario fallback: ' + f.name);
+              console.log('[GOAT IA] PDF binario fallback: ' + f.name);
             }
           }
         } else if (f.type.startsWith('image/')) {
@@ -424,13 +424,13 @@ function LegajosView(props) {
 
       var docNames = files.map(function(f){return f.name;});
 
-      console.log('[Rebit IA] extracted.razonSocial:', extracted.razonSocial);
-      console.log('[Rebit IA] extracted.cuit:', extracted.cuit);
-      console.log('[Rebit IA] extracted completo:', extracted);
+      console.log('[GOAT IA] extracted.razonSocial:', extracted.razonSocial);
+      console.log('[GOAT IA] extracted.cuit:', extracted.cuit);
+      console.log('[GOAT IA] extracted completo:', extracted);
 
       // Calcular qué campos fueron efectivamente llenados por IA
       var filledFields = [];
-      var datosKeys = ['razonSocial','cuit','actividad','facturacionMensual','limiteDiario','limiteMensual','beneficiarioFinal','domicilio','segmento','dictamen','representanteLegal','presidente','vinculados','tipoSociedad','paisConstitucion','grupoEconomico'];
+      var datosKeys = ['razonSocial','cuit','actividad','tipoOperatoria','comisionPactada','facturacionMensual','limiteDiario','limiteMensual','beneficiarioFinal','domicilio','segmento','dictamen','representanteLegal','presidente','vinculados','tipoSociedad','paisConstitucion','grupoEconomico'];
       datosKeys.forEach(function(k){ if(extracted[k]!==undefined&&extracted[k]!==''&&extracted[k]!==0) filledFields.push(k); });
       var okChecklist = Object.values(extracted.checklist||{}).filter(function(v){return v==='OK';}).length;
       var bloqChecklist = Object.values(extracted.checklist||{}).filter(function(v){return v==='Bloqueante';}).length;
@@ -675,6 +675,7 @@ function LegajosView(props) {
             {key:'cuit',label:'CUIT',type:'text',placeholder:'XX-XXXXXXXX-X'},
             {key:'actividad',label:'Actividad / Giro comercial',type:'text',placeholder:'',full:true},
             {key:'beneficiarioFinal',label:'Beneficiario final (>10%)',type:'text',placeholder:''},
+            {key:'__operatoria',label:'Tipo de operatoria',type:'operatoria',full:true},
             {key:'representanteLegal',label:'Representante legal / Apoderado',type:'text',placeholder:'Nombre completo y DNI/CUIT'},
             {key:'presidente',label:'Presidente / Gerente',type:'text',placeholder:'Nombre completo'},
             {key:'vinculados',label:'Otros directores / socios vinculados',type:'text',placeholder:'Nombres separados por coma',full:true},
@@ -685,6 +686,58 @@ function LegajosView(props) {
             {key:'limiteMensual',label:'Limite mensual ($)',type:'number',placeholder:''}
           ].map(function(fdef,i){
             var isIA = iaFields && iaFields.filled.indexOf(fdef.key) >= 0;
+
+            // Tipo de operatoria: determina qué reglas de detección aplican.
+            // Un convenio de recaudación tiene forma de embudo por diseño, y su
+            // control propio es aritmético —que lo liquidado se corresponda con
+            // lo cobrado menos la comisión—, no de forma del flujo.
+            if (fdef.type === 'operatoria') {
+              var esRec = (form.tipoOperatoria || 'CUENTA_PAGO') === 'RECAUDACION';
+              return (
+                <div key={i} style={{gridColumn:'1/-1',background:T.BG3,border:'1px solid '+T.BORDER,
+                  borderRadius:T.RADIUS.md,padding:'12px 14px',marginBottom:4}}>
+                  <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:7}}>{fdef.label}</label>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {TIPOS_OPERATORIA.map(function(t){
+                      var on = (form.tipoOperatoria || 'CUENTA_PAGO') === t.id;
+                      return (
+                        <button key={t.id} type="button" onClick={function(){fld('tipoOperatoria', t.id);}}
+                          style={{flex:'1 1 220px',textAlign:'left',cursor:'pointer',
+                            background:on?T.ACCENT_SOFT:T.BG2,
+                            border:'1px solid '+(on?T.ACCENT_DIM:T.BORDER2),
+                            borderRadius:T.RADIUS.sm,padding:'9px 12px',fontFamily:T.SANS}}>
+                          <div style={{fontSize:12,fontWeight:on?700:600,color:on?T.ACCENT:T.TEXT,marginBottom:3}}>
+                            {on ? '● ' : '○ '}{t.label}
+                          </div>
+                          <div style={{fontSize:10.5,color:T.TEXT3,lineHeight:1.5}}>{t.desc}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {esRec && (
+                    <div style={{marginTop:11,paddingTop:11,borderTop:'1px solid '+T.BORDER}}>
+                      <div style={{display:'flex',gap:12,alignItems:'flex-end',flexWrap:'wrap'}}>
+                        <div style={{width:170}}>
+                          <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:3}}>
+                            Comisión pactada (%)
+                          </label>
+                          <input type="number" step="0.01" min="0" max="100"
+                            value={form.comisionPactada === undefined ? '' : form.comisionPactada}
+                            onChange={function(e){fld('comisionPactada', e.target.value);}}
+                            placeholder="0.60" style={Object.assign({},iS,{width:'100%'})}/>
+                        </div>
+                        <div style={{flex:1,minWidth:240,fontSize:10.5,color:T.TEXT3,lineHeight:1.6}}>
+                          La conciliación contrasta lo liquidado contra lo cobrado menos esta comisión.
+                          Sin este dato se aplica 0,6% de referencia y el control pierde precisión.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return(
               <div key={i} style={fdef.full?{gridColumn:'1/-1'}:{}}>
                 <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
@@ -1218,7 +1271,7 @@ function LegajosView(props) {
                 var sujetos = [empresa];
                 if (presidente) sujetos.push(presidente);
                 if (form.beneficiarioFinal) sujetos.push(form.beneficiarioFinal);
-                var prompt = 'Sos analista senior AML/Compliance de un PSP argentino (GOAT S.A./Rebit, regulado UIF/BCRA).\n\n'
+                var prompt = 'Sos analista senior AML/Compliance de un PSP argentino (GOAT S.A., regulado UIF/BCRA).\n\n'
                   + 'Realizá una búsqueda de Adverse Media (noticias negativas, antecedentes judiciales, regulatorios, periodísticos) para las siguientes entidades/personas.\n\n'
                   + 'ENTIDADES A INVESTIGAR:\n' + sujetos.map(function(s,i){return (i+1)+'. '+s;}).join('\n') + '\n\n'
                   + 'BUSCAR en fuentes públicas abiertas:\n'
@@ -1625,7 +1678,7 @@ function LegajosView(props) {
                       var provider2 = _KEYS.provider || 'claude';
                       if (!apiKey2 && !oaiKey2) { toast('Configurá una API key en ⚙️'); setCierreLoading(false); return; }
                       var contexto = 'Empresa: '+sel.razonSocial+' | CUIT: '+(sel.cuit||'N/D')+' | Actividad: '+(sel.actividad||'N/D')+' | Segmento: '+(sel.segmento||'MEDIO')+' | Dictamen: '+(sel.dictamen||'N/D')+' | Red Flags KYB: '+(safeArr(sel.redFlags).join('; ')||'ninguna')+' | Períodos AML analizados: '+lPers2.length+(lastM2?' | Último período ('+( lastP.nombre)+'): Vol IN '+fmtM(lastM2.tIn)+', Vol OUT '+fmtM(lastM2.tOut)+', '+lastSigs2.length+' señales ('+lastSigs2.filter(function(s){return s.sev==='ALTA';}).length+' ALTA), Score AML '+(lastSc2?lastSc2.promedio.toFixed(2)+'/5 '+lastSc2.clasificacion:'N/D'):'');
-                      var promptCierre = 'Sos analista senior Compliance de GOAT S.A./Rebit (PSP argentino). Redactá un análisis ejecutivo profesional de máximo 3 párrafos fundamentando el cierre de cuenta del siguiente cliente. Sé objetivo, técnico y basate estrictamente en los datos. Cita los indicadores concretos. Evaluá si corresponde considerar un ROS ante UIF. No uses bullets, escribe en prosa.\n\nDatos del cliente:\n'+contexto+'\n\nMotivo declarado de cierre: '+cierreTipo+'\nDetalle: '+(cierreMot||'Sin detalle adicional.');
+                      var promptCierre = 'Sos analista senior Compliance de GOAT S.A. (PSP argentino). Redactá un análisis ejecutivo profesional de máximo 3 párrafos fundamentando el cierre de cuenta del siguiente cliente. Sé objetivo, técnico y basate estrictamente en los datos. Cita los indicadores concretos. Evaluá si corresponde considerar un ROS ante UIF. No uses bullets, escribe en prosa.\n\nDatos del cliente:\n'+contexto+'\n\nMotivo declarado de cierre: '+cierreTipo+'\nDetalle: '+(cierreMot||'Sin detalle adicional.');
                       try {
                         var cierreRes = await callProxyOrDirect(provider2, [{role:'user',content:promptCierre}], 600, true);
                         setCierreIA(typeof cierreRes === 'string' ? cierreRes : JSON.stringify(cierreRes));

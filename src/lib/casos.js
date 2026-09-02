@@ -25,7 +25,7 @@ var SLA = {
   ROS_CALIFICACION:    15,  // días corridos desde fechaCalificacion
   ROS_MAX_OPERACION:  150,  // días corridos desde la fecha de la operación
   ROS_FT_HORAS:        48,  // horas — financiamiento del terrorismo
-  RFI_RESPUESTA:        7,  // días — política interna Rebit
+  RFI_RESPUESTA:        7,  // días — política interna GOAT
   ESCALAMIENTO_COMITE: 10,  // días en análisis antes de elevar — política interna
   INICIO_ANALISIS:      2,  // días para tomar una caso nuevo — política interna
 };

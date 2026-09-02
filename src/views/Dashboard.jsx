@@ -236,7 +236,7 @@ function DashboardView(props) {
     <div style={{padding:22}}>
       {/* TABS */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
-        <h2 style={{fontSize:17,fontWeight:700,color:T.TEXT,letterSpacing:'-0.3px',margin:0,fontFamily:T.SANS}}>Dashboard <span style={{color:T.TEXT3,fontWeight:400,fontSize:13}}>· GOAT S.A. / Rebit</span></h2>
+        <h2 style={{fontSize:17,fontWeight:700,color:T.TEXT,letterSpacing:'-0.3px',margin:0,fontFamily:T.SANS}}>Dashboard <span style={{color:T.TEXT3,fontWeight:400,fontSize:13}}>· GOAT S.A.</span></h2>
         <div style={{display:'flex',gap:2,background:T.BG3,borderRadius:4,padding:4,border:'1px solid '+T.BORDER}}>
           {[['operacional','📊 Operacional'],['ejecutivo','📈 Ejecutivo']].map(function(t){return(
             <button key={t[0]} onClick={function(){setDashTab(t[0]);}}

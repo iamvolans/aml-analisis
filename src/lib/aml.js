@@ -128,6 +128,19 @@ function lineaBase(periodo, legajo, periodos) {
 function detectPatrones(m, perfil, base) {
   if (!m) return [];
 
+  // ── Convenios de recaudación ─────────────────────────────────────────────
+  // El flujo de un convenio es, por diseño, un embudo: muchos libradores hacia
+  // pocos beneficiarios, y sale casi lo mismo que entra menos la comisión. Las
+  // reglas que detectan esa forma se activarían en TODOS los convenios y
+  // describirían el modelo de negocio en lugar de una anomalía.
+  //
+  // Se suprimen únicamente esas tres. Circularidad, concentración de
+  // libradores, fraccionamiento y desvío conductual siguen aplicando, porque
+  // detectan anomalías reales dentro del modelo. El control aritmético propio
+  // de la modalidad lo aportan las reglas COB de lib/cobranza.js.
+  var esRecaud = !!(perfil && perfil.tipoOperatoria === 'RECAUDACION');
+  var ESPERABLES_RECAUD = ['PAT-02', 'PAT-09', 'PAT-12'];
+
   // Patrones que se apoyan en la identidad de la contraparte. Si el archivo no
   // trajo esa columna, todas las operaciones quedan bajo un mismo rótulo y los
   // cálculos de concentración, embudo, circularidad y fraccionamiento describen
@@ -243,6 +256,10 @@ function detectPatrones(m, perfil, base) {
           'T-06');
       }
     }
+  }
+
+  if (esRecaud) {
+    sigs = sigs.filter(function(s){ return ESPERABLES_RECAUD.indexOf(s.pat) < 0; });
   }
 
   if (sinCp) {

@@ -186,7 +186,7 @@ export default function App() {
         // saturar Supabase con queries masivas al inicio.
         var sinMetricas = cloudPers.filter(function(p){ return !p.metricas; });
         if (sinMetricas.length > 0) {
-          console.log('[Rebit] Períodos sin métricas:', sinMetricas.length, '— se calcularán al seleccionarlos');
+          console.log('[GOAT] Períodos sin métricas:', sinMetricas.length, '— se calcularán al seleccionarlos');
         }
       } else {
         setSyncStatus('error');
@@ -261,7 +261,7 @@ export default function App() {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'rebit-aml-backup-' + todayStr().replace(/\//g,'-') + '.json';
+    a.download = 'goat-aml-backup-' + todayStr().replace(/\//g,'-') + '.json';
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -331,7 +331,7 @@ export default function App() {
   if (loading) return (
     <div style={{minHeight:'100vh',background:T.BG,display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',fontFamily:T.MONO}}>
       <div style={{width:36,height:36,background:C.AC,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff',borderRadius:3,marginBottom:20,letterSpacing:'-0.5px'}}>RB</div>
-      <div style={{fontSize:13,fontWeight:600,color:T.TEXT,letterSpacing:'3px',marginBottom:8,textTransform:'uppercase'}}>REBIT AML TOOL</div>
+      <div style={{fontSize:13,fontWeight:600,color:T.TEXT,letterSpacing:'3px',marginBottom:8,textTransform:'uppercase'}}>SISTEMA AML & KYB</div>
       <div style={{fontSize:10,color:T.TEXT3,letterSpacing:'2px'}}>// cargando...</div>
     </div>
   );
@@ -480,7 +480,7 @@ export default function App() {
           <div style={{display:'flex',alignItems:'center',gap:11}}>
             <div style={{width:34,height:34,background:'linear-gradient(135deg,'+T.ACCENT+' 0%,#2A5FD0 100%)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff',borderRadius:T.RADIUS.md,flexShrink:0,fontFamily:T.SANS,boxShadow:'0 2px 8px '+T.ACCENT_DIM}}>RB</div>
             <div>
-              <div style={{color:T.TEXT,fontWeight:700,fontSize:14,letterSpacing:'-0.2px',fontFamily:T.SANS}}>Rebit AML</div>
+              <div style={{color:T.TEXT,fontWeight:700,fontSize:14,letterSpacing:'-0.2px',fontFamily:T.SANS}}>GOAT AML</div>
               <div style={{color:T.TEXT3,fontSize:10,fontWeight:500,letterSpacing:'0.5px',fontFamily:T.SANS}}>Compliance Suite</div>
             </div>
           </div>

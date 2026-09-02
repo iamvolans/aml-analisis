@@ -10,7 +10,7 @@ import { T } from "../lib/theme";
 import { parseFechaAR, sevColor, todayStr } from "../lib/utils";
 
 // ── Filtros persistentes en la sesión (mismo patrón que Legajos) ─────────────
-var FILTROS_KEY = 'rebit_alertas_filtros_v3';
+var FILTROS_KEY = 'goat_alertas_filtros_v3';
 function leerFiltros() {
   try { var raw = window.sessionStorage.getItem(FILTROS_KEY); return raw ? JSON.parse(raw) : {}; }
   catch(e) { return {}; }

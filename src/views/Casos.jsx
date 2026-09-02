@@ -10,7 +10,7 @@ import {
 import { T } from "../lib/theme";
 import { todayStr } from "../lib/utils";
 
-var FILTROS_KEY = 'rebit_casos_filtros_v3';
+var FILTROS_KEY = 'goat_casos_filtros_v3';
 function leerFiltros() {
   try { var raw = window.sessionStorage.getItem(FILTROS_KEY); return raw ? JSON.parse(raw) : {}; }
   catch(e) { return {}; }

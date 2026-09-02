@@ -177,7 +177,7 @@ function parseCsv(text) {
   var rows = lines.map(parseRow);
   var result = normalizeRows(rows);
   // Fallback si normalizeRows no detectó nada: retornar vacío con debug
-  if (result.length === 0) console.warn('[Rebit CSV] No se encontraron transacciones. Headers:', rows[0]);
+  if (result.length === 0) console.warn('[GOAT CSV] No se encontraron transacciones. Headers:', rows[0]);
   return result;
 }
 
@@ -192,9 +192,9 @@ function parseExcelFile(file) {
         var sheet = workbook.Sheets[sheetName];
         // Convertir a array de arrays (raw=true para preservar números)
         var rows = XLSX.utils.sheet_to_json(sheet, { header:1, raw:true, defval:'' });
-        console.log('[Rebit Excel] Filas leídas:', rows.length, '| Headers:', rows[0]);
+        console.log('[GOAT Excel] Filas leídas:', rows.length, '| Headers:', rows[0]);
         var txns = normalizeRows(rows);
-        console.log('[Rebit Excel] Transacciones parseadas:', txns.length);
+        console.log('[GOAT Excel] Transacciones parseadas:', txns.length);
         resolve(txns);
       } catch(err) {
         reject(new Error('Error al leer el archivo Excel: ' + err.message));

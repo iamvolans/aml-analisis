@@ -177,7 +177,7 @@ function PatronesView() {
 
       {/* Footer nota */}
       <div style={{marginTop:14,padding:'10px 14px',background:T.BG3,borderRadius:3,fontSize:11,color:T.TEXT3,lineHeight:1.6}}>
-        <strong>Nota regulatoria:</strong> Los patrones PAT-01 a PAT-12 son indicadores internos del sistema Rebit AML Tool mapeados
+        <strong>Nota regulatoria:</strong> Los patrones PAT-01 a PAT-12 son indicadores internos del sistema Sistema AML — GOAT S.A. mapeados
         a las tipologías de lavado de activos definidas por la UIF en la Resolución 156/2018 y sus modificatorias.
         La detección de un patrón no implica automáticamente la existencia de una operación ilícita —
         su interpretación debe realizarse siempre en el contexto del perfil completo del cliente.

@@ -32,9 +32,9 @@ function r2(a, b) { return '<tr><td>' + a + '</td><td><b>' + b + '</b></td></tr>
 
 function r3(a, b, c) { return '<tr><td>' + a + '</td><td>' + b + '</td><td style="font-size:9pt;color:#555">' + c + '</td></tr>'; }
 
-function rpH(e, f) { return '<div class="hdr"><span>GOAT S.A./Rebit — Informe Compliance — ' + e + '</span><span>' + f + '</span></div>'; }
+function rpH(e, f) { return '<div class="hdr"><span>GOAT S.A. — Informe Compliance — ' + e + '</span><span>' + f + '</span></div>'; }
 
-function rpF() { return '<div class="ftr"><span>Confidencial — Uso interno</span><span>GOAT S.A./Rebit — Compliance & AML — Design System v2.1.3</span></div>'; }
+function rpF() { return '<div class="ftr"><span>Confidencial — Uso interno</span><span>GOAT S.A. — Compliance & AML — Design System v2.1.3</span></div>'; }
 
 
 // ─── BLOQUE DE FIRMAS ───────────────────────────────────────────────────────
@@ -233,11 +233,11 @@ function genINF01(legajo, periodos, memosList) {
 
     // ── PORTADA ────────────────────────────────────────────────────────────
     + '<div style="border-bottom:1px solid #2E4870;padding-bottom:8px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:flex-end">'
-    + '<div><div style="font-size:8pt;color:#888">GOAT S.A. / Rebit — Informe Integral Compliance — '+empresa+'</div></div>'
+    + '<div><div style="font-size:8pt;color:#888">GOAT S.A. — Informe Integral Compliance — '+empresa+'</div></div>'
     + '<div style="font-size:8pt;color:#888">'+fecha+'</div></div>'
 
     + '<div style="background:#1B2A4A;color:white;padding:14px 20px;border-radius:4px;margin-bottom:20px">'
-    + '<div style="font-size:7pt;letter-spacing:2px;opacity:0.7;margin-bottom:6px">GOAT S.A. / REBIT</div>'
+    + '<div style="font-size:7pt;letter-spacing:2px;opacity:0.7;margin-bottom:6px">GOAT S.A.</div>'
     + '<div style="font-size:15pt;font-weight:700;margin-bottom:4px">Informe Integral de Compliance</div>'
     + '<div style="font-size:11pt;opacity:0.9">Onboarding KYB – Análisis de Riesgo y Segmentación</div>'
     + '</div>'
@@ -253,7 +253,7 @@ function genINF01(legajo, periodos, memosList) {
     + tr2('Alta en el legajo', legajo.createdAt||fecha)
     + tr2('Estado de cuenta', (function(){ var est=getEstado(legajo.estadoCuenta||'EN_ONBOARDING'); return '<span style="color:'+est.color+';font-weight:700">'+est.label+'</span>'+(legajo.estadoCuentaUpdatedAt?' <span style="color:#888;font-size:8.5pt">desde '+legajo.estadoCuentaUpdatedAt+'</span>':''); })())
     + tr2('Fecha de análisis', fecha)
-    + tr2('Ejecutado por', 'Equipo Compliance — GOAT S.A. / Rebit')
+    + tr2('Ejecutado por', 'Equipo Compliance — GOAT S.A.')
     + '</tbody></table>'
 
     + '<div style="font-size:8pt;color:#888;margin-bottom:20px">Confidencial – Uso interno y para terceros bajo acuerdo</div>'
@@ -445,7 +445,7 @@ function genINF01(legajo, periodos, memosList) {
     // ── PIE ────────────────────────────────────────────────────────────────
     + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
     + '<span>Confidencial — Uso interno y para terceros bajo acuerdo</span>'
-    + '<span>GOAT S.A. / Rebit — Compliance &amp; AML — v2.2.0</span>'
+    + '<span>GOAT S.A. — Compliance &amp; AML — v2.2.0</span>'
     + '</div>'
     + '</body></html>';
 }
@@ -498,7 +498,7 @@ function genINF02(legajo, periodo, m, sigs, sc, memosList) {
   return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>INF-02 - ' + empresa + ' - ' + periodo.nombre + '</title><style>' + pStyles() + '</style></head><body>'
     + rpH(empresa, fecha)
     + '<h1 class="bar" style="background:#2C4A7C">INF-02 — Informe de Monitoreo Transaccional</h1>'
-    + '<table>' + r2('Empresa', empresa) + r2('CUIT', (legajo&&legajo.cuit)||'N/D') + r2('Periodo', periodo.nombre) + r2('Transacciones', m.totalTxns) + r2('Fecha', fecha) + r2('Segmento KYB', piH(segmento, segColor(segmento))) + r2('Ejecutado por', 'Equipo Compliance — GOAT S.A. / Rebit') + '</table>'
+    + '<table>' + r2('Empresa', empresa) + r2('CUIT', (legajo&&legajo.cuit)||'N/D') + r2('Periodo', periodo.nombre) + r2('Transacciones', m.totalTxns) + r2('Fecha', fecha) + r2('Segmento KYB', piH(segmento, segColor(segmento))) + r2('Ejecutado por', 'Equipo Compliance — GOAT S.A.') + '</table>'
     + '<h1 class="bar">1. Resumen ejecutivo</h1>'
     + '<div class="db"><div class="dl" style="background:' + clColor + '">RIESGO ' + clasif + '</div><div class="dr">Score: ' + promScore + '/5 | ' + sigs.length + ' senales: ' + altaSigs.length + ' ALTA</div></div>'
     + '<p><b>Accion:</b> ' + accion + '</p>'
@@ -558,12 +558,12 @@ function genINF07Cierre(legajo, periodos, motivoCierre, tipoMotivo, analisisIA) 
 
     // Cabecera
     + '<div style="border-bottom:1px solid #2E4870;padding-bottom:8px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:flex-end">'
-    + '<span style="font-size:8pt;color:#888">GOAT S.A. / Rebit — INF-07 Cierre de Cuenta — '+empresa+'</span>'
+    + '<span style="font-size:8pt;color:#888">GOAT S.A. — INF-07 Cierre de Cuenta — '+empresa+'</span>'
     + '<span style="font-size:8pt;color:#888">'+fecha+'</span></div>'
 
     // Header
     + '<div style="background:#E74C3C;color:white;padding:14px 20px;border-radius:4px;margin-bottom:20px">'
-    + '<div style="font-size:7pt;letter-spacing:2px;opacity:0.7;margin-bottom:4px">GOAT S.A. / REBIT — INFORME DE CIERRE</div>'
+    + '<div style="font-size:7pt;letter-spacing:2px;opacity:0.7;margin-bottom:4px">GOAT S.A. — INFORME DE CIERRE</div>'
     + '<div style="font-size:14pt;font-weight:700;margin-bottom:3px">INF-07 — Cierre y Desvinculación de Cuenta</div>'
     + '<div style="font-size:9.5pt;opacity:0.9">'+empresa+' — CUIT '+( legajo.cuit||'N/D')+'</div>'
     + '</div>'
@@ -580,7 +580,7 @@ function genINF07Cierre(legajo, periodos, motivoCierre, tipoMotivo, analisisIA) 
     + '<tr><td style="color:#555;font-weight:600">Fecha de cierre</td><td><strong>'+fecha+'</strong></td></tr>'
     + '<tr><td style="color:#555;font-weight:600">Períodos AML analizados</td><td>'+(lPers.length>0?'<strong>'+lPers.length+'</strong>':lPers.length)+'</td></tr>'
     + '<tr><td style="color:#555;font-weight:600">Señales ALTA acumuladas</td><td><strong style="color:'+(lastAltaSigs.length>0?'#FF4455':'#00E676')+'">'+lastAltaSigs.length+(lastAltaSigs.length>0?' — requiere evaluación ROS':' — sin alertas críticas')+'</strong></td></tr>'
-    + '<tr><td style="color:#555;font-weight:600">Ejecutado por</td><td>Equipo Compliance — GOAT S.A. / Rebit</td></tr>'
+    + '<tr><td style="color:#555;font-weight:600">Ejecutado por</td><td>Equipo Compliance — GOAT S.A.</td></tr>'
     + '</tbody></table>'
     + (function(){
         var estPrevio = getEstado(legajo.estadoCuenta||'EN_ONBOARDING');
@@ -665,7 +665,7 @@ function genINF07Cierre(legajo, periodos, motivoCierre, tipoMotivo, analisisIA) 
     + firmasTriples(usuario)
     + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
     + '<span>Confidencial — Uso interno y para terceros bajo acuerdo</span>'
-    + '<span>GOAT S.A. / Rebit — Compliance &amp; AML — v2.2.0</span>'
+    + '<span>GOAT S.A. — Compliance &amp; AML — v2.2.0</span>'
     + '</div></body></html>';
 }
 
@@ -823,7 +823,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     + '<div contenteditable="true">'
     + 'Con base en el análisis transaccional realizado sobre los períodos '+nomPers
     + ' y las diligencias de debida diligencia reforzada llevadas a cabo, '
-    + 'el equipo de Compliance de GOAT S.A. / Rebit concluye que las operaciones del cliente '
+    + 'el equipo de Compliance de GOAT S.A. concluye que las operaciones del cliente '
     + (legajo.razonSocial||'')
     + ' presentan indicios de operaciones inusuales que no cuentan con justificación económica o jurídica aparente, '
     + 'configurando los supuestos del artículo 21 de la Ley 25.246. '
@@ -855,7 +855,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   // ── FOOTER ────────────────────────────────────────────────────────────────────
   html += '<div class="footer">'
     + '<span>CONFIDENCIAL — '+numDoc+' — Generado '+hoy+'</span>'
-    + '<span>GOAT S.A. / Rebit — Compliance &amp; AML — Sistema Rebit AML Tool</span>'
+    + '<span>GOAT S.A. — Compliance &amp; AML — Sistema AML — GOAT S.A.</span>'
     + '</div>'
     + '<div style="text-align:center;margin-top:6px;font-size:7pt;color:#aaa">'
     + 'Este documento es un borrador de trabajo. Para la presentación formal utilizar el sistema SIROS de la UIF.'
@@ -989,7 +989,7 @@ function genLegajoCompleto(datos) {
     + '</style></head><body>';
 
   h += '<div style="border:2px solid #1B2A4A;border-radius:4px;padding:26px 24px;margin-bottom:18px">'
-    + '<div style="font-size:8.5pt;color:#4A6A8A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">GOAT S.A. — Rebit · Compliance &amp; PLAFT</div>'
+    + '<div style="font-size:8.5pt;color:#4A6A8A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">GOAT S.A. · Compliance &amp; PLAFT</div>'
     + '<div style="font-size:17pt;font-weight:700;color:#1B2A4A;margin-bottom:3px">LEGAJO COMPLETO DE CLIENTE</div>'
     + '<div style="font-size:13pt;color:#2C4A7C;margin-bottom:16px">' + esc(empresa) + '</div>'
     + '<table style="font-size:9pt">'
@@ -1261,7 +1261,7 @@ function genLegajoCompleto(datos) {
   // ── Cierre ───────────────────────────────────────────────────────────────
   h += '<div class="pb"></div>' + sec(11, 'CONSTANCIA DE EMISIÓN')
     + '<div style="font-size:9pt;line-height:1.7;margin:10px 0">'
-    + 'El presente documento consolida la información registrada en el sistema de gestión de compliance de GOAT S.A. / Rebit '
+    + 'El presente documento consolida la información registrada en el sistema de gestión de compliance de GOAT S.A. '
     + 'respecto del cliente <strong>' + esc(empresa) + '</strong> (CUIT ' + dash(legajo.cuit) + '), al ' + fecha + ' ' + hora + '.<br/><br/>'
     + 'Las secciones de screening y de señales transaccionales reflejan el resultado de procedimientos automatizados y determinísticos, '
     + 'reproducibles a partir de los listados y períodos indicados. Las resoluciones de señales y los cambios de estado registran el '
@@ -1272,7 +1272,7 @@ function genLegajoCompleto(datos) {
     + firmasDobles(usuario)
     + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
     + '<span>Confidencial — Uso interno y ante requerimiento de autoridad competente</span>'
-    + '<span>GOAT S.A. / Rebit — Legajo completo — emitido ' + fecha + ' ' + hora + '</span>'
+    + '<span>GOAT S.A. — Legajo completo — emitido ' + fecha + ' ' + hora + '</span>'
     + '</div></body></html>';
 
   return h;
@@ -1309,7 +1309,7 @@ function genInformeComite(datos) {
 
   // ── Portada ──────────────────────────────────────────────────────────────
   h += '<div style="border:2px solid #1B2A4A;border-radius:4px;padding:26px 24px;margin-bottom:18px">'
-    + '<div style="font-size:8.5pt;color:#4A6A8A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">GOAT S.A. — Rebit · Comité de Compliance</div>'
+    + '<div style="font-size:8.5pt;color:#4A6A8A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">GOAT S.A. · Comité de Compliance</div>'
     + '<div style="font-size:17pt;font-weight:700;color:#1B2A4A;margin-bottom:3px">INFORME DE GESTIÓN PLAFT</div>'
     + '<div style="font-size:13pt;color:#2C4A7C;margin-bottom:16px">' + esc(m.rango.label) + '</div>'
     + '<table style="font-size:9pt">'
@@ -1500,7 +1500,7 @@ function genInformeComite(datos) {
   h += firmasComite(usuario)
     + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
     + '<span>Confidencial — Uso interno del Comité de Compliance</span>'
-    + '<span>GOAT S.A. / Rebit — Informe de gestión ' + esc(m.rango.label) + ' — emitido ' + fecha + '</span>'
+    + '<span>GOAT S.A. — Informe de gestión ' + esc(m.rango.label) + ' — emitido ' + fecha + '</span>'
     + '</div></body></html>';
 
   return h;
@@ -1549,7 +1549,7 @@ function genInformeScreening(datos) {
 
   // ── Portada ──────────────────────────────────────────────────────────────
   h += '<div style="border:2px solid #1B2A4A;border-radius:4px;padding:26px 24px;margin-bottom:18px">'
-    + '<div style="font-size:8.5pt;color:#4A6A8A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">GOAT S.A. — Rebit · Compliance &amp; PLA/FT</div>'
+    + '<div style="font-size:8.5pt;color:#4A6A8A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">GOAT S.A. · Compliance &amp; PLA/FT</div>'
     + '<div style="font-size:17pt;font-weight:700;color:#1B2A4A;margin-bottom:3px">INFORME DE COTEJO CONTRA LISTAS RESTRICTIVAS</div>'
     + '<div style="font-size:13pt;color:#2C4A7C;margin-bottom:16px">' + esc(legajo.razonSocial || 'Sin razón social') + '</div>'
     + '<table style="font-size:9pt">'
@@ -1677,7 +1677,7 @@ function genInformeScreening(datos) {
     + firmasDobles(usuario)
     + '<div style="display:flex;justify-content:space-between;border-top:1px solid #D6E4F0;padding-top:8px;margin-top:20px;font-size:7.5pt;color:#888">'
     + '<span>Confidencial — Uso interno y ante requerimiento de autoridad competente</span>'
-    + '<span>GOAT S.A. / Rebit — Informe de screening — ' + fecha + ' ' + hora + '</span>'
+    + '<span>GOAT S.A. — Informe de screening — ' + fecha + ' ' + hora + '</span>'
     + '</div></body></html>';
 
   return h;

@@ -13,7 +13,7 @@ import { fmtM, parseFechaAR, segColor, segColorR, todayStr } from "../lib/utils"
 // tiene que ver la misma red.
 var CORTE_KV = 'red_punto_corte';
 
-var FILTROS_KEY = 'rebit_red_filtros_v3';
+var FILTROS_KEY = 'goat_red_filtros_v3';
 function leerFiltros() {
   try { var raw = window.sessionStorage.getItem(FILTROS_KEY); return raw ? JSON.parse(raw) : {}; }
   catch(e) { return {}; }

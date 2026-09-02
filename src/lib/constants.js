@@ -10,11 +10,22 @@ var ESTADOS_CUENTA = [
 
 function getEstado(id) { return ESTADOS_CUENTA.find(function(e){return e.id===id;}) || ESTADOS_CUENTA[0]; }
 
+// Tipo de operatoria del cliente. Determina qué reglas de detección aplican:
+// un convenio de recaudación tiene forma de embudo por diseño, de modo que las
+// reglas que detectan esa forma se calibran de otro modo. Ver lib/cobranza.js.
+var TIPOS_OPERATORIA = [
+  { id:'CUENTA_PAGO',  label:'Cuenta de pago',
+    desc:'Cliente con cuenta de pago. Se monitorea el flujo propio del cliente.' },
+  { id:'RECAUDACION',  label:'Convenio de recaudación',
+    desc:'La entidad recibe cheques librados por terceros y liquida el producido a beneficiarios '
+       + 'instruidos por el cliente, bajo la modalidad de pago por cuenta y orden.' },
+];
+
 var CHECKLIST_ITEMS = ['Estatuto / Contrato social','Inscripcion registral (IGJ/INAES)','Constancia CUIT/AFIP','Acta de directorio vigente','Poder / Autorizacion firmante','DNI / Pasaporte firmante','Declaracion beneficiario final (>10%)','Estados contables (3 ejercicios)','Declaracion patrimonial DDJJ','Comprobante domicilio fiscal','Comprobante domicilio comercial','Certificado actividad / habilitacion','DDJJ AML (PEP/SO/UBO)','Constancia IVA / Monotributo','Referencias bancarias / comerciales'];
 
 var KYB_FACTORS = ['Completitud documental','Perfil de riesgo - actividad','Screening PEP/sanciones','Beneficiario final','Estructura societaria','Coherencia financiera','Antecedentes AML'];
 
-var SCREENING = [{n:'REPET - Registro Público de Personas y Entidades vinculadas a actos de Terrorismo',j:'Argentina',u:'https://www.argentina.gob.ar/justicia/repet'},{n:'OFAC SDN List',j:'USA',u:'https://sanctionssearch.ofac.treas.gov/'},{n:'UN Consolidated Sanctions',j:'Internacional',u:'https://www.un.org/securitycouncil/content/un-sc-consolidated-list'},{n:'EU Consolidated List',j:'Europa',u:'https://eeas.europa.eu/topics/sanctions-policy/'},{n:'GAFI - High-Risk Jurisdictions',j:'Internacional',u:'https://www.fatf-gafi.org/'},{n:'UIF - Sujetos Obligados',j:'Argentina',u:'https://www.argentina.gob.ar/uif'},{n:'AFIP - Constancia CUIT',j:'Argentina',u:'https://www.afip.gob.ar/'},{n:'ROS / RFI Internos Rebit',j:'Interno',u:'#'},{n:'Interpol Most Wanted',j:'Internacional',u:'https://www.interpol.int/'},{n:'PEP Arg - Poder Ciudadano',j:'Argentina',u:'https://poderciudadano.org/'},{n:'World-Check / Refinitiv',j:'Global',u:'https://www.refinitiv.com/'},{n:'Adverse Media - Google News',j:'Global',u:'https://news.google.com/'},{n:'BCRA - Central de Deudores',j:'Argentina',u:'https://www.bcra.gob.ar/BCRAyVos/Deudores.asp'},{n:'Poder Judicial Argentina',j:'Argentina',u:'https://www.pjn.gov.ar/'}];
+var SCREENING = [{n:'REPET - Registro Público de Personas y Entidades vinculadas a actos de Terrorismo',j:'Argentina',u:'https://www.argentina.gob.ar/justicia/repet'},{n:'OFAC SDN List',j:'USA',u:'https://sanctionssearch.ofac.treas.gov/'},{n:'UN Consolidated Sanctions',j:'Internacional',u:'https://www.un.org/securitycouncil/content/un-sc-consolidated-list'},{n:'EU Consolidated List',j:'Europa',u:'https://eeas.europa.eu/topics/sanctions-policy/'},{n:'GAFI - High-Risk Jurisdictions',j:'Internacional',u:'https://www.fatf-gafi.org/'},{n:'UIF - Sujetos Obligados',j:'Argentina',u:'https://www.argentina.gob.ar/uif'},{n:'AFIP - Constancia CUIT',j:'Argentina',u:'https://www.afip.gob.ar/'},{n:'ROS / RFI Internos GOAT',j:'Interno',u:'#'},{n:'Interpol Most Wanted',j:'Internacional',u:'https://www.interpol.int/'},{n:'PEP Arg - Poder Ciudadano',j:'Argentina',u:'https://poderciudadano.org/'},{n:'World-Check / Refinitiv',j:'Global',u:'https://www.refinitiv.com/'},{n:'Adverse Media - Google News',j:'Global',u:'https://news.google.com/'},{n:'BCRA - Central de Deudores',j:'Argentina',u:'https://www.bcra.gob.ar/BCRAyVos/Deudores.asp'},{n:'Poder Judicial Argentina',j:'Argentina',u:'https://www.pjn.gov.ar/'}];
 
 // ─── GENERADOR ROS — REPORTE DE OPERACIÓN SOSPECHOSA ─────────────────────────
 var PAT_UIF_MAP = {
@@ -38,4 +49,4 @@ var PAT_UIF_MAP = {
   'DATA-01': { tip:'T-00', desc:'Calidad del dato: el archivo cargado no permite identificar las contrapartes, por lo que los análisis de concentración y fraccionamiento no son concluyentes' },
 };
 
-export { ESTADOS_CUENTA, getEstado, CHECKLIST_ITEMS, KYB_FACTORS, SCREENING, PAT_UIF_MAP };
+export { ESTADOS_CUENTA, getEstado, CHECKLIST_ITEMS, KYB_FACTORS, SCREENING, PAT_UIF_MAP, TIPOS_OPERATORIA };

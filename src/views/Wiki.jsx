@@ -119,8 +119,8 @@ function WikiView() {
       case 'inicio': return (
         <div>
           <div style={{background:'linear-gradient(135deg,#1B2A4A 0%,#2C4A7C 100%)',borderRadius:12,padding:'24px 28px',marginBottom:20,color:'white'}}>
-            <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',letterSpacing:'0.07em',textTransform:'uppercase',marginBottom:6}}>GOAT S.A. / Rebit — Departamento PLAFT</div>
-            <h1 style={{fontSize:24,fontWeight:700,margin:'0 0 8px',color:'white'}}>📚 Wiki — Rebit AML & KYB Tool</h1>
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',letterSpacing:'0.07em',textTransform:'uppercase',marginBottom:6}}>GOAT S.A. — Departamento PLAFT</div>
+            <h1 style={{fontSize:24,fontWeight:700,margin:'0 0 8px',color:'white'}}>📚 Wiki — Sistema AML & KYB — GOAT S.A.</h1>
             <p style={{fontSize:13,color:'rgba(255,255,255,0.75)',margin:0,lineHeight:1.6}}>Guía completa de operación para todo el equipo de Compliance. Navegá por las secciones del panel izquierdo.</p>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:20}}>
@@ -429,7 +429,7 @@ function WikiView() {
           ]}/>
           <WikiTbl headers={['Sección','Contenido','Editable']} rows={[
             ['1. Encabezado','N° correlativo ROS-YYYY-NNN · Fecha · CONFIDENCIAL','No'],
-            ['2. Sujeto Obligado','Datos fijos de GOAT S.A. / Rebit','No'],
+            ['2. Sujeto Obligado','Datos fijos de GOAT S.A.','No'],
             ['3. Cliente Reportado','Datos del legajo KYB','No'],
             ['4. Descripción de Operaciones','Métricas agregadas de los períodos seleccionados','Sí'],
             ['5. Señales Detectadas','PAT codes con tipología UIF correspondiente','No'],
@@ -468,7 +468,7 @@ function WikiView() {
           ]}/>
           <h2 style={H2}>Monitoreo mensual recurrente</h2>
           <WikiStepList steps={[
-            ['Días 1, 11 y 21 del mes — Obtener archivo XLS','Exportar desde el sistema operativo de Rebit el archivo de 10 días del período.'],
+            ['Días 1, 11 y 21 del mes — Obtener archivo XLS','Exportar desde el sistema operativo de GOAT el archivo de 10 días del período.'],
             ['Cargar en Análisis AML','Seleccionar legajo → nombre del período → subir archivo → "Cargar y analizar".'],
             ['Revisar métricas y señales','Verificar señales ALTA nuevas que requieran acción inmediata.'],
             ['Documentar en Memos','Registrar observaciones del analista sobre el período.'],
@@ -502,7 +502,7 @@ function WikiView() {
             ['Layering','Segunda etapa del lavado: múltiples transacciones para dificultar el rastreo del origen.'],
             ['Pass-through','Fondos que ingresan y egresan el mismo día. Cuenta usada como intermediario de paso.'],
             ['PEP','Persona Políticamente Expuesta. Riesgo regulatorio especial por su función pública.'],
-            ['PSP','Proveedor de Servicios de Pago. Categoría regulatoria de GOAT S.A. / Rebit.'],
+            ['PSP','Proveedor de Servicios de Pago. Categoría regulatoria de GOAT S.A..'],
             ['REPET','Registro Público de Personas vinculadas a Terrorismo. Administrado por la UIF.'],
             ['RFI','Request for Information. Requerimiento formal de información al cliente.'],
             ['ROS','Reporte de Operación Sospechosa. Comunicación obligatoria a la UIF (Art. 21 Ley 25.246).'],

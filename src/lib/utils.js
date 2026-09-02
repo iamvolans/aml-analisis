@@ -57,16 +57,16 @@ function parseJsonFromResponse(raw) {
   var jsonStart = raw.indexOf('{');
   var jsonEnd = raw.lastIndexOf('}');
   if (jsonStart === -1 || jsonEnd === -1) {
-    console.error('[Rebit IA] No se encontró JSON en la respuesta:', raw);
+    console.error('[GOAT IA] No se encontró JSON en la respuesta:', raw);
     throw new Error('La IA no devolvió un JSON válido. Respuesta: ' + raw.slice(0, 200));
   }
   var jsonStr = raw.slice(jsonStart, jsonEnd + 1);
   try {
     var parsed = JSON.parse(jsonStr);
-    console.log('[Rebit IA] Datos extraídos:', JSON.stringify(parsed, null, 2));
+    console.log('[GOAT IA] Datos extraídos:', JSON.stringify(parsed, null, 2));
     return parsed;
   } catch(parseErr) {
-    console.error('[Rebit IA] Error parsing JSON:', parseErr, jsonStr.slice(0, 300));
+    console.error('[GOAT IA] Error parsing JSON:', parseErr, jsonStr.slice(0, 300));
     throw new Error('Error al parsear la respuesta: ' + parseErr.message);
   }
 }

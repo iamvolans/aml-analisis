@@ -6,6 +6,7 @@ import { Card, Pill, SevBadge, chartGrid, chartAxis, chartTooltip } from "../com
 import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEditar } from "../lib/auth";
 import { parseCsv, parseExcelFile } from "../lib/parsers";
+import { analizarConvenio, unificarOperaciones, esRecaudacion } from "../lib/cobranza";
 import { genINF02, genNotaDD } from "../lib/reports";
 import { authHeaders } from "../lib/session";
 import { serverLoadKV, serverLoadTxns, serverSaveKV, serverSaveTxns } from "../lib/sync";
@@ -28,6 +29,15 @@ function AnalisisView(props) {
   var spState = useState(props.initPeriodo||null); var selPeriodo=spState[0]; var setSelPeriodo=spState[1];
   var pnState = useState(''); var periodoNombre=pnState[0]; var setPeriodoNombre=pnState[1];
   var csvState = useState(null); var csv=csvState[0]; var setCsv=csvState[1];
+
+  // ── Convenios de recaudación ───────────────────────────────────────────────
+  // Los cheques cobrados y las liquidaciones llegan en archivos separados. Se
+  // cargan por separado y se unifican en un mismo período: los cheques como
+  // ingreso y las liquidaciones como egreso. Así el motor general evalúa el
+  // flujo completo —circularidad, concentración de libradores, fraccionamiento—
+  // y la conciliación aporta el control aritmético propio de la modalidad.
+  var liqState = useState(null); var liqCsv=liqState[0]; var setLiqCsv=liqState[1];
+  var destinoState = useState('cheques'); var destinoCarga=destinoState[0]; var setDestinoCarga=destinoState[1];
   var tabState = useState('metricas'); var tab=tabState[0]; var setTab=tabState[1];
   var tendenciasState = useState(false); var tendencias=tendenciasState[0]; var setTendencias=tendenciasState[1];
   var fileRef = useRef();
@@ -103,7 +113,7 @@ function AnalisisView(props) {
       }
       setTxnsLoading(false);
     }).catch(function(e){
-      console.error('[Rebit] Error useEffect txns:', e);
+      console.error('[GOAT] Error useEffect txns:', e);
       setTxnsLoading(false);
     });
   }, [selPeriodo && selPeriodo.id]);
@@ -247,11 +257,11 @@ function AnalisisView(props) {
         }
       } else {
         // Supabase no devolvió txns — puede ser período nuevo no persistido aún
-        console.warn('[Rebit] No se encontraron txns para período', p.id, p.nombre);
+        console.warn('[GOAT] No se encontraron txns para período', p.id, p.nombre);
       }
       setTxnsLoading(false);
     }).catch(function(e){
-      console.error('[Rebit] Error cargando txns:', e);
+      console.error('[GOAT] Error cargando txns:', e);
       setTxnsLoading(false);
     });
   }
@@ -275,7 +285,9 @@ function AnalisisView(props) {
         toast('⚠ No se encontraron transacciones en el archivo.\n\nVerificá que el archivo tenga columnas de: fecha, tipo (IN/OUT o débito/crédito), monto, y opcionalmente contraparte.\n\nSi el archivo tiene otro formato de columnas, abrilo en Excel y guardalo como CSV separado por comas.');
         setLoadingFile(false); e.target.value=''; return;
       }
-      setCsv({name:f.name, txns:txns, diag:txns.diagnostico || null});
+      var paquete = { name:f.name, txns:txns, diag:txns.diagnostico || null };
+      if (esRecaudacion(selLegajo) && destinoCarga === 'liquidaciones') setLiqCsv(paquete);
+      else setCsv(paquete);
     } catch(err) {
       toast('Error al leer el archivo: ' + err.message);
     }
@@ -285,15 +297,19 @@ function AnalisisView(props) {
   function handleSavePeriodo() {
     if (!csv || !selLegajo) return;
     var nombre = periodoNombre || csv.name.replace(/\.(csv|xls|xlsx|txt)$/i, '');
+    // En un convenio, el período contiene cheques y liquidaciones unificados
+    var opsPeriodo = (esRecaudacion(selLegajo) && liqCsv)
+      ? unificarOperaciones(csv.txns, liqCsv.txns)
+      : csv.txns;
     // Pre-calcular métricas y scoring al momento de la carga — persisten sin depender de txns en memoria
-    var preMetricas = calcMetricas(csv.txns, selLegajo);
+    var preMetricas = calcMetricas(opsPeriodo, selLegajo);
     var preSigs = preMetricas ? detectPatrones(preMetricas, selLegajo) : [];
     var preScoring = preMetricas ? calcScoring(preMetricas, preSigs) : null;
     var p = {
       id: uid(),
       legajoId: selLegajo.id,
       nombre: nombre,
-      txns: csv.txns,
+      txns: opsPeriodo,
       createdAt: todayStr(),
       // Datos pre-computados — persisten entre dispositivos
       estadoPeriodo: 'EN_REVISION',
@@ -304,13 +320,13 @@ function AnalisisView(props) {
     var updated = periodos.concat([p]);
     setPeriodos(updated);
     // Primero guardar las txns, luego el período con sus métricas
-    serverSaveTxns(p.id, csv.txns).then(function(){
+    serverSaveTxns(p.id, opsPeriodo).then(function(){
       onSync(legajos, updated);
     }).catch(function(e){
-      console.error('[Rebit] Error guardando txns:', e);
+      console.error('[GOAT] Error guardando txns:', e);
       onSync(legajos, updated); // guardar el período igual, sin txns
     });
-    setSelPeriodo(p); setCsv(null); setPeriodoNombre('');
+    setSelPeriodo(p); setCsv(null);setLiqCsv(null); setPeriodoNombre('');
   }
 
   var scData = sc ? sc.scores.map(function(f){return{f:f.factor.length>16?f.factor.slice(0,16)+'…':f.factor,s:f.score,fill:f.score>=4?C.ROJO:f.score>=3?C.NARANJA:C.VERDE};}) : [];
@@ -336,7 +352,7 @@ function AnalisisView(props) {
 
           <div style={{padding:'13px 14px',borderBottom:'1px solid '+T.BORDER}}>
             <label style={labelSt}>Legajo</label>
-            <select value={selLegajo?selLegajo.id:''} onChange={function(e){setSelLegajo(legajos.find(function(l){return l.id===e.target.value;})||null);setSelPeriodo(null);setCsv(null);setTendencias(false);}} style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'8px 10px',fontSize:12,color:T.TEXT}}>
+            <select value={selLegajo?selLegajo.id:''} onChange={function(e){setSelLegajo(legajos.find(function(l){return l.id===e.target.value;})||null);setSelPeriodo(null);setCsv(null);setLiqCsv(null);setTendencias(false);}} style={{width:'100%',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,padding:'8px 10px',fontSize:12,color:T.TEXT}}>
               <option value="">— Seleccionar legajo —</option>
               {legajos.map(function(l){return <option key={l.id} value={l.id}>{(l.razonSocial||'Sin nombre')} — {(l.cuit||'CUIT N/D')}</option>;})}
             </select>
@@ -359,7 +375,7 @@ function AnalisisView(props) {
             <div>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px 8px'}}>
                 <span style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',fontFamily:T.SANS}}>Períodos ({lP.length})</span>
-                <button onClick={function(){setSelPeriodo(null);setTendencias(false);setCsv(null);}}
+                <button onClick={function(){setSelPeriodo(null);setTendencias(false);setCsv(null);setLiqCsv(null);}}
                   style={{background:T.ACCENT_SOFT,color:T.ACCENT,border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.sm,padding:'3px 9px',cursor:'pointer',fontSize:11,fontWeight:600,fontFamily:T.SANS}}>+ Nuevo</button>
               </div>
 
@@ -650,6 +666,46 @@ function AnalisisView(props) {
           <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:3}}>Nombre del periodo</label>
           <input value={periodoNombre} onChange={function(e){setPeriodoNombre(e.target.value);}} placeholder="Ej: Enero 2026" style={{width:'100%',maxWidth:300,border:'1px solid '+T.BORDER,borderRadius:4,padding:'7px 9px',fontSize:13}}/>
         </div>
+
+        {/* Convenio de recaudación: dos archivos, cheques y liquidaciones */}
+        {esRecaudacion(selLegajo) && (
+          <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,padding:'13px 15px',marginBottom:10}}>
+            <div style={{fontSize:12,fontWeight:600,color:T.TEXT,marginBottom:5}}>Convenio de recaudación</div>
+            <div style={{fontSize:11,color:T.TEXT2,lineHeight:1.65,marginBottom:11}}>
+              Se cargan los dos archivos por separado y se unifican en un mismo período: los cheques
+              como ingreso y las liquidaciones como egreso. Elegí cuál estás subiendo antes de
+              seleccionar el archivo.
+            </div>
+            <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+              {[['cheques','Cheques cobrados', csv],['liquidaciones','Liquidaciones', liqCsv]].map(function(d){
+                var on = destinoCarga === d[0];
+                var cargado = d[2];
+                return (
+                  <button key={d[0]} onClick={function(){setDestinoCarga(d[0]);}}
+                    style={{flex:'1 1 200px',textAlign:'left',cursor:'pointer',
+                      background:on?T.ACCENT_SOFT:T.BG3,
+                      border:'1px solid '+(on?T.ACCENT_DIM:T.BORDER2),
+                      borderRadius:T.RADIUS.sm,padding:'9px 12px',fontFamily:T.SANS}}>
+                    <div style={{fontSize:12,fontWeight:on?700:600,color:on?T.ACCENT:T.TEXT}}>
+                      {on ? '● ' : '○ '}{d[1]}
+                    </div>
+                    <div style={{fontSize:10.5,color:cargado?T.GREEN:T.TEXT3,marginTop:3}}>
+                      {cargado ? '✓ ' + cargado.txns.length + ' operaciones — ' + cargado.name
+                               : 'sin cargar'}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {csv && !liqCsv && (
+              <div style={{fontSize:11,color:T.AMBER,lineHeight:1.6}}>
+                Falta el archivo de liquidaciones. Sin él, el período se guarda solo con los cheques
+                y la conciliación no puede calcularse.
+              </div>
+            )}
+          </div>
+        )}
+
         <div onClick={function(){if(!loadingFile)fileRef.current.click();}} style={{border:'2px dashed '+C.AC,borderRadius:8,padding:'22px 20px',textAlign:'center',cursor:loadingFile?'wait':'pointer',background:csv?'rgba(0,214,143,0.06)':T.BG2,marginBottom:10}}>
           <div style={{fontSize:24,marginBottom:4}}>{loadingFile?'⏳':csv?'✅':'📊'}</div>
           <div style={{fontSize:13,color:T.CYAN,fontWeight:700}}>{loadingFile?'Procesando archivo...':csv?csv.name+' — '+csv.txns.length+' transacciones detectadas':'📂 Subir archivo de transacciones'}</div>
@@ -699,6 +755,96 @@ function AnalisisView(props) {
                   </div>
                 </div>
               ) : null}
+            </div>
+          );
+        })() : null}
+
+        {/* Conciliación del convenio — antes de guardar, para que el analista
+            vea si las cifras cierran y con qué desvío */}
+        {esRecaudacion(selLegajo) && csv && liqCsv ? (function(){
+          var r = analizarConvenio({
+            cheques: csv.txns, liquidaciones: liqCsv.txns,
+            comision: selLegajo.comisionPactada,
+            periodosPrevios: periodos.filter(function(p){ return p.legajoId === selLegajo.id; }),
+          });
+          var c = r.conciliacion;
+          var mal = r.senales.some(function(x){ return x.sev === 'ALTA'; });
+          var fila = function(l, v, col) {
+            return (
+              <div style={{display:'flex',justifyContent:'space-between',padding:'4px 0',fontSize:12}}>
+                <span style={{color:T.TEXT2}}>{l}</span>
+                <span style={{fontFamily:T.MONO,fontWeight:600,color:col||T.TEXT}}>{v}</span>
+              </div>
+            );
+          };
+          return (
+            <div style={{background:T.BG2,
+              border:'1px solid '+(mal?'rgba(255,68,85,0.35)':T.BORDER),
+              borderLeft:'3px solid '+(mal?T.RED:r.senales.length?T.AMBER:T.GREEN),
+              borderRadius:T.RADIUS.md,padding:'14px 16px',marginBottom:10,boxShadow:T.SHADOW.card}}>
+              <div style={{fontSize:12.5,fontWeight:700,color:mal?T.RED:r.senales.length?T.AMBER:T.GREEN,marginBottom:9}}>
+                {mal ? '⚠ La conciliación no cierra'
+                     : r.senales.length ? 'Conciliación con observaciones'
+                     : '✓ Conciliación correcta'}
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,marginBottom:10}}>
+                <div>
+                  {fila('Cheques cobrados', c.cantCheques + ' · ' + fmtM(c.cobrado))}
+                  {fila('Comisión pactada', c.comisionPactada + '%')}
+                  {fila('Corresponde liquidar', fmtM(c.esperado))}
+                </div>
+                <div>
+                  {fila('Liquidaciones', c.cantLiquidaciones + ' · ' + fmtM(c.liquidado))}
+                  {fila('Comisión efectiva',
+                        c.comisionImplicita === null ? '—' : c.comisionImplicita.toFixed(2) + '%',
+                        c.desvioComision !== null && Math.abs(c.desvioComision) > 0.35 ? T.AMBER : T.TEXT)}
+                  {fila(c.saldo >= 0 ? 'Saldo sin liquidar' : 'Liquidado de más',
+                        fmtM(Math.abs(c.saldo)) + ' (' + Math.abs(c.saldoPct).toFixed(1) + '%)',
+                        c.saldo < 0 ? T.RED : c.saldoPct > 25 ? T.AMBER : T.TEXT)}
+                </div>
+              </div>
+
+              {r.senales.length > 0 && (
+                <div style={{borderTop:'1px solid '+T.BORDER,paddingTop:9,marginBottom:4}}>
+                  {r.senales.map(function(sg,i){
+                    return (
+                      <div key={i} style={{display:'flex',gap:9,padding:'5px 0',fontSize:11.5,alignItems:'flex-start'}}>
+                        <span style={{fontFamily:T.MONO,fontSize:10,fontWeight:700,
+                          color:sg.sev==='ALTA'?T.RED:T.AMBER,width:58,flexShrink:0}}>{sg.pat}</span>
+                        <span style={{flex:1,color:T.TEXT2,lineHeight:1.6}}>
+                          <strong style={{color:T.TEXT}}>{sg.titulo}.</strong> {sg.desc}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {r.beneficiarios.length > 0 && (
+                <div style={{borderTop:'1px solid '+T.BORDER,paddingTop:9}}>
+                  <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:6}}>
+                    Destinatarios de la liquidación ({r.beneficiarios.length})
+                  </div>
+                  {r.beneficiarios.slice(0,6).map(function(b,i){
+                    var esNuevo = r.beneficiariosNuevos.some(function(n){ return n.nombre === b.nombre; });
+                    return (
+                      <div key={i} style={{display:'flex',gap:9,padding:'3px 0',fontSize:11,alignItems:'center'}}>
+                        <span style={{flex:1,color:T.TEXT,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                          {b.nombre}
+                          {esNuevo && <span style={{marginLeft:7,fontSize:9,color:T.VIOLET,fontWeight:700}}>NUEVO</span>}
+                        </span>
+                        <span style={{fontFamily:T.MONO,fontSize:10.5,color:T.TEXT2,whiteSpace:'nowrap'}}>
+                          {fmtM(b.monto)} · {b.part.toFixed(1)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {r.beneficiarios.length > 6 && (
+                    <div style={{fontSize:10,color:T.TEXT4,marginTop:5}}>y {r.beneficiarios.length-6} más.</div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })() : null}

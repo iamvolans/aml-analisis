@@ -21,7 +21,7 @@ async function extractWithClaude(filesOrBlocks) {
     // Modo nuevo: recibe content blocks ya construidos por handleUpload
     contentBlocks = filesOrBlocks;
   }
-  var prompt = `Sos analista senior Compliance & AML de GOAT S.A./Rebit (PSP argentino regulado por UIF/BCRA).
+  var prompt = `Sos analista senior Compliance & AML de GOAT S.A. (PSP argentino regulado por UIF/BCRA).
 FECHA DE HOY: ${new Date().toLocaleDateString('es-AR')} (${new Date().getFullYear()}). Usá esta fecha como referencia para evaluar si algo es pasado, presente o futuro.
 Analizá exhaustivamente los documentos adjuntos y extraé TODA la información posible para completar el legajo KYB corporativo.
 Devolvé SOLO JSON válido, sin texto previo, sin backticks, sin comentarios.
@@ -199,13 +199,13 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
     var byteSize = dataStr.length * 0.75; // base64 → bytes aprox
     if (byteSize > MAX_DOC_BYTES) {
       docsOmitidos++;
-      console.warn('[Rebit IA] Documento omitido por tamaño: ' + (byteSize/1024/1024).toFixed(1) + 'MB (límite 3.5MB)');
+      console.warn('[GOAT IA] Documento omitido por tamaño: ' + (byteSize/1024/1024).toFixed(1) + 'MB (límite 3.5MB)');
       return false;
     }
     return true;
   });
   if (docsOmitidos > 0) {
-    console.warn('[Rebit IA] ' + docsOmitidos + ' documento(s) omitido(s) por exceder el límite de tamaño. Usá PDFs más livianos o comprimí las imágenes antes de subir.');
+    console.warn('[GOAT IA] ' + docsOmitidos + ' documento(s) omitido(s) por exceder el límite de tamaño. Usá PDFs más livianos o comprimí las imágenes antes de subir.');
   }
   var textBlocks = contentBlocks.filter(function(b){ return b.type === 'text'; });
   var promptBlock = textBlocks[textBlocks.length - 1];
@@ -259,7 +259,7 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
       return c;
     });
     var blocks = docsClean.concat([batchPromptBlock]);
-    console.log('[Rebit IA] ' + etiqueta);
+    console.log('[GOAT IA] ' + etiqueta);
     return await callProxyOrDirect('claude', [{ role:'user', content:blocks }], 6000);
   }
 
@@ -274,7 +274,7 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
       var esBatchFail = loteErr.message && (loteErr.message.indexOf('BATCH_FAILED:') === 0 || loteErr.message.indexOf('SERVER_TIMEOUT:') === 0);
       if (esBatchFail && batchDocs.length > 1) {
         // División automática: procesar los documentos del lote de a 1
-        console.warn('[Rebit IA] Lote ' + batchNum + ' falló — dividiendo en ' + batchDocs.length + ' sub-lotes individuales...');
+        console.warn('[GOAT IA] Lote ' + batchNum + ' falló — dividiendo en ' + batchDocs.length + ' sub-lotes individuales...');
         for (var sd = 0; sd < batchDocs.length; sd++) {
           var docIndividual = [batchDocs[sd]];
           var nombreDoc = nombreDeBloque(batchDocs[sd]);
@@ -282,7 +282,7 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
             var subResult = await procesarLote(docIndividual, 'Sub-lote ' + (sd+1) + '/' + batchDocs.length + ' del lote ' + batchNum + ' (' + nombreDoc + ')');
             allResults.push(subResult);
           } catch(subErr) {
-            console.error('[Rebit IA] Documento omitido tras reintentos: ' + nombreDoc + ' — ' + subErr.message);
+            console.error('[GOAT IA] Documento omitido tras reintentos: ' + nombreDoc + ' — ' + subErr.message);
             docsFallidos.push(nombreDoc);
           }
           if (sd < batchDocs.length - 1) await sleep(1500);
@@ -290,7 +290,7 @@ Si no encontrás un dato, dejá el campo vacío o en 0. Nunca inventes datos.`;
       } else if (esBatchFail) {
         // Lote de 1 documento que falló definitivamente → omitir y seguir
         var nombreUnico = nombreDeBloque(batchDocs[0]);
-        console.error('[Rebit IA] Documento omitido tras reintentos: ' + nombreUnico);
+        console.error('[GOAT IA] Documento omitido tras reintentos: ' + nombreUnico);
         docsFallidos.push(nombreUnico);
       } else {
         // Error no reintentable (API key, 401, 413 individual) → propagar
@@ -536,7 +536,7 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
           + 'Verificá tu conexión a internet y que las Serverless Functions de Vercel estén disponibles.\n'
           + 'Detalle: ' + networkErr.message);
       }
-      console.warn('[Rebit IA] Proxy no alcanzable (localhost):', networkErr.message);
+      console.warn('[GOAT IA] Proxy no alcanzable (localhost):', networkErr.message);
       proxyResp = null;
     }
 
@@ -566,7 +566,7 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
       if (!isLocalhost) {
         throw new Error('Error del servidor proxy (' + proxyResp.status + '): ' + proxyErrMsg);
       }
-      console.warn('[Rebit IA] Proxy falló (' + proxyResp.status + '), usando llamada directa (solo localhost)...');
+      console.warn('[GOAT IA] Proxy falló (' + proxyResp.status + '), usando llamada directa (solo localhost)...');
     }
 
     // 2. Fallback: llamada directa (SOLO en desarrollo local)
@@ -627,7 +627,7 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
       if (err.message && err.message.indexOf('SERVER_TIMEOUT:') === 0) {
         if (attempt < 2) {
           var waitT = TIMEOUT_RETRY_DELAYS[attempt] || 8000;
-          console.warn('[Rebit IA] Timeout del servidor. Reintentando en ' + (waitT/1000) + 's (intento ' + (attempt+1) + '/2)...');
+          console.warn('[GOAT IA] Timeout del servidor. Reintentando en ' + (waitT/1000) + 's (intento ' + (attempt+1) + '/2)...');
           await sleep(waitT);
           continue;
         }
@@ -637,7 +637,7 @@ async function callProxyOrDirect(provider, messages, maxTokens, returnRaw) {
       if (err.message && err.message.indexOf('RATE_LIMIT:') === 0) {
         if (attempt < MAX_RETRIES) {
           var waitMs = RETRY_DELAYS[attempt];
-          console.warn('[Rebit IA] Rate limit alcanzado. Esperando ' + (waitMs/1000) + 's antes de reintentar (intento ' + (attempt+1) + '/' + MAX_RETRIES + ')...');
+          console.warn('[GOAT IA] Rate limit alcanzado. Esperando ' + (waitMs/1000) + 's antes de reintentar (intento ' + (attempt+1) + '/' + MAX_RETRIES + ')...');
           await sleep(waitMs);
           continue;
         }
@@ -662,7 +662,7 @@ async function extractWithGPT(contentBlocks) {
 
   var hoy = new Date().toLocaleDateString('es-AR');
   var anio = new Date().getFullYear();
-  var KYB_PROMPT = 'Sos un analista senior de Compliance y AML de GOAT S.A./Rebit (PSP argentino regulado por UIF/BCRA).\n'
+  var KYB_PROMPT = 'Sos un analista senior de Compliance y AML de GOAT S.A. (PSP argentino regulado por UIF/BCRA).\n'
     + '══════════════════════════════════════════════════════════\n'
     + 'FECHA DE HOY: ' + hoy + ' (AÑO ' + anio + ').\n'
     + 'CUALQUIER FECHA DEL AÑO 2025 O ANTERIOR ES UNA FECHA PASADA. NO ES FUTURA.\n'
