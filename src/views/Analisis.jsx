@@ -3,7 +3,7 @@ import { toast, uiConfirm } from "../components/feedback";
 import { BarChart, Bar, Line, ComposedChart, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
 import { Card, Pill, SevBadge, chartGrid, chartAxis, chartTooltip } from "../components/ui";
-import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase } from "../lib/aml";
+import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase, operacionesDeSenal } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEditar } from "../lib/auth";
 import { parseCsv, parseExcelFile } from "../lib/parsers";
 import { analizarConvenio, unificarOperaciones, esRecaudacion } from "../lib/cobranza";
@@ -29,6 +29,10 @@ function AnalisisView(props) {
   var spState = useState(props.initPeriodo||null); var selPeriodo=spState[0]; var setSelPeriodo=spState[1];
   var pnState = useState(''); var periodoNombre=pnState[0]; var setPeriodoNombre=pnState[1];
   var csvState = useState(null); var csv=csvState[0]; var setCsv=csvState[1];
+  // Señal cuya evidencia está desplegada. Las operaciones se muestran a pedido:
+  // una señal puede implicar cientos y desplegarlas todas de entrada haría
+  // ilegible la lista.
+  var evState = useState(null); var evAbierta=evState[0]; var setEvAbierta=evState[1];
 
   // ── Convenios de recaudación ───────────────────────────────────────────────
   // Los cheques cobrados y las liquidaciones llegan en archivos separados. Se
@@ -990,6 +994,82 @@ function AnalisisView(props) {
                 </div>
                 <div style={{fontWeight:700,fontSize:13,color:resuelta?T.TEXT3:T.TEXT}}>{s.titulo}</div>
                 <div style={{fontSize:12,color:T.TEXT2,marginTop:2}}>{s.desc}</div>
+
+                {/* Operaciones que sustentan la señal. Evita que el analista
+                    tenga que reconstruir a mano a qué se refería la alerta. */}
+                {(function(){
+                  if (s.estructural) {
+                    return (
+                      <div style={{marginTop:6,fontSize:11,color:T.TEXT4,lineHeight:1.55}}>
+                        Describe la forma del período completo, no operaciones puntuales.
+                      </div>
+                    );
+                  }
+                  var refs = s.ops || [];
+                  if (!refs.length) {
+                    return (
+                      <div style={{marginTop:6,fontSize:11,color:T.TEXT4,lineHeight:1.55}}>
+                        Este período se analizó antes de que se registrara el detalle por operación.
+                        Volver a cargar el archivo lo restituye.
+                      </div>
+                    );
+                  }
+                  var abierta = evAbierta === s.pat + '::' + s.titulo;
+                  var ops = abierta ? operacionesDeSenal(s, selPeriodo.txns) : [];
+                  var total = ops.reduce(function(a,t){ return a + (Number(t.monto)||0); }, 0);
+                  return (
+                    <div style={{marginTop:7}}>
+                      <button onClick={function(){ setEvAbierta(abierta ? null : s.pat + '::' + s.titulo); }}
+                        style={{background:'transparent',border:'1px solid '+T.BORDER2,borderRadius:T.RADIUS.sm,
+                          padding:'4px 10px',cursor:'pointer',fontSize:11,color:T.ACCENT,fontFamily:T.SANS,fontWeight:600}}>
+                        {abierta ? '▾' : '▸'} {refs.length}{s.opsTotal > refs.length ? ' de ' + s.opsTotal : ''} operación(es) implicada(s)
+                      </button>
+
+                      {abierta && (
+                        ops.length === 0 ? (
+                          <div style={{marginTop:6,fontSize:11,color:T.TEXT3}}>
+                            Las operaciones del período todavía se están cargando.
+                          </div>
+                        ) : (
+                          <div style={{marginTop:7,background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,overflow:'hidden'}}>
+                            <div style={{padding:'8px 12px',borderBottom:'1px solid '+T.BORDER,display:'flex',justifyContent:'space-between',fontSize:10.5}}>
+                              <span style={{color:T.TEXT3,fontWeight:600,letterSpacing:'0.7px',textTransform:'uppercase'}}>Detalle</span>
+                              <span style={{fontFamily:T.MONO,color:T.TEXT2}}>{ops.length} · {fmtM(total)}</span>
+                            </div>
+                            <div style={{maxHeight:220,overflowY:'auto'}}>
+                              <table style={{width:'100%',borderCollapse:'separate',borderSpacing:0,fontSize:11}}>
+                                <thead><tr>
+                                  {['Fecha','Hora','Tipo','Monto','Contraparte'].map(function(h,k){
+                                    return <th key={k} style={{background:T.BG3,position:'sticky',top:0,zIndex:1,color:T.TEXT3,fontSize:9.5,fontWeight:600,letterSpacing:'0.6px',textTransform:'uppercase',padding:'5px 9px',textAlign:k===3?'right':'left',borderBottom:'1px solid '+T.BORDER2}}>{h}</th>;
+                                  })}
+                                </tr></thead>
+                                <tbody>
+                                  {ops.slice(0,60).map(function(t,k){
+                                    return (
+                                      <tr key={k}>
+                                        <td style={{padding:'4px 9px',borderBottom:'1px solid '+T.BORDER,fontFamily:T.MONO,fontSize:10,color:T.TEXT2,whiteSpace:'nowrap'}}>{t.fecha||'—'}</td>
+                                        <td style={{padding:'4px 9px',borderBottom:'1px solid '+T.BORDER,fontFamily:T.MONO,fontSize:10,color:T.TEXT3}}>{t.hora||'—'}</td>
+                                        <td style={{padding:'4px 9px',borderBottom:'1px solid '+T.BORDER,fontSize:10,fontWeight:600,color:t.tipo==='IN'?T.GREEN:T.RED}}>{t.tipo}</td>
+                                        <td style={{padding:'4px 9px',borderBottom:'1px solid '+T.BORDER,fontFamily:T.MONO,textAlign:'right',color:T.TEXT,fontWeight:600,whiteSpace:'nowrap'}}>{fmtM(t.monto)}</td>
+                                        <td style={{padding:'4px 9px',borderBottom:'1px solid '+T.BORDER,color:T.TEXT2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:200}}>{t.contraparte_nombre||t.contraparte_cuit||'Sin identificar'}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                            {ops.length > 60 && (
+                              <div style={{padding:'6px 12px',fontSize:10,color:T.TEXT4,borderTop:'1px solid '+T.BORDER}}>
+                                Se muestran las primeras 60 de {ops.length}.
+                              </div>
+                            )}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {(propuesta||resuelta) && res.explicacion && (
                   <div style={{marginTop:6,background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 10px',fontSize:11}}>
                     <span style={{color:T.TEXT2,fontWeight:600}}>Explicación: </span>{res.explicacion}

@@ -144,3 +144,34 @@ describe('el caso hereda la evidencia', () => {
     expect(c.detalle).not.toContain('Operaciones implicadas');
   });
 });
+
+// ── Disponibilidad retroactiva ────────────────────────────────────────────
+// La vista de Análisis recalcula las métricas desde las transacciones cargadas,
+// de modo que la evidencia queda disponible también para períodos analizados
+// antes de esta versión. La bandeja de Alertas, en cambio, usa las métricas
+// persistidas: allí solo la tienen los períodos recargados.
+describe('evidencia en períodos ya existentes', () => {
+  const ops = [tx('ACME SA', 700000), tx('ACME SA', 700001), tx('ACME SA', 700002)];
+
+  it('recalcular desde las transacciones restituye la evidencia', () => {
+    // Simula un período viejo: métricas guardadas sin el campo evidencia
+    const viejas = calcMetricas(ops);
+    delete viejas.evidencia;
+    expect(detectPatrones(viejas, {}).find(s => s.pat === 'PAT-01').ops).toEqual([]);
+
+    // Al recalcular con las txns disponibles, la evidencia vuelve
+    const frescas = calcMetricas(ops);
+    expect(detectPatrones(frescas, {}).find(s => s.pat === 'PAT-01').ops).toEqual([0, 1, 2]);
+  });
+
+  it('una métrica sin evidencia no rompe la emisión de señales', () => {
+    const sin = calcMetricas(ops);
+    delete sin.evidencia;
+    const sigs = detectPatrones(sin, {});
+    expect(sigs.length).toBeGreaterThan(0);
+    sigs.forEach(s => {
+      expect(Array.isArray(s.ops)).toBe(true);
+      expect(s.opsTotal).toBe(0);
+    });
+  });
+});
