@@ -33,9 +33,9 @@ var PAT_UIF_MAP = {
   'PAT-02': { tip:'T-01', desc:'Operaciones con montos exactos o redondeados en forma sistemática y reiterada' },
   'PAT-03': { tip:'T-04', desc:'Posible circularidad de fondos entre contrapartes relacionadas (layering)' },
   'PAT-04': { tip:'T-02', desc:'Smurfing: uso de múltiples contrapartes únicas para fragmentar transacciones de alto monto' },
-  'PAT-05': { tip:'T-05', desc:'Volumen de operaciones manifiestamente incompatible con el perfil económico declarado' },
+  'PAT-05': { tip:'T-05', desc:'Volumen de operaciones manifiestamente superior al perfil económico declarado' },
   'PAT-06': { tip:'T-03', desc:'Concentración extrema de operaciones en una o pocas contrapartes sin justificación comercial aparente' },
-  'PAT-07': { tip:'T-01', desc:'Patrón de montos exactamente repetidos en múltiples operaciones' },
+  'PAT-07': { tip:'T-01', desc:'Alta proporción de operaciones por importes redondos, impropia de una operatoria comercial' },
   'PAT-08': { tip:'T-06', desc:'Actividad transaccional concentrada en horarios atípicos (nocturnos o fines de semana)' },
   'PAT-09': { tip:'T-07', desc:'Uso de la cuenta como intermediario de paso (pass-through): fondos que ingresan y egresan en forma inmediata' },
   'PAT-10': { tip:'T-02', desc:'Near-threshold structuring: acumulación de 5 o más operaciones por debajo del umbral UIF ($800K) con la misma contraparte' },
@@ -43,6 +43,11 @@ var PAT_UIF_MAP = {
   'PAT-12': { tip:'T-09', desc:'Comportamiento transaccional atípico en relación al perfil histórico del cliente' },
   'PAT-13': { tip:'T-09', desc:'Desvío significativo del volumen operado respecto de la línea base histórica del propio cliente' },
   'PAT-14': { tip:'T-03', desc:'Concentración del flujo en una contraparte sin antecedentes operativos con el cliente' },
+  // Códigos separados de PAT-05 y PAT-07, que emitían hallazgos de significado
+  // distinto bajo un mismo código: la evidencia y las estadísticas quedaban
+  // mezcladas, y una resolución sobre uno cerraba el otro.
+  'PAT-16': { tip:'T-05', desc:'Volumen de operaciones marcadamente inferior al perfil declarado, lo que puede indicar que la actividad se canaliza por otra vía' },
+  'PAT-17': { tip:'T-01', desc:'Importes exactamente repetidos en múltiples operaciones' },
   'PAT-15': { tip:'T-06', desc:'Cambio abrupto en la distribución horaria de las operaciones respecto del comportamiento habitual' },
   // No es una tipología: es una alerta de calidad del dato. Se incluye para que
   // los informes no la muestren sin descripción, y NO debe integrar un ROS.

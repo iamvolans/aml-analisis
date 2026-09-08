@@ -900,7 +900,7 @@ function AnalisisView(props) {
             })()}
           </div>
           <button onClick={function(){
-            onReport(genINF02(selLegajo,selPeriodo,m,sigs,sc,memos));
+            onReport(genINF02(selLegajo,selPeriodo,m,sigs,sc,memos,selPeriodo.txns));
             auditLog(currentUser,'generar_inf02','periodo',selPeriodo.id,{razonSocial:selLegajo.razonSocial,periodo:selPeriodo.nombre,riesgo:sc&&sc.clasificacion});
           }} style={{background:C.AC,color:'#FFFFFF',border:'none',borderRadius:3,padding:'8px 16px',cursor:'pointer',fontWeight:700,fontSize:13}}>📄 INF-02</button>
         </div>

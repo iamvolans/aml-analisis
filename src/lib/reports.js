@@ -1,4 +1,4 @@
-import { calcMetricas, calcScoring, detectPatrones } from "./aml";
+import { calcMetricas, calcScoring, detectPatrones, operacionesDeSenal, resumenEvidencia } from "./aml";
 import { CHECKLIST_ITEMS, KYB_FACTORS, PAT_UIF_MAP, SCREENING, getEstado } from "./constants";
 import { firmanteAnalista, firmanteOC, firmanteResponsable } from "./firmantes";
 import { T } from "./theme";
@@ -37,6 +37,63 @@ function rpH(e, f) { return '<div class="hdr"><span>GOAT S.A. — Informe Compli
 function rpF() { return '<div class="ftr"><span>Confidencial — Uso interno</span><span>GOAT S.A. — Compliance & AML — Design System v2.1.3</span></div>'; }
 
 
+// ─── EVIDENCIA DE UNA SEÑAL ─────────────────────────────────────────────────
+// Un informe que afirma "se detectó fraccionamiento" sin adjuntar las
+// operaciones obliga al lector a confiar. Adjuntarlas convierte la afirmación
+// en algo verificable: el revisor puede rehacer el análisis sobre los mismos
+// movimientos.
+//
+// Los patrones estructurales —los que describen la forma del período y no un
+// subconjunto de movimientos— se declaran como tales en lugar de mostrar una
+// tabla vacía.
+function tablaEvidencia(senal, txns, tope) {
+  var lim = tope || 25;
+  if (senal.estructural) {
+    return '<div style="font-size:8.5pt;color:#666;margin:6px 0 12px;line-height:1.5">'
+      + 'Este patrón describe la forma del período en su conjunto —la relación entre orígenes y '
+      + 'destinos, o entre lo que ingresa y lo que egresa—, de modo que no se corresponde con un '
+      + 'subconjunto determinado de operaciones.</div>';
+  }
+  var ops = operacionesDeSenal(senal, txns);
+  if (!ops.length) {
+    if (!(senal.ops || []).length) {
+      return '<div style="font-size:8.5pt;color:#666;margin:6px 0 12px">'
+        + 'El período fue analizado con anterioridad al registro del detalle por operación.</div>';
+    }
+    return '';
+  }
+  var total = ops.reduce(function(a, t){ return a + (Number(t.monto) || 0); }, 0);
+  var muestra = ops.slice(0, lim);
+  var filas = muestra.map(function(t){
+    return '<tr>'
+      + '<td style="font-size:8pt">' + (t.fecha || '—') + '</td>'
+      + '<td style="font-size:8pt">' + (t.hora || '—') + '</td>'
+      + '<td style="font-size:8pt;font-weight:700">' + (t.tipo || '') + '</td>'
+      + '<td style="font-size:8pt;text-align:right">' + fmtM(t.monto) + '</td>'
+      + '<td style="font-size:8pt">' + String(t.contraparte_nombre || t.contraparte_cuit || 'Sin identificar')
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</td>'
+      + '</tr>';
+  }).join('');
+
+  return '<div style="margin:8px 0 14px">'
+    + '<div style="font-size:8.5pt;color:#4A6A8A;margin-bottom:4px">'
+    + 'Operaciones que sustentan la señal — ' + ops.length
+    + (senal.opsTotal > ops.length ? ' de ' + senal.opsTotal : '')
+    + ' por ' + fmtM(total) + '</div>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:8pt">'
+    + '<thead><tr>'
+    + ['Fecha','Hora','Tipo','Importe','Contraparte'].map(function(h, i){
+        return '<th style="background:#1B2A4A;color:#fff;padding:4px 6px;text-align:'
+             + (i === 3 ? 'right' : 'left') + ';font-size:7.5pt">' + h + '</th>';
+      }).join('')
+    + '</tr></thead><tbody>' + filas + '</tbody></table>'
+    + (ops.length > lim
+        ? '<div style="font-size:7.5pt;color:#888;margin-top:3px">Se detallan las primeras '
+          + lim + ' de ' + ops.length + ' operaciones. El detalle íntegro consta en el sistema.</div>'
+        : '')
+    + '</div>';
+}
+
 // ─── BLOQUE DE FIRMAS ───────────────────────────────────────────────────────
 // Las líneas salen con el nombre y el cargo de quien corresponde firmar, para
 // que el informe se imprima y se firme sin completar nada a mano.
@@ -57,6 +114,14 @@ function firmasDobles(usuario) {
 }
 
 // Oficial de Cumplimiento y Comité, para el informe de gestión
+// Analista y Responsable de Compliance, para los informes de monitoreo
+function firmasAnalistaResponsable(usuario) {
+  return '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:22px"><tr>'
+    + celdaFirma(firmanteAnalista(usuario), '50%')
+    + celdaFirma(firmanteResponsable(), '50%')
+    + '</tr></table>';
+}
+
 function firmasComite() {
   var oc = firmanteOC();
   return '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:26px"><tr>'
@@ -450,7 +515,10 @@ function genINF01(legajo, periodos, memosList) {
     + '</body></html>';
 }
 
-function genINF02(legajo, periodo, m, sigs, sc, memosList) {
+// txns: operaciones del período. Se reciben para adjuntar, debajo de cada
+// señal, las que la sustentan. Un informe que afirma un hallazgo sin exhibir
+// los movimientos obliga al lector a confiar; con ellos, puede verificarlo.
+function genINF02(legajo, periodo, m, sigs, sc, memosList, txns) {
   var fecha = new Date().toLocaleDateString('es-AR');
   var empresa = (legajo && legajo.razonSocial) || 'N/D';
   if (!m) return '<html><body><p>Sin datos de analisis.</p></body></html>';
@@ -506,6 +574,15 @@ function genINF02(legajo, periodo, m, sigs, sc, memosList) {
     + '<table><tr><th>Metrica</th><th>Valor</th><th>Referencia</th></tr>' + metricsRows + '</table>'
     + '<h1 class="bar">3. Senales AML detectadas (' + sigs.length + ')</h1>'
     + '<table><tr><th>Patron</th><th>Sev.</th><th>Titulo</th><th>Descripcion</th></tr>' + sigsRows + '</table>'
+    + (sigs.length && txns && txns.length
+        ? '<h2 style="font-size:11pt;color:#1B2A4A;margin:16px 0 6px">4.1 Detalle de operaciones por señal</h2>'
+          + sigs.map(function(sg){
+              return '<div style="margin-bottom:10px">'
+                + '<div style="font-size:9pt;font-weight:700;color:#1B2A4A">' + sg.pat + ' — ' + sg.titulo + '</div>'
+                + tablaEvidencia(sg, txns)
+                + '</div>';
+            }).join('')
+        : '')
     + '<h1 class="bar">4. Scoring transaccional — 8 factores</h1>'
     + '<table><tr><th>Factor</th><th>Score</th><th>Referencia</th></tr>' + scRows + '<tr style="background:#1B2A4A"><td style="color:white;font-weight:700">PROMEDIO</td><td style="color:white;font-weight:700">' + promScore + '/5</td><td style="background:white;color:' + clColor + ';font-weight:700">RIESGO ' + clasif + '</td></tr></table>'
     + '<h1 class="bar">5. Acciones y RFI</h1>' + rfiHtml
@@ -1166,6 +1243,18 @@ function genLegajoCompleto(datos) {
               : '<span style="color:#999">sin resolver</span>';
             return td([esc(x.pat), infBadge(x.sev, col), esc(x.titulo), est, det]);
           }).join(''));
+
+        // Operaciones que sustentan cada señal, cuando el período las tiene
+        // cargadas. Es lo que permite que un tercero verifique el hallazgo en
+        // lugar de tener que confiar en la afirmación.
+        if (p.txns && p.txns.length) {
+          sg.forEach(function(x){
+            var bloque = tablaEvidencia(x, p.txns, 15);
+            if (!bloque) return;
+            h += '<div style="font-size:8.5pt;font-weight:700;color:#2C4A7C;margin-top:8px">'
+               + esc(x.pat) + ' — ' + esc(x.titulo) + '</div>' + bloque;
+          });
+        }
       } else {
         h += callout('ok', 'Sin señales detectadas en este período.');
       }
