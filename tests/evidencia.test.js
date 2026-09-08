@@ -175,3 +175,71 @@ describe('evidencia en períodos ya existentes', () => {
     });
   });
 });
+
+// ── Correspondencia entre señal y evidencia ───────────────────────────────
+// Un mismo código de patrón puede emitir señales DISTINTAS, y cada una necesita
+// su propia evidencia. Al construir esto se cometieron dos errores que estos
+// tests fijan:
+//
+//   · se atribuyeron los montos redondos a PAT-05, que en realidad compara el
+//     volumen contra el perfil declarado y no tiene operaciones puntuales;
+//   · PAT-06 y PAT-10 emiten variante de entrada y de salida, y ambas
+//     compartían evidencia: la señal de cash-in mostraba operaciones de salida.
+//
+// Mostrar operaciones equivocadas es peor que no mostrar ninguna: el analista
+// fundamenta un cierre sobre movimientos que no son los que dispararon la señal.
+describe('cada variante de señal lleva su propia evidencia', () => {
+  const ops = [];
+  for (let i = 0; i < 10; i++) ops.push(tx('DOM-IN', 700000 + i, 'IN', '1/6/2026'));
+  for (let i = 0; i < 8; i++)  ops.push(tx('DOM-OUT', 700000 + i, 'OUT', '2/6/2026'));
+  for (let i = 0; i < 6; i++)  ops.push(tx('RD-' + i, (i + 1) * 100000, 'IN', '3/6/2026'));
+  for (let i = 0; i < 4; i++)  ops.push(tx('RP-' + i, 55555, 'OUT', '4/6/2026'));
+  const sigs = detectPatrones(calcMetricas(ops), {});
+
+  function porTitulo(re) { return sigs.filter(s => re.test(s.titulo)); }
+
+  it('la concentración de entrada muestra solo operaciones de entrada', () => {
+    porTitulo(/cash-in/).forEach(s => {
+      const o = operacionesDeSenal(s, ops);
+      expect(o.length, s.titulo).toBeGreaterThan(0);
+      expect(o.every(x => x.tipo === 'IN'), s.titulo).toBe(true);
+    });
+  });
+
+  it('la concentración de salida muestra solo operaciones de salida', () => {
+    porTitulo(/cash-out/).forEach(s => {
+      const o = operacionesDeSenal(s, ops);
+      expect(o.length, s.titulo).toBeGreaterThan(0);
+      expect(o.every(x => x.tipo === 'OUT'), s.titulo).toBe(true);
+    });
+  });
+
+  it('la señal de montos repetidos muestra importes que efectivamente se repiten', () => {
+    const s = sigs.find(x => /repetid/i.test(x.titulo));
+    expect(s).toBeDefined();
+    const o = operacionesDeSenal(s, ops);
+    const cuenta = {};
+    o.forEach(x => { cuenta[x.monto] = (cuenta[x.monto] || 0) + 1; });
+    expect(Object.values(cuenta).every(v => v >= 3)).toBe(true);
+  });
+
+  it('la señal de montos redondos muestra múltiplos de 100.000', () => {
+    const redondos = [];
+    for (let i = 0; i < 9; i++) redondos.push(tx('R' + i, (i + 1) * 100000, 'IN', '1/6/2026'));
+    const s = detectPatrones(calcMetricas(redondos), {}).find(x => /redondo/i.test(x.titulo));
+    expect(s).toBeDefined();
+    const o = operacionesDeSenal(s, redondos);
+    expect(o.length).toBeGreaterThan(0);
+    expect(o.every(x => x.monto % 100000 === 0)).toBe(true);
+  });
+
+  it('el volumen contra el perfil no lleva operaciones: es una razón del período', () => {
+    const perf = [];
+    for (let i = 0; i < 5; i++) perf.push(tx('X', 3000000, 'IN', '1/6/2026'));
+    const s = detectPatrones(calcMetricas(perf, { facturacionMensual: 100000 }),
+                             { facturacionMensual: 100000 }).find(x => x.pat === 'PAT-05');
+    expect(s).toBeDefined();
+    expect(s.estructural).toBe(true);
+    expect(s.ops).toEqual([]);
+  });
+});

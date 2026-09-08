@@ -119,23 +119,20 @@ describe('identificadores libres', () => {
       const src = sinComentariosNiTextos(crudo);
       const conocidos = new Set([...importados(src), ...declarados(src), ...GLOBALES]);
 
-      // Referencias del tipo `Simbolo.` o `Simbolo(` que no vengan precedidas de
-      // punto (para no tomar propiedades) ni sean palabras clave.
       const RESERVADAS = new Set(['if','for','while','switch','catch','return','typeof',
         'new','delete','void','in','of','do','else','try','finally','function','class',
         'await','yield','case','throw','instanceof','import','export','default','from']);
 
-      // Discriminador contra prosa: en código `X.algo` sigue con un
-      // identificador y `X(` no lleva espacio; en texto, "Art." va seguido de
-      // espacio y "Cumplimiento (titular)" lleva espacio antes del paréntesis.
       const re = /(?<![\w.$])([A-Za-z_$][\w$]*)(?:\.[\w$]|\()/g;
       let m;
       const vistos = new Set();
       while ((m = re.exec(src))) {
         const sim = m[1];
         if (RESERVADAS.has(sim) || conocidos.has(sim) || vistos.has(sim)) continue;
-        // Solo se reportan símbolos que parecen módulos/constantes importables:
-        // empiezan en mayúscula, o son nombres conocidos de la app.
+        // Solo mayúscula inicial: los identificadores en minúscula son casi
+        // siempre variables locales, y distinguirlas exigiría análisis de
+        // alcance real, que una expresión regular no puede hacer. Ese hueco lo
+        // cubre la comprobación siguiente, que sí es precisa.
         if (!/^[A-Z]/.test(sim)) continue;
         vistos.add(sim);
         const linea = src.slice(0, m.index).split('\n').length;
@@ -144,5 +141,40 @@ describe('identificadores libres', () => {
     });
 
     expect(problemas, 'identificadores sin importar (ReferenceError en runtime):\n' + problemas.join('\n')).toEqual([]);
+  });
+
+  // Comprobación precisa para el caso que efectivamente rompió en producción:
+  // usar un ayudante que la propia app exporta —fmtM, segColor, todayStr— sin
+  // importarlo. La vista compila y explota en el navegador al renderizar.
+  it('ningún módulo usa un ayudante de lib/ sin importarlo', () => {
+    // Símbolos exportados por los módulos de lib/
+    const exportados = new Set();
+    archivos(path.join(RAIZ, 'lib')).forEach(f => {
+      const src = fs.readFileSync(f, 'utf8');
+      [...src.matchAll(/export\s*\{([^}]*)\}/g)].forEach(m => {
+        m[1].split(',').forEach(x => {
+          const n = x.trim().split(/\s+as\s+/).pop().trim();
+          if (/^[a-zA-Z_$][\w$]*$/.test(n)) exportados.add(n);
+        });
+      });
+    });
+    expect(exportados.size, 'no se detectó ningún export en lib/').toBeGreaterThan(20);
+
+    const problemas = [];
+    archivos(RAIZ).forEach(f => {
+      if (f.includes('/lib/')) return;           // los módulos entre sí ya se resuelven al importar
+      const src = sinComentariosNiTextos(fs.readFileSync(f, 'utf8'));
+      const imp = importados(src);
+      const dec = declarados(src);
+      exportados.forEach(sim => {
+        if (imp.has(sim) || dec.has(sim)) return;
+        // Uso como llamada o como acceso a propiedad
+        const re = new RegExp('(?<![\\w.$])' + sim + '\\s*[(.]');
+        if (re.test(src)) {
+          problemas.push(`${path.basename(f)}: usa ${sim} sin importarlo`);
+        }
+      });
+    });
+    expect(problemas, 'ayudantes usados sin importar:\n' + problemas.join('\n')).toEqual([]);
   });
 });

@@ -8,7 +8,7 @@ import { serverLoadTxns } from "../lib/sync";
 import { serverLoadKVPrefix } from "../lib/sync";
 import { uid } from "../lib/utils";
 import { T } from "../lib/theme";
-import { parseFechaAR, sevColor, todayStr } from "../lib/utils";
+import { fmtM, parseFechaAR, sevColor, todayStr } from "../lib/utils";
 
 // ── Filtros persistentes en la sesión (mismo patrón que Legajos) ─────────────
 var FILTROS_KEY = 'goat_alertas_filtros_v3';

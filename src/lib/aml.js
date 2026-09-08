@@ -110,33 +110,38 @@ function calcMetricas(txns, perfil) {
     })));
   }
 
-  // PAT-05 — los montos redondos
-  marcar('PAT-05', pos(txns.filter(function(t){ return t.monto >= 100000 && t.monto % 100000 === 0; })));
+  // Montos múltiplos de 100.000 (variante "redondos" de PAT-07)
+  marcar('PAT-07:redondos', pos(txns.filter(function(t){ return t.monto >= 100000 && t.monto % 100000 === 0; })));
 
-  // PAT-06 — operaciones con la contraparte que concentra, por lado
+  // Concentración: la contraparte dominante de CADA lado por separado. Mezclar
+  // ambas haría que la señal de cash-in mostrara operaciones de salida.
   if (sortedIn[0]) {
-    marcar('PAT-06', pos(ins.filter(function(t){
+    marcar('PAT-06:in', pos(ins.filter(function(t){
       return (t.contraparte_nombre || t.contraparte_cuit || 'Desconocido') === sortedIn[0][0]; })));
   }
   if (sortedOut[0]) {
-    marcar('PAT-06', pos(outs.filter(function(t){
+    marcar('PAT-06:out', pos(outs.filter(function(t){
       return (t.contraparte_nombre || t.contraparte_cuit || 'Desconocido') === sortedOut[0][0]; })));
   }
 
-  // PAT-07 — operaciones cuyo importe se repite
+  // Importes que se repiten (variante "repetidos" de PAT-07)
   if (repeatedAmts.length) {
     var setMontos = new Set(repeatedAmts.map(function(r){ return r.monto; }));
-    marcar('PAT-07', pos(txns.filter(function(t){ return setMontos.has(t.monto); })));
+    marcar('PAT-07:repetidos', pos(txns.filter(function(t){ return setMontos.has(t.monto); })));
   }
 
   // PAT-10 — operaciones en la franja inmediatamente inferior al umbral,
   // limitadas a las contrapartes que efectivamente forman grupo
-  var cpNt = new Set(ntGroupsIn.concat(ntGroupsOut).map(function(e){ return e[0]; }));
-  if (cpNt.size) {
-    marcar('PAT-10', pos(txns.filter(function(t){
-      if (!(t.monto >= NT_LOW && t.monto < NT_HIGH)) return false;
-      return cpNt.has(t.contraparte_cuit || t.contraparte_nombre || 'Desconocido');
-    })));
+  function enFranja(t) { return t.monto >= NT_LOW && t.monto < NT_HIGH; }
+  var setNtIn  = new Set(ntGroupsIn.map(function(e){ return e[0]; }));
+  var setNtOut = new Set(ntGroupsOut.map(function(e){ return e[0]; }));
+  if (setNtIn.size) {
+    marcar('PAT-10:in', pos(ins.filter(function(t){
+      return enFranja(t) && setNtIn.has(t.contraparte_cuit || t.contraparte_nombre || 'Desconocido'); })));
+  }
+  if (setNtOut.size) {
+    marcar('PAT-10:out', pos(outs.filter(function(t){
+      return enFranja(t) && setNtOut.has(t.contraparte_cuit || t.contraparte_nombre || 'Desconocido'); })));
   }
 
   var dailyMap = {};
@@ -268,12 +273,18 @@ function detectPatrones(m, perfil, base) {
   // Patrones que describen la FORMA del período completo. Señalarles operaciones
   // concretas sería atribuirles una precisión que no tienen: lo que detectan es
   // la estructura del flujo, no un subconjunto de movimientos.
-  var ESTRUCTURALES = ['PAT-02', 'PAT-09', 'PAT-11', 'PAT-12', 'PAT-13', 'PAT-15'];
+  // PAT-05 compara el volumen del período contra el perfil declarado: es una
+  // razón de nivel período, no un subconjunto de operaciones.
+  var ESTRUCTURALES = ['PAT-02', 'PAT-05', 'PAT-09', 'PAT-11', 'PAT-12', 'PAT-13', 'PAT-15'];
 
   // Cada señal viaja con las posiciones de las operaciones que la sustentan,
   // para que el analista no tenga que reconstruir a mano a qué se refería.
-  function add(pat, sev, titulo, desc, tip) {
-    var ev = (m.evidencia && m.evidencia[pat]) || null;
+  // claveEv permite que dos señales del mismo código lleven evidencia distinta:
+  // PAT-07 emite "montos redondos" y "montos repetidos", y PAT-06 y PAT-10
+  // tienen variante de entrada y de salida. Sin esta distinción, una señal de
+  // cash-in mostraría operaciones de salida.
+  function add(pat, sev, titulo, desc, tip, claveEv) {
+    var ev = (m.evidencia && m.evidencia[claveEv || pat]) || null;
     sigs.push({
       id: uid(), pat: pat, sev: sev, titulo: titulo, desc: desc, tip: tip,
       ops: ev ? ev.ops : [],
@@ -312,26 +323,26 @@ function detectPatrones(m, perfil, base) {
       add('PAT-05', 'MEDIA', 'Volumen muy inferior al perfil', 'Volumen es ' + m.ratioVP.toFixed(2) + 'x el perfil.', 'T-06');
     }
   }
-  if (m.hhiIn > 0.80 || m.top1In > 80) add('PAT-06', 'ALTA', 'Concentracion extrema — cash-in', 'Top-1: ' + m.top1In.toFixed(1) + '% | HHI: ' + m.hhiIn.toFixed(3) + '.', 'T-02');
-  else if (m.hhiIn > 0.50) add('PAT-06', 'MEDIA', 'Concentracion alta — cash-in', 'Top-1: ' + m.top1In.toFixed(1) + '%.', 'T-02');
-  if (m.hhiOut > 0.80 || m.top1Out > 80) add('PAT-06', 'ALTA', 'Concentracion extrema — cash-out', 'Top-1: ' + m.top1Out.toFixed(1) + '%.', 'T-02');
-  else if (m.hhiOut > 0.50) add('PAT-06', 'MEDIA', 'Concentracion alta — cash-out', 'Top-1: ' + m.top1Out.toFixed(1) + '%.', 'T-02');
-  if (m.pctRound > 70) add('PAT-07', 'ALTA', 'Alta proporcion montos redondos', m.pctRound.toFixed(1) + '% de ops son multiples de $100K.', 'T-01');
-  else if (m.pctRound > 30) add('PAT-07', 'MEDIA', 'Montos redondos frecuentes', m.pctRound.toFixed(1) + '%.', 'T-01');
-  if (m.repeatedAmts.length > 0) add('PAT-07', 'MEDIA', 'Montos exactamente repetidos', m.repeatedAmts.length + ' monto(s) con 3+ ocurrencias.', 'T-01');
+  if (m.hhiIn > 0.80 || m.top1In > 80) add('PAT-06', 'ALTA', 'Concentracion extrema — cash-in', 'Top-1: ' + m.top1In.toFixed(1) + '% | HHI: ' + m.hhiIn.toFixed(3) + '.', 'T-02', 'PAT-06:in');
+  else if (m.hhiIn > 0.50) add('PAT-06', 'MEDIA', 'Concentracion alta — cash-in', 'Top-1: ' + m.top1In.toFixed(1) + '%.', 'T-02', 'PAT-06:in');
+  if (m.hhiOut > 0.80 || m.top1Out > 80) add('PAT-06', 'ALTA', 'Concentracion extrema — cash-out', 'Top-1: ' + m.top1Out.toFixed(1) + '%.', 'T-02', 'PAT-06:out');
+  else if (m.hhiOut > 0.50) add('PAT-06', 'MEDIA', 'Concentracion alta — cash-out', 'Top-1: ' + m.top1Out.toFixed(1) + '%.', 'T-02', 'PAT-06:out');
+  if (m.pctRound > 70) add('PAT-07', 'ALTA', 'Alta proporcion montos redondos', m.pctRound.toFixed(1) + '% de ops son multiples de $100K.', 'T-01', 'PAT-07:redondos');
+  else if (m.pctRound > 30) add('PAT-07', 'MEDIA', 'Montos redondos frecuentes', m.pctRound.toFixed(1) + '%.', 'T-01', 'PAT-07:redondos');
+  if (m.repeatedAmts.length > 0) add('PAT-07', 'MEDIA', 'Montos exactamente repetidos', m.repeatedAmts.length + ' monto(s) con 3+ ocurrencias.', 'T-01', 'PAT-07:repetidos');
   if (m.pctAtypicalHour !== null && m.pctAtypicalHour > 30) add('PAT-08', 'MEDIA', 'Operaciones en horario atipico', m.pctAtypicalHour.toFixed(1) + '% fuera de 08:00-20:00.', 'T-05');
   if (m.passThrough > 0.90 && m.tIn > 0) add('PAT-09', 'ALTA', 'Pass-through — alta rotacion de fondos', 'Cash-out = ' + (m.passThrough*100).toFixed(1) + '% del cash-in.', 'T-04');
   // PAT-10 — Near-threshold structuring (contraparte recurrente)
   if (m.ntGroupsIn && m.ntGroupsIn.length > 0) {
     m.ntGroupsIn.forEach(function(g) {
       add('PAT-10', 'ALTA', 'Near-threshold structuring — cash-in',
-        'Contraparte "' + g[0] + '": ' + g[1] + ' ops entre $680K–$799.999 (debajo umbral UIF $800K). Posible evasion de reporte obligatorio.', 'T-02');
+        'Contraparte "' + g[0] + '": ' + g[1] + ' ops entre $680K–$799.999 (debajo umbral UIF $800K). Posible evasion de reporte obligatorio.', 'T-02', 'PAT-10:in');
     });
   }
   if (m.ntGroupsOut && m.ntGroupsOut.length > 0) {
     m.ntGroupsOut.forEach(function(g) {
       add('PAT-10', 'ALTA', 'Near-threshold structuring — cash-out',
-        'Contraparte "' + g[0] + '": ' + g[1] + ' ops entre $680K–$799.999 (debajo umbral UIF $800K). Posible evasion de reporte obligatorio.', 'T-02');
+        'Contraparte "' + g[0] + '": ' + g[1] + ' ops entre $680K–$799.999 (debajo umbral UIF $800K). Posible evasion de reporte obligatorio.', 'T-02', 'PAT-10:out');
     });
   }
   if (m.opsByDay > 50) add('PAT-11', 'ALTA', 'Velocidad operativa anomala', m.opsByDay.toFixed(1) + ' ops/dia (umbral: 50/dia).', 'T-04');
