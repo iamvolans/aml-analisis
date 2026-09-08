@@ -18,7 +18,9 @@ function calcMetricas(txns, perfil) {
   function hhi(obj, total) { return total > 0 ? Object.values(obj).reduce(function(s,v) { return s+Math.pow(v/total,2); }, 0) : 0; }
   var hhiIn = hhi(cpIn, tIn), hhiOut = hhi(cpOut, tOut);
   var byDayDest = {};
-  ins.forEach(function(t) { var k=(t.fecha||'')+'__'+(t.contraparte_nombre||t.contraparte_cuit||'?'); if(!byDayDest[k]) byDayDest[k]=[]; byDayDest[k].push(t.monto); });
+  // Se guarda la OPERACIÓN y no solo su importe: el importe alcanza para contar
+  // grupos, pero no para señalar después cuáles fueron las operaciones.
+  ins.forEach(function(t) { var k=(t.fecha||'')+'__'+(t.contraparte_nombre||t.contraparte_cuit||'?'); if(!byDayDest[k]) byDayDest[k]=[]; byDayDest[k].push(t); });
   var splitGroups = Object.entries(byDayDest).filter(function(e) { return e[1].length >= 3; });
   var splitDaysSet = {}; splitGroups.forEach(function(e) { splitDaysSet[e[0].split('__')[0]] = 1; });
   var splitDays = Object.keys(splitDaysSet).length;
@@ -56,13 +58,127 @@ function calcMetricas(txns, perfil) {
   });
   var ntGroupsIn  = Object.entries(ntCpIn).filter(function(e) { return e[1] >= 5; });
   var ntGroupsOut = Object.entries(ntCpOut).filter(function(e) { return e[1] >= 5; });
+  // ══ EVIDENCIA POR PATRÓN ══════════════════════════════════════════════════
+  // Hasta acá el cálculo produce agregados y pierde el rastro de qué operación
+  // sustenta cada hallazgo. Sin ese rastro, el analista recibe "124 ops entre
+  // $680K y $799.999" y tiene que reconstruir a mano cuáles son.
+  //
+  // Se registran POSICIONES dentro del array de transacciones, no copias: las
+  // métricas se persisten y guardar las operaciones enteras multiplicaría el
+  // tamaño. La posición se resuelve contra las txns cuando se necesita ver el
+  // detalle.
+  //
+  // Solo se registra evidencia donde señalar operaciones concretas es legítimo.
+  // Los patrones estructurales —cuenta embudo, tránsito de fondos,
+  // muchos-a-pocos— describen la FORMA del período completo y no un subconjunto
+  // de operaciones: atribuirles unas pocas sería inventar una precisión que no
+  // tienen.
+  var TOPE_EVIDENCIA = 300;   // acota lo que se persiste por patrón
+  var evidencia = {};
+  function marcar(pat, indices) {
+    if (!indices || !indices.length) return;
+    var prev = evidencia[pat] || { ops: [], total: 0 };
+    prev.total += indices.length;
+    for (var i = 0; i < indices.length && prev.ops.length < TOPE_EVIDENCIA; i++) {
+      if (prev.ops.indexOf(indices[i]) < 0) prev.ops.push(indices[i]);
+    }
+    evidencia[pat] = prev;
+  }
+  // Índice de cada operación dentro del array original
+  var idx = new Map();
+  txns.forEach(function(t, i){ idx.set(t, i); });
+  function pos(lista) { return (lista || []).map(function(t){ return idx.get(t); })
+    .filter(function(i){ return i !== undefined; }); }
+
+  // PAT-01 — las operaciones que forman cada grupo de fraccionamiento
+  splitGroups.forEach(function(e){ marcar('PAT-01', pos(e[1])); });
+
+  // PAT-03 — operaciones con contrapartes que aparecen en ambos sentidos
+  if (circularCps.length) {
+    var setCirc = new Set(circularCps);
+    marcar('PAT-03', pos(txns.filter(function(t){
+      return setCirc.has(t.contraparte_nombre || t.contraparte_cuit || 'Desconocido');
+    })));
+  }
+
+  // PAT-04 — operaciones de contrapartes que aparecen una sola vez
+  var unicas = Object.keys(cpAll).filter(function(k){ return cpAll[k] === 1; });
+  if (unicas.length) {
+    var setUni = new Set(unicas);
+    marcar('PAT-04', pos(txns.filter(function(t){
+      return setUni.has(t.contraparte_nombre || t.contraparte_cuit || 'Desconocido');
+    })));
+  }
+
+  // PAT-05 — los montos redondos
+  marcar('PAT-05', pos(txns.filter(function(t){ return t.monto >= 100000 && t.monto % 100000 === 0; })));
+
+  // PAT-06 — operaciones con la contraparte que concentra, por lado
+  if (sortedIn[0]) {
+    marcar('PAT-06', pos(ins.filter(function(t){
+      return (t.contraparte_nombre || t.contraparte_cuit || 'Desconocido') === sortedIn[0][0]; })));
+  }
+  if (sortedOut[0]) {
+    marcar('PAT-06', pos(outs.filter(function(t){
+      return (t.contraparte_nombre || t.contraparte_cuit || 'Desconocido') === sortedOut[0][0]; })));
+  }
+
+  // PAT-07 — operaciones cuyo importe se repite
+  if (repeatedAmts.length) {
+    var setMontos = new Set(repeatedAmts.map(function(r){ return r.monto; }));
+    marcar('PAT-07', pos(txns.filter(function(t){ return setMontos.has(t.monto); })));
+  }
+
+  // PAT-10 — operaciones en la franja inmediatamente inferior al umbral,
+  // limitadas a las contrapartes que efectivamente forman grupo
+  var cpNt = new Set(ntGroupsIn.concat(ntGroupsOut).map(function(e){ return e[0]; }));
+  if (cpNt.size) {
+    marcar('PAT-10', pos(txns.filter(function(t){
+      if (!(t.monto >= NT_LOW && t.monto < NT_HIGH)) return false;
+      return cpNt.has(t.contraparte_cuit || t.contraparte_nombre || 'Desconocido');
+    })));
+  }
+
   var dailyMap = {};
   txns.forEach(function(t) { var d=t.fecha||'N/D'; if(!dailyMap[d]) dailyMap[d]={d:d,in:0,out:0}; if(t.tipo==='IN') dailyMap[d].in+=t.monto; else dailyMap[d].out+=t.monto; });
   var dates = Object.keys(dailyMap).sort();
   var dailyVol = dates.map(function(d) { return dailyMap[d]; });
   var withHour = txns.filter(function(t) { return t.hora; });
   var atypical = withHour.filter(function(t) { var h=parseInt((t.hora||'').split(':')[0]); return h < 8 || h >= 20; });
-return { cpIdentificable:cpIdentificable, pctSinCp:pctSinCp, tIn:tIn, tOut:tOut, tVol:tVol, balanceNeto:tIn-tOut, countIn:ins.length, countOut:outs.length, totalTxns:txns.length, avg:avg, maxMonto:montos[montos.length-1]||0, minMonto:montos[0]||0, cpIn:cpIn, cpOut:cpOut, sortedIn:sortedIn, sortedOut:sortedOut, uniqueCpIn:Object.keys(cpIn).length, uniqueCpOut:Object.keys(cpOut).length, top1In:tIn>0?(sortedIn[0]?sortedIn[0][1]:0)/tIn*100:0, top1Out:tOut>0?(sortedOut[0]?sortedOut[0][1]:0)/tOut*100:0, hhiIn:hhiIn, hhiOut:hhiOut, ratioCpEmbudo:Object.keys(cpIn).length/(Object.keys(cpOut).length||1), ratioIO:tVol>0?tIn/tVol:0.5, ratioVP:perfil&&perfil.facturacionMensual>0?tVol/Number(perfil.facturacionMensual):null, splitDays:splitDays, splitGroupsCount:splitGroups.length, pctRound:txns.length>0?roundCount/txns.length*100:0, pctOneShot:totalUcp>0?oneShotCnt/totalUcp*100:0, repeatedAmts:repeatedAmts, circularCps:circularCps, circularCount:circularCps.length, activeDays:dates.length, opsByDay:txns.length/(dates.length||1), dates:dates, dailyVol:dailyVol, passThrough:tIn>0?tOut/tIn:0, pctAtypicalHour:withHour.length>0?atypical.length/withHour.length*100:null, ntGroupsIn:ntGroupsIn, ntGroupsOut:ntGroupsOut };
+  // PAT-08 — operaciones fuera del horario habitual
+  marcar('PAT-08', pos(atypical));
+return { evidencia:evidencia, cpIdentificable:cpIdentificable, pctSinCp:pctSinCp, tIn:tIn, tOut:tOut, tVol:tVol, balanceNeto:tIn-tOut, countIn:ins.length, countOut:outs.length, totalTxns:txns.length, avg:avg, maxMonto:montos[montos.length-1]||0, minMonto:montos[0]||0, cpIn:cpIn, cpOut:cpOut, sortedIn:sortedIn, sortedOut:sortedOut, uniqueCpIn:Object.keys(cpIn).length, uniqueCpOut:Object.keys(cpOut).length, top1In:tIn>0?(sortedIn[0]?sortedIn[0][1]:0)/tIn*100:0, top1Out:tOut>0?(sortedOut[0]?sortedOut[0][1]:0)/tOut*100:0, hhiIn:hhiIn, hhiOut:hhiOut, ratioCpEmbudo:Object.keys(cpIn).length/(Object.keys(cpOut).length||1), ratioIO:tVol>0?tIn/tVol:0.5, ratioVP:perfil&&perfil.facturacionMensual>0?tVol/Number(perfil.facturacionMensual):null, splitDays:splitDays, splitGroupsCount:splitGroups.length, pctRound:txns.length>0?roundCount/txns.length*100:0, pctOneShot:totalUcp>0?oneShotCnt/totalUcp*100:0, repeatedAmts:repeatedAmts, circularCps:circularCps, circularCount:circularCps.length, activeDays:dates.length, opsByDay:txns.length/(dates.length||1), dates:dates, dailyVol:dailyVol, passThrough:tIn>0?tOut/tIn:0, pctAtypicalHour:withHour.length>0?atypical.length/withHour.length*100:null, ntGroupsIn:ntGroupsIn, ntGroupsOut:ntGroupsOut };
+}
+
+// ─── EVIDENCIA DE UNA SEÑAL ─────────────────────────────────────────────────
+// Convierte las posiciones registradas en las operaciones concretas. Las txns
+// se cargan bajo demanda, de modo que esto se resuelve recién cuando el
+// analista abre el detalle o genera un caso.
+function operacionesDeSenal(senal, txns) {
+  if (!senal || !txns || !txns.length) return [];
+  return (senal.ops || [])
+    .map(function(i){ return txns[i]; })
+    .filter(Boolean)
+    .map(function(t, k){ return Object.assign({ _i: senal.ops[k] }, t); });
+}
+
+// Resumen textual de las operaciones implicadas, para el detalle de un caso o
+// de un informe.
+function resumenEvidencia(senal, txns) {
+  var ops = operacionesDeSenal(senal, txns);
+  if (!ops.length) return '';
+  var total = ops.reduce(function(a, t){ return a + (Number(t.monto) || 0); }, 0);
+  var fechas = ops.map(function(t){ return t.fecha; }).filter(Boolean).sort();
+  var cps = {};
+  ops.forEach(function(t){
+    var k = t.contraparte_nombre || t.contraparte_cuit || 'Sin identificar';
+    cps[k] = (cps[k] || 0) + 1;
+  });
+  var listaCps = Object.keys(cps).sort(function(a,b){ return cps[b]-cps[a]; });
+  return ops.length + ' operación(es) por ' + Math.round(total).toLocaleString('es-AR') +
+    (fechas.length ? ', entre el ' + fechas[0] + ' y el ' + fechas[fechas.length-1] : '') +
+    ', con ' + listaCps.length + ' contraparte(s): ' +
+    listaCps.slice(0, 5).join(', ') + (listaCps.length > 5 ? ' y otras' : '') + '.';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -149,7 +265,23 @@ function detectPatrones(m, perfil, base) {
   var DEPENDEN_DE_CP = ['PAT-01','PAT-02','PAT-03','PAT-04','PAT-06','PAT-09','PAT-10','PAT-11','PAT-12','PAT-14'];
   var sinCp = m.cpIdentificable === false;
   var sigs = [];
-  function add(pat, sev, titulo, desc, tip) { sigs.push({ id:uid(), pat:pat, sev:sev, titulo:titulo, desc:desc, tip:tip }); }
+  // Patrones que describen la FORMA del período completo. Señalarles operaciones
+  // concretas sería atribuirles una precisión que no tienen: lo que detectan es
+  // la estructura del flujo, no un subconjunto de movimientos.
+  var ESTRUCTURALES = ['PAT-02', 'PAT-09', 'PAT-11', 'PAT-12', 'PAT-13', 'PAT-15'];
+
+  // Cada señal viaja con las posiciones de las operaciones que la sustentan,
+  // para que el analista no tenga que reconstruir a mano a qué se refería.
+  function add(pat, sev, titulo, desc, tip) {
+    var ev = (m.evidencia && m.evidencia[pat]) || null;
+    sigs.push({
+      id: uid(), pat: pat, sev: sev, titulo: titulo, desc: desc, tip: tip,
+      ops: ev ? ev.ops : [],
+      opsTotal: ev ? ev.total : 0,
+      // true = el patrón describe la forma del período y no operaciones puntuales
+      estructural: ESTRUCTURALES.indexOf(pat) >= 0,
+    });
+  }
   if (m.splitGroupsCount > 0) add('PAT-01', m.splitDays >= 3 ? 'ALTA' : 'MEDIA', 'Fraccionamiento (structuring)', m.splitGroupsCount + ' grupo(s) con 3+ ops al mismo destino en igual dia (' + m.splitDays + ' dias afectados).', 'T-01');
   if (m.ratioCpEmbudo > 5 && m.uniqueCpIn > 5) add('PAT-02', 'ALTA', 'Cuenta embudo (funnel account)', 'Ratio IN:OUT = ' + m.uniqueCpIn + ':' + m.uniqueCpOut + ' = ' + m.ratioCpEmbudo.toFixed(1) + ':1 (umbral 5:1).', 'T-04');
   if (m.circularCount > 0) add('PAT-03', 'ALTA', 'Posible circularidad (layering)', m.circularCount + ' contraparte(s) como origen Y destino.', 'T-03');
@@ -389,4 +521,4 @@ function contarAlta(periodo, legajo, periodos) {
   return senalesActivas(periodo, legajo, periodos).filter(function(s){ return s.sev === 'ALTA'; }).length;
 }
 
-export { calcMetricas, detectPatrones, calcScoring, metricasDe, senalesActivas, contarAlta, lineaBase, COMPORTAMIENTO, claveResolucion, resolucionDe, periodosDuplicados };
+export { calcMetricas, detectPatrones, calcScoring, metricasDe, senalesActivas, contarAlta, lineaBase, COMPORTAMIENTO, claveResolucion, resolucionDe, periodosDuplicados, operacionesDeSenal, resumenEvidencia };

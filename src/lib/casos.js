@@ -6,7 +6,7 @@
 // contados. Es la pieza que convierte alertas sueltas en trazabilidad auditable.
 
 import { T } from "./theme.js";
-import { senalesActivas } from "./aml.js";
+import { senalesActivas, resumenEvidencia } from "./aml.js";
 import { parseFechaAR, todayStr, uid } from "./utils.js";
 
 // ─── PLAZOS ─────────────────────────────────────────────────────────────────
@@ -163,6 +163,9 @@ function nuevoCaso(campos) {
     periodoId: '',
     periodoNom: '',
     pat: '',
+    ops: [],            // posiciones de las operaciones que sustentan la señal
+    opsTotal: 0,        // cuántas hay en total, si se truncó la lista
+    estructural: false, // el patrón describe la forma del período, no operaciones puntuales
     sev: '',
     // Fechas (todas en formato es-AR DD/MM/AAAA)
     fechaApertura: todayStr(),
@@ -217,12 +220,21 @@ function casosPendientesDeCrear(legajos, periodos, casosExistentes) {
         origen: 'SENAL',
         prioridad: 'ALTA',
         titulo: s.titulo,
-        detalle: s.desc + (s.tip ? '\n\nAcción sugerida: ' + s.tip : ''),
+        detalle: s.desc
+          + (p.txns && (s.ops || []).length
+              ? '\n\nOperaciones implicadas: ' + resumenEvidencia(s, p.txns)
+              : '')
+          + (s.tip ? '\n\nAcción sugerida: ' + s.tip : ''),
         periodoId: p.id,
         periodoNom: p.nombre || '',
         pat: s.pat,
         sev: s.sev,
         fechaOperacion: p.createdAt || '',
+        // El caso hereda las operaciones que sustentan la señal, para que el
+        // analista no tenga que reconstruir a qué se refería la alerta.
+        ops: s.ops || [],
+        opsTotal: s.opsTotal || 0,
+        estructural: !!s.estructural,
       });
     });
   });

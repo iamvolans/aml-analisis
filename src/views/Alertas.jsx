@@ -3,7 +3,8 @@ import { SevBadge, SortTh, TableCard, Drawer, EmptyState, TD } from "../componen
 import { toast, uiConfirm } from "../components/feedback";
 import { auditLog, puedeAprobar } from "../lib/auth";
 import { nuevoCaso, refCaso } from "../lib/casos";
-import { senalesActivas, claveResolucion, periodosDuplicados } from "../lib/aml";
+import { senalesActivas, claveResolucion, periodosDuplicados, operacionesDeSenal } from "../lib/aml";
+import { serverLoadTxns } from "../lib/sync";
 import { serverLoadKVPrefix } from "../lib/sync";
 import { uid } from "../lib/utils";
 import { T } from "../lib/theme";
@@ -90,6 +91,30 @@ function AlertasView(props) {
 
   // Señal abierta en el drawer
   var selSigState = useState(null); var selSigKey=selSigState[0]; var setSelSigKey=selSigState[1];
+
+  // ── Operaciones que sustentan la señal ─────────────────────────────────────
+  // Las transacciones se guardan aparte y se cargan bajo demanda: traerlas de
+  // toda la cartera para mostrar una lista de alertas sería desproporcionado.
+  // Se piden recién al abrir el detalle de una señal.
+  var txnsState = useState({}); var txnsCache=txnsState[0]; var setTxnsCache=txnsState[1];
+  var cargandoOpsState = useState(false); var cargandoOps=cargandoOpsState[0]; var setCargandoOps=cargandoOpsState[1];
+
+  useEffect(function(){
+    if (!selSigKey) return;
+    var sig = allSigs.find(function(x){ return x.key === selSigKey; });
+    if (!sig || !sig.periodoId || txnsCache[sig.periodoId]) return;
+    if (!(sig.ops || []).length) return;
+    var vivo = true;
+    setCargandoOps(true);
+    serverLoadTxns(sig.periodoId).then(function(tx){
+      if (!vivo) return;
+      setTxnsCache(function(prev){
+        var n = Object.assign({}, prev); n[sig.periodoId] = tx || []; return n;
+      });
+      setCargandoOps(false);
+    }).catch(function(){ if (vivo) setCargandoOps(false); });
+    return function(){ vivo = false; };
+  }, [selSigKey]);
 
   // ── Regularización masiva ──────────────────────────────────────────────────
   // Alertas que fueron efectivamente resueltas fuera del sistema, contra
@@ -443,6 +468,75 @@ function AlertasView(props) {
             <div style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:6}}>Descripción</div>
             <div style={{fontSize:13,color:T.TEXT2,lineHeight:1.6}}>{selSig.desc}</div>
           </div>
+
+          {/* Operaciones implicadas — el analista no tiene que reconstruir a
+              mano a qué se refería la alerta */}
+          {(function(){
+            if (selSig.estructural) {
+              return (
+                <div style={{background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,padding:'12px 15px',marginBottom:14,fontSize:11.5,color:T.TEXT3,lineHeight:1.65}}>
+                  Este patrón describe la <strong>forma del período completo</strong> —la relación entre
+                  orígenes y destinos, o entre lo que entra y lo que sale—, de modo que no se corresponde
+                  con un subconjunto de operaciones. Señalar algunas sería atribuirle una precisión que
+                  no tiene.
+                </div>
+              );
+            }
+            var ops = operacionesDeSenal(selSig, txnsCache[selSig.periodoId]);
+            if (cargandoOps) {
+              return <div style={{fontSize:12,color:T.TEXT3,padding:'10px 0',marginBottom:14}}>Cargando operaciones…</div>;
+            }
+            if (!(selSig.ops || []).length) return null;
+            if (!ops.length) {
+              return (
+                <div style={{background:T.BG3,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,padding:'12px 15px',marginBottom:14,fontSize:11.5,color:T.TEXT3}}>
+                  La señal registra {selSig.opsTotal} operación(es), pero el detalle no está disponible.
+                  Los períodos analizados antes de esta versión no guardaron esa referencia; volver a
+                  cargar el archivo la restituye.
+                </div>
+              );
+            }
+            var total = ops.reduce(function(a,t){ return a + (Number(t.monto)||0); }, 0);
+            return (
+              <div style={{background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:T.RADIUS.md,marginBottom:14,overflow:'hidden'}}>
+                <div style={{padding:'11px 15px',borderBottom:'1px solid '+T.BORDER,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:6}}>
+                  <span style={{fontSize:10,color:T.TEXT3,fontWeight:600,letterSpacing:'0.8px',textTransform:'uppercase'}}>
+                    Operaciones implicadas
+                  </span>
+                  <span style={{fontSize:11,fontFamily:T.MONO,color:T.TEXT2}}>
+                    {ops.length}{selSig.opsTotal > ops.length ? ' de ' + selSig.opsTotal : ''} · {fmtM(total)}
+                  </span>
+                </div>
+                <div style={{maxHeight:230,overflowY:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'separate',borderSpacing:0,fontSize:11.5}}>
+                    <thead><tr>
+                      {['Fecha','Hora','Tipo','Monto','Contraparte'].map(function(h,i){
+                        return <th key={i} style={Object.assign({},TD,{background:T.BG3,position:'sticky',top:0,zIndex:1,color:T.TEXT3,fontSize:9.5,fontWeight:600,letterSpacing:'0.7px',textTransform:'uppercase',textAlign:i===3?'right':'left'})}>{h}</th>;
+                      })}
+                    </tr></thead>
+                    <tbody>
+                      {ops.slice(0,60).map(function(t,i){
+                        return (
+                          <tr key={i}>
+                            <td style={Object.assign({},TD,{fontFamily:T.MONO,fontSize:10.5,color:T.TEXT2,whiteSpace:'nowrap'})}>{t.fecha||'—'}</td>
+                            <td style={Object.assign({},TD,{fontFamily:T.MONO,fontSize:10.5,color:T.TEXT3})}>{t.hora||'—'}</td>
+                            <td style={Object.assign({},TD,{fontSize:10.5,color:t.tipo==='IN'?T.GREEN:T.RED,fontWeight:600})}>{t.tipo}</td>
+                            <td style={Object.assign({},TD,{fontFamily:T.MONO,textAlign:'right',color:T.TEXT,fontWeight:600,whiteSpace:'nowrap'})}>{fmtM(t.monto)}</td>
+                            <td style={Object.assign({},TD,{color:T.TEXT2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:180})}>{t.contraparte_nombre||t.contraparte_cuit||'Sin identificar'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {ops.length > 60 && (
+                  <div style={{padding:'8px 15px',fontSize:10.5,color:T.TEXT4,borderTop:'1px solid '+T.BORDER}}>
+                    Se muestran las primeras 60. El caso que se genere incluye el total.
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {selSig.tip ? (
             <div style={{background:'rgba(61,126,255,0.06)',border:'1px solid '+T.ACCENT_DIM,borderRadius:T.RADIUS.md,padding:'14px 16px',marginBottom:14}}>
