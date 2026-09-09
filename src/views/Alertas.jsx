@@ -3,7 +3,7 @@ import { SevBadge, SortTh, TableCard, Drawer, EmptyState, TD } from "../componen
 import { toast, uiConfirm } from "../components/feedback";
 import { auditLog, puedeAprobar } from "../lib/auth";
 import { nuevoCaso, refCaso } from "../lib/casos";
-import { senalesActivas, claveResolucion, periodosDuplicados, operacionesDeSenal } from "../lib/aml";
+import { senalesActivas, claveResolucion, periodosDuplicados, operacionesDeSenal, huellaEvidencia, evidenciaCambio } from "../lib/aml";
 import { serverLoadTxns } from "../lib/sync";
 import { serverLoadKVPrefix } from "../lib/sync";
 import { uid } from "../lib/utils";
@@ -383,7 +383,12 @@ function AlertasView(props) {
     var updatedPers = periodos.map(function(p){
       if (p.id !== sig.periodoId) return p;
       var newRes = Object.assign({}, p.sigsResolucion||{});
+      // Se asienta sobre qué operaciones se pronunció el analista. Si el período
+      // se recarga con otro archivo, la resolución seguiría cubriendo la señal
+      // pero sobre movimientos distintos; la huella permite advertirlo.
+      var huella = huellaEvidencia(sig, txnsCache[sig.periodoId]);
       newRes[claveResolucion(sig)] = {
+        huella: huella,
         estado: 'RESUELTA',
         explicacion: justificacion || 'Resuelta desde panel de Alertas.',
         aprobadoPor: currentUser.nombre || 'Analista',

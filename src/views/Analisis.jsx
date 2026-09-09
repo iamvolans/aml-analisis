@@ -3,7 +3,7 @@ import { toast, uiConfirm } from "../components/feedback";
 import { BarChart, Bar, Line, ComposedChart, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
 import { Card, Pill, SevBadge, chartGrid, chartAxis, chartTooltip } from "../components/ui";
-import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase, operacionesDeSenal } from "../lib/aml";
+import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase, operacionesDeSenal, evidenciaCambio, contrapartesRecurrentes } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEditar } from "../lib/auth";
 import { parseCsv, parseExcelFile } from "../lib/parsers";
 import { analizarConvenio, unificarOperaciones, esRecaudacion } from "../lib/cobranza";
@@ -929,7 +929,37 @@ function AnalisisView(props) {
         </Card> : null}
         {tab === 'senales' ? <Card title={'Senales AML detectadas (' + sigs.length + ')' + (Object.keys(selPeriodo.sigsResolucion||{}).length > 0 ? ' — ' + Object.values(selPeriodo.sigsResolucion||{}).filter(function(r){return r.estado==='RESUELTA';}).length + ' resueltas' : '')}>
           {sigs.length === 0 ? <p style={{color:T.GREEN,fontWeight:700,textAlign:'center',padding:'20px 0'}}>✅ Sin senales AML detectadas</p> :
-          sigs.map(function(s,i){
+          [(function(){
+            // Cada señal se lee por separado; una contraparte presente en la
+            // evidencia de varias no resulta visible en esa lectura.
+            var rec = contrapartesRecurrentes(sigs, selPeriodo.txns, 2);
+            if (!rec.length) return null;
+            return (
+              <div key="__rec" style={{background:T.BG2,border:'1px solid '+T.BORDER,
+                borderLeft:'3px solid '+T.VIOLET,borderRadius:T.RADIUS.md,padding:'12px 15px',marginBottom:12}}>
+                <div style={{fontSize:11.5,fontWeight:700,color:T.VIOLET,marginBottom:4}}>
+                  Contrapartes presentes en varias señales
+                </div>
+                <div style={{fontSize:11,color:T.TEXT3,lineHeight:1.6,marginBottom:9}}>
+                  Concentran hallazgos de patrones distintos. No implica irregularidad por sí solo,
+                  pero es donde conviene empezar el análisis.
+                </div>
+                {rec.slice(0,5).map(function(c,k){
+                  return (
+                    <div key={k} style={{padding:'6px 0',borderTop:k?'1px solid '+T.BORDER:'none'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'baseline'}}>
+                        <span style={{fontSize:12,fontWeight:600,color:T.TEXT,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.nombre}</span>
+                        <span style={{fontSize:10.5,fontFamily:T.MONO,color:T.TEXT2,whiteSpace:'nowrap'}}>
+                          {c.patrones.length} patrones · {c.ops} ops · {fmtM(c.monto)}
+                        </span>
+                      </div>
+                      <div style={{fontSize:10.5,color:T.TEXT3,marginTop:2,lineHeight:1.5}}>{c.patrones.join(' · ')}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()].concat(sigs.map(function(s,i){
             var res = (selPeriodo.sigsResolucion||{})[s.pat] || {estado:'ACTIVA'};
             var resuelta = res.estado === 'RESUELTA';
             var propuesta = res.estado === 'PROPUESTA_CIERRE';
@@ -1070,6 +1100,22 @@ function AnalisisView(props) {
                   );
                 })()}
 
+                {/* La resolución se pronunció sobre operaciones concretas. Si el
+                    período se recargó con otro archivo, la señal sigue resuelta
+                    pero sobre movimientos distintos. */}
+                {resuelta && (function(){
+                  var camb = evidenciaCambio(res, s, selPeriodo.txns);
+                  if (!camb) return null;
+                  return (
+                    <div style={{marginTop:7,background:'rgba(255,184,48,0.09)',
+                      border:'1px solid rgba(255,184,48,0.35)',borderLeft:'3px solid '+T.AMBER,
+                      borderRadius:T.RADIUS.sm,padding:'9px 12px',fontSize:11,color:T.TEXT2,lineHeight:1.6}}>
+                      <strong style={{color:T.AMBER}}>Las operaciones cambiaron desde que se resolvió.</strong>{' '}
+                      {camb.detalle} Corresponde revisar si el fundamento asentado sigue siendo aplicable.
+                    </div>
+                  );
+                })()}
+
                 {(propuesta||resuelta) && res.explicacion && (
                   <div style={{marginTop:6,background:T.BG2,border:'1px solid '+T.BORDER,borderRadius:4,padding:'6px 10px',fontSize:11}}>
                     <span style={{color:T.TEXT2,fontWeight:600}}>Explicación: </span>{res.explicacion}
@@ -1079,7 +1125,7 @@ function AnalisisView(props) {
                 )}
               </div>
             );
-          })}
+          }))}
         </Card> : null}
         {tab === 'scoring' && sc ? <Card title="Scoring transaccional — 8 factores">
           <div style={{background:sc.col,borderRadius:6,padding:'10px 14px',marginBottom:14,color:'white',display:'flex',justifyContent:'space-between'}}>

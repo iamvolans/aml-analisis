@@ -225,6 +225,132 @@ function enriquecerEvidencia(senales, txns, legajo) {
   });
 }
 
+// ─── RECURRENCIA ────────────────────────────────────────────────────────────
+// Cada señal se lee por separado, y una contraparte que aparece en la evidencia
+// de varias a la vez no resulta visible en esa lectura. Cruzar la evidencia
+// permite responder algo que hoy hay que hacer a ojo: quién concentra los
+// hallazgos del período.
+function contrapartesRecurrentes(senales, txns, minPatrones) {
+  var min = minPatrones || 2;
+  if (!senales || !txns || !txns.length) return [];
+  var acum = {};
+  senales.forEach(function(s){
+    if (s.estructural) return;
+    var vistas = {};
+    operacionesDeSenal(s, txns).forEach(function(t){
+      var k = (t.contraparte_nombre || t.contraparte_cuit || '').trim();
+      if (!k) return;
+      if (!acum[k]) acum[k] = { nombre: k, patrones: [], ops: 0, monto: 0, sev: {} };
+      if (!vistas[k]) {
+        vistas[k] = true;
+        acum[k].patrones.push(s.pat + ' — ' + s.titulo);
+        acum[k].sev[s.sev] = (acum[k].sev[s.sev] || 0) + 1;
+      }
+      acum[k].ops += 1;
+      acum[k].monto += Number(t.monto) || 0;
+    });
+  });
+  return Object.keys(acum)
+    .map(function(k){ return acum[k]; })
+    .filter(function(x){ return x.patrones.length >= min; })
+    .sort(function(a, b){
+      if (b.patrones.length !== a.patrones.length) return b.patrones.length - a.patrones.length;
+      return b.monto - a.monto;
+    });
+}
+
+// Señales que se repiten período tras período y se resuelven siempre igual.
+// Cuando ocurre, o el umbral no se ajusta a ese cliente, o hay algo que la
+// resolución no está mirando. En cualquiera de los dos casos, informarlo vale
+// más que volver a resolver lo mismo.
+function senalesRecurrentes(periodos, legajo, minPeriodos) {
+  var min = minPeriodos || 3;
+  var pers = (periodos || []).filter(function(p){ return p.legajoId === legajo.id && p.metricas; });
+  if (pers.length < min) return [];
+
+  var acum = {};
+  pers.forEach(function(p){
+    var res = p.sigsResolucion || {};
+    var m = metricasDe(p, legajo);
+    if (!m) return;
+    detectPatrones(m, legajo, null).forEach(function(s){
+      var clave = s.pat + '::' + s.titulo;
+      if (!acum[clave]) acum[clave] = { pat: s.pat, titulo: s.titulo, periodos: [], resueltas: 0, fundamentos: {} };
+      var e = acum[clave];
+      e.periodos.push(p.nombre || p.id);
+      var r = resolucionDe(res, s);
+      if (r && r.estado === 'RESUELTA') {
+        e.resueltas += 1;
+        var f = (r.explicacion || '').trim().toLowerCase();
+        if (f) e.fundamentos[f] = (e.fundamentos[f] || 0) + 1;
+      }
+    });
+  });
+
+  return Object.keys(acum)
+    .map(function(k){ return acum[k]; })
+    .filter(function(e){
+      if (e.periodos.length < min) return false;
+      // Solo interesa cuando además se resolvió siempre con el mismo argumento
+      var usos = Object.keys(e.fundamentos).map(function(f){ return e.fundamentos[f]; });
+      return usos.some(function(n){ return n >= min; });
+    })
+    .map(function(e){
+      var top = Object.keys(e.fundamentos).sort(function(a,b){ return e.fundamentos[b]-e.fundamentos[a]; })[0];
+      return {
+        pat: e.pat, titulo: e.titulo,
+        vecesDetectada: e.periodos.length,
+        vecesResuelta: e.resueltas,
+        periodos: e.periodos,
+        fundamentoRepetido: top,
+        vecesFundamento: e.fundamentos[top],
+      };
+    })
+    .sort(function(a, b){ return b.vecesFundamento - a.vecesFundamento; });
+}
+
+// ─── HUELLA DE LA EVIDENCIA ─────────────────────────────────────────────────
+// Una resolución afirma que un hallazgo tiene explicación. Esa afirmación se
+// hizo sobre operaciones concretas, pero si el período se vuelve a cargar con
+// otro archivo, la señal puede seguir activa sobre movimientos DISTINTOS y la
+// resolución quedaría cubriendo algo que ya no es lo que se analizó.
+//
+// La huella permite advertirlo: se calcula al resolver y se compara al mostrar.
+// No es una firma criptográfica —no busca detectar manipulación— sino un
+// resumen barato que cambia cuando cambian las operaciones.
+function huellaEvidencia(senal, txns) {
+  var ops = operacionesDeSenal(senal, txns);
+  if (!ops.length) return null;
+  var suma = 0, h = 0;
+  ops.forEach(function(t){
+    suma += Number(t.monto) || 0;
+    var clave = (t.fecha || '') + '|' + (t.monto || '') + '|' +
+                (t.contraparte_nombre || t.contraparte_cuit || '');
+    for (var i = 0; i < clave.length; i++) {
+      h = ((h << 5) - h + clave.charCodeAt(i)) | 0;   // hash de 32 bits
+    }
+  });
+  return { n: ops.length, suma: Math.round(suma), hash: h };
+}
+
+// Compara la huella asentada al resolver contra la evidencia actual.
+// Devuelve null cuando no hay con qué comparar: una resolución anterior a esta
+// función, o un período sin transacciones cargadas. Ausencia de dato no es
+// discrepancia, y confundirlas alarmaría sobre todo lo viejo.
+function evidenciaCambio(resolucion, senal, txns) {
+  if (!resolucion || !resolucion.huella) return null;
+  var actual = huellaEvidencia(senal, txns);
+  if (!actual) return null;
+  var h = resolucion.huella;
+  if (h.n === actual.n && h.suma === actual.suma && h.hash === actual.hash) return null;
+  return {
+    antes: h, ahora: actual,
+    detalle: 'Se resolvió sobre ' + h.n + ' operación(es) por ' +
+             h.suma.toLocaleString('es-AR') + '. Hoy la señal se sustenta en ' +
+             actual.n + ' operación(es) por ' + actual.suma.toLocaleString('es-AR') + '.',
+  };
+}
+
 // Resumen textual de las operaciones implicadas, para el detalle de un caso o
 // de un informe.
 function resumenEvidencia(senal, txns) {
@@ -608,4 +734,4 @@ function contarAlta(periodo, legajo, periodos) {
   return senalesActivas(periodo, legajo, periodos).filter(function(s){ return s.sev === 'ALTA'; }).length;
 }
 
-export { calcMetricas, detectPatrones, enriquecerEvidencia, calcScoring, metricasDe, senalesActivas, contarAlta, lineaBase, COMPORTAMIENTO, claveResolucion, resolucionDe, CLAVES_HISTORICAS, periodosDuplicados, operacionesDeSenal, resumenEvidencia };
+export { calcMetricas, detectPatrones, enriquecerEvidencia, huellaEvidencia, evidenciaCambio, contrapartesRecurrentes, senalesRecurrentes, calcScoring, metricasDe, senalesActivas, contarAlta, lineaBase, COMPORTAMIENTO, claveResolucion, resolucionDe, CLAVES_HISTORICAS, periodosDuplicados, operacionesDeSenal, resumenEvidencia };
