@@ -425,7 +425,7 @@ function WikiView() {
             {label:'Seleccionar períodos',sub:'Pre-selecciona con señales',color:T.AMBER},
             {label:'Generar borrador',sub:'8 secciones auto.',color:'#2C4A7C'},
             {label:'Editar narrativa',sub:'Descripción y conclusión',color:'#3B6DAA'},
-            {label:'Presentar en SIROS',sub:'Portal UIF',color:T.GREEN},
+            {label:'Presentar en SRO',sub:'Portal UIF',color:T.GREEN},
           ]}/>
           <WikiTbl headers={['Sección','Contenido','Editable']} rows={[
             ['1. Encabezado','N° correlativo ROS-YYYY-NNN · Fecha · CONFIDENCIAL','No'],
@@ -507,7 +507,7 @@ function WikiView() {
             ['RFI','Request for Information. Requerimiento formal de información al cliente.'],
             ['ROS','Reporte de Operación Sospechosa. Comunicación obligatoria a la UIF (Art. 21 Ley 25.246).'],
             ['Same name','Transferencia al propio titular (mismo CUIT) en otra entidad al cerrar la cuenta.'],
-            ['SIROS','Sistema Integral de Reporte de Operaciones Sospechosas. Portal web de la UIF.'],
+            ['SRO','Sistema Integral de Reporte de Operaciones Sospechosas. Portal web de la UIF.'],
             ['Smurfing','Uso de múltiples personas para dividir operaciones grandes en pequeñas.'],
             ['Structuring','Fraccionamiento deliberado para eludir umbrales de reporte obligatorio.'],
             ['UIF','Unidad de Información Financiera. Organismo de control AML en Argentina.'],

@@ -1,6 +1,6 @@
-import { calcMetricas, calcScoring, detectPatrones, operacionesDeSenal, resumenEvidencia } from "./aml";
+import { calcMetricas, calcScoring, detectPatrones, operacionesDeSenal, resumenEvidencia, enriquecerEvidencia, resolucionDe } from "./aml";
 import { CHECKLIST_ITEMS, KYB_FACTORS, PAT_UIF_MAP, SCREENING, getEstado } from "./constants";
-import { firmanteAnalista, firmanteOC, firmanteResponsable } from "./firmantes";
+import { ENTIDAD, firmanteAnalista, firmanteOC, firmanteResponsable } from "./firmantes";
 import { T } from "./theme";
 import { fmtM, safeArr, segColor, sevColor, todayStr } from "./utils";
 
@@ -778,12 +778,21 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   sel.forEach(function(p){
     var m = p.metricas;
     if (!m) return;
-    var sigs = detectPatrones(m, legajo);
+    // Las métricas guardadas de un período anterior al registro por operación no
+    // traen evidencia, y sin ella la sección 5 solo puede mostrar los patrones
+    // estructurales. Se completa desde las transacciones sin recalcular las
+    // señales, para no alterar cuáles se reportan.
+    var sigs = enriquecerEvidencia(detectPatrones(m, legajo), p.txns, legajo);
     sigs.filter(function(s){ return s.sev==='ALTA'; }).forEach(function(s){
-      var res = (p.sigsResolucion||{})[s.pat];
-      if (!res || res.estado !== 'RESUELTA') {
-        if (!sigsList.find(function(x){return x.pat===s.pat;})) sigsList.push(Object.assign({},s,{periodo:p.nombre}));
-      }
+      // La resolución se busca con la clave por señal: leerla solo por código
+      // hacía que una señal ya resuelta reapareciera en el reporte, y que
+      // resolver la variante de entrada ocultara también la de salida.
+      var res = resolucionDe(p.sigsResolucion || {}, s);
+      if (res && res.estado === 'RESUELTA') return;
+      // Se deduplica por señal y no por patrón: PAT-06 y PAT-10 emiten variante
+      // de entrada y de salida, y colapsarlas perdía una de las dos.
+      var yaEsta = sigsList.find(function(x){ return x.pat === s.pat && x.titulo === s.titulo; });
+      if (!yaEsta) sigsList.push(Object.assign({}, s, { periodo: p.nombre }));
     });
   });
 
@@ -806,7 +815,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   // ── ENCABEZADO ────────────────────────────────────────────────────────────────
   html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:3px solid #1B2A4A;padding-bottom:10px">'
     + '<div><h1>REPORTE DE OPERACIÓN SOSPECHOSA — BORRADOR</h1>'
-    + '<div style="font-size:9pt;color:#555">Resolución UIF N° 156/2018 y modificatorias · Art. 20 Ley 25.246</div></div>'
+    + '<div style="font-size:9pt;color:#555">Ley N° 25.246 (texto conf. Ley N° 27.739) — arts. 20, 21 inc. b) y 21 bis · Resolución UIF N° 200/2024 · Resolución UIF N° 56/2024</div></div>'
     + '<div style="text-align:right;font-size:9pt"><strong>N° '+numDoc+'</strong><br/>Fecha: '+hoy+'<br/>Generado por: '+generador+'</div></div>';
 
   html += '<div class="confidencial">⚠ CONFIDENCIAL — USO EXCLUSIVO DEL SUJETO OBLIGADO — NO DIVULGAR</div>';
@@ -814,9 +823,11 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   // ── SECCIÓN 1: SUJETO OBLIGADO ────────────────────────────────────────────────
   html += '<h2>1. Datos del Sujeto Obligado</h2><div class="sec">'
     + '<table><tbody>'
-    + '<tr><td class="label">Razón Social</td><td>GOAT S.A.</td><td class="label">CUIT</td><td>30-71703953-6</td></tr>'
+    + '<tr><td class="label">Razón Social</td><td>GOAT S.A.</td><td class="label">CUIT</td><td>' + ENTIDAD.cuit + '</td></tr>'
     + '<tr><td class="label">Actividad</td><td colspan="3">Proveedor de Servicios de Pago (PSP) — Billetera virtual y medios de pago electrónico</td></tr>'
-    + '<tr><td class="label">Regulador</td><td>BCRA — Comunicación "A" 6885 y complementarias</td><td class="label">N° inscripción UIF</td><td>____________________</td></tr>'
+    + '<tr><td class="label">Regulador</td><td>BCRA — T.O. Proveedores de Servicios de Pago (Com. "A" 8454) · Registro PSPCP N° 33.706</td><td class="label">N° inscripción UIF</td><td>' + (ENTIDAD.inscripcionUIF
+      ? ENTIDAD.inscripcionUIF
+      : '<span style="color:#B03030;font-weight:bold">PENDIENTE DE CONFIGURAR — no presentar sin este dato</span>') + '</td></tr>'
     + '<tr><td class="label">Oficial de Cumplimiento</td><td>'+oficial+'</td><td class="label">Fecha del reporte</td><td>'+hoy+'</td></tr>'
     + '</tbody></table></div>';
 
@@ -846,14 +857,27 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     // La versión anterior sostenía incompatibilidad incluso cuando el volumen
     // coincidía con la facturación declarada: una afirmación falsa dentro de un
     // reporte que se presenta ante la autoridad.
+    // El contraste debe hacerse sobre magnitudes comparables. La versión
+    // anterior dividía el volumen ACUMULADO de todos los períodos por la
+    // facturación MENSUAL, de modo que seis meses de operatoria contra un mes de
+    // facturación arrojaban un múltiplo que no significaba nada: con $13.2B en
+    // seis períodos y $2.5B declarados, informaba "5.3 veces" cuando el
+    // promedio mensual real era 0,88 veces.
     + (function(){
         var fm = Number(legajo.facturacionMensual) || 0;
+        var nPer = sel.length || 1;
         if (!fm) return ', sin que el legajo registre una facturación mensual declarada que permita contrastar el volumen operado.';
-        var veces = totalIn / fm;
-        if (veces >= 1.5) return ', volumen que representa ' + veces.toFixed(1) + ' veces la facturación mensual declarada de ' + fmtM(fm) + ' y excede en forma significativa el perfil económico informado.';
-        if (veces >= 1.1) return ', volumen superior a la facturación mensual declarada de ' + fmtM(fm) + ' (' + veces.toFixed(1) + ' veces).';
-        if (veces <= 0.3) return ', volumen marcadamente inferior a la facturación mensual declarada de ' + fmtM(fm) + ' (' + (veces*100).toFixed(0) + '%).';
-        return ', volumen consistente con la facturación mensual declarada de ' + fmtM(fm) + '. La inusualidad no surge del volumen sino de los patrones que se detallan a continuación.';
+        var promedio = totalIn / nPer;
+        var veces = promedio / fm;
+        var enc = nPer > 1
+          ? ', lo que arroja un promedio de ' + fmtM(promedio) + ' por período analizado'
+          : '';
+        var comp = ' sobre una facturación mensual declarada de ' + fmtM(fm) +
+                   ' (' + veces.toFixed(2) + ' veces)';
+        if (veces >= 1.5) return enc + comp + ', volumen que excede en forma significativa el perfil económico informado.';
+        if (veces >= 1.1) return enc + comp + ', volumen superior al perfil económico informado.';
+        if (veces <= 0.3) return enc + comp + ', volumen marcadamente inferior al perfil económico informado.';
+        return enc + comp + ', volumen consistente con el perfil económico informado. La inusualidad no surge del volumen agregado sino de los patrones que se detallan a continuación.';
       })()
     + ' Se detectaron patrones transaccionales inusuales que motivaron la presente comunicación. [Completar con detalles adicionales de la investigación.]</div></div>';
 
@@ -881,8 +905,21 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   // fraccionadas, no las más grandes del período.
   html += '<h2>5. Operaciones que Sustentan las Señales</h2><div class="sec">';
   var huboEvidencia = false;
-  sigsList.forEach(function(sg){
-    var per = sel.find(function(pp){ return pp.nombre === sg.periodo || pp.id === sg.periodoId; });
+  // Las métricas guardadas de un período anterior al registro por operación no
+  // traen la evidencia. Se completa desde las transacciones sin recalcular las
+  // señales, para que el reporte exhiba exactamente las que se analizaron.
+  var porPer = {};
+  sel.forEach(function(pp){
+    if (!pp.txns || !pp.txns.length) return;
+    var delPer = sigsList.filter(function(x){ return x.periodo === pp.nombre || x.periodoId === pp.id; });
+    enriquecerEvidencia(delPer, pp.txns, legajo).forEach(function(e){
+      porPer[e.pat + '::' + e.titulo + '::' + pp.id] = e;
+    });
+  });
+
+  sigsList.forEach(function(sg0){
+    var per = sel.find(function(pp){ return pp.nombre === sg0.periodo || pp.id === sg0.periodoId; });
+    var sg = (per && porPer[sg0.pat + '::' + sg0.titulo + '::' + per.id]) || sg0;
     var txnsPer = per && per.txns ? per.txns : null;
     if (sg.estructural) {
       html += '<p style="font-size:8.5pt;margin:8px 0 2px"><strong>' + sg.pat + ' — ' + sg.titulo + '</strong></p>'
@@ -892,10 +929,21 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
       huboEvidencia = true;
       return;
     }
-    if (!txnsPer || !(sg.ops || []).length) return;
-    var ops = operacionesDeSenal(sg, txnsPer);
-    if (!ops.length) return;
+    // Omitir el patrón cuando falta el detalle lo hacía desaparecer del reporte
+    // sin explicación: el lector no podía saber que la señal existía.
+    var ops = txnsPer ? operacionesDeSenal(sg, txnsPer) : [];
     huboEvidencia = true;
+    if (!ops.length) {
+      html += '<p style="font-size:8.5pt;margin:10px 0 2px"><strong>' + sg.pat + ' — ' + sg.titulo + '</strong></p>'
+        + '<p style="font-size:8pt;color:#B03030;margin:0 0 8px">'
+        + (!txnsPer
+            ? 'El detalle por operación no pudo recuperarse para el período «' + (sg.periodo || 's/d')
+              + '»; debe acompañarse por separado al momento de la presentación.'
+            : 'El período fue analizado con anterioridad al registro del detalle por operación. '
+              + 'Volver a cargar el archivo lo restituye.')
+        + '</p>';
+      return;
+    }
     var suma = ops.reduce(function(a, t){ return a + (Number(t.monto) || 0); }, 0);
     html += '<p style="font-size:8.5pt;margin:10px 0 2px"><strong>' + sg.pat + ' — ' + sg.titulo + '</strong>'
       + ' <span style="color:#555;font-weight:normal">(' + ops.length
@@ -969,24 +1017,51 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   html += '</div>';
 
   // ── SECCIÓN 7: CONCLUSIÓN ─────────────────────────────────────────────────────
-  html += '<h2>7. Conclusión y Fundamento del Reporte</h2><div class="sec">'
+  // ── SECCIÓN 7: MEDIDAS ADOPTADAS ─────────────────────────────────────────────
+  // Un reporte que describe la inusualidad sin declarar qué hizo la entidad al
+  // respecto deja sin acreditar la parte que corresponde al sujeto obligado.
+  html += '<h2>7. Medidas Adoptadas por el Sujeto Obligado</h2><div class="sec">'
+    + '<p style="font-size:8.5pt;color:#555;margin-bottom:6px">Consignar las medidas efectivamente '
+    + 'adoptadas, con su fecha. De no adoptarse ninguna, dejar constancia expresa del fundamento.</p>'
+    + '<table><thead><tr><th style="width:54%">Medida</th><th style="width:22%">Adoptada</th><th>Fecha</th></tr></thead><tbody>'
+    + ['Recalificación del riesgo en la matriz del cliente',
+       'Limitación operativa sobre la cuenta',
+       'Monitoreo reforzado',
+       'Requerimiento de información al cliente',
+       'Baja de la relación con restitución de saldo a cuenta de igual titularidad'
+      ].map(function(med){
+        return '<tr><td>' + med + '</td>'
+          + '<td contenteditable="true" style="text-align:center">☐ Sí   ☐ No</td>'
+          + '<td contenteditable="true"></td></tr>';
+      }).join('')
+    + '</tbody></table>'
+    + '<p style="font-size:8.5pt;margin:6px 0 2px"><strong>Observaciones o fundamento de no adoptar medidas:</strong></p>'
+    + '<div contenteditable="true" style="min-height:34px"></div>'
+    + '</div>';
+
+  html += '<h2>8. Conclusión y Fundamento del Reporte</h2><div class="sec">'
     + '<div contenteditable="true">'
     + 'Con base en el análisis transaccional realizado sobre los períodos '+nomPers
-    + ' y las diligencias de debida diligencia reforzada llevadas a cabo, '
+    // El relato no puede afirmar diligencias que el propio legajo desmiente:
+    // el documento decía "debida diligencia reforzada llevada a cabo" aunque la
+    // sección 6 informara que no se registran requerimientos.
+    + (rfisLegajo && rfisLegajo.length
+        ? ' y los requerimientos de información cursados al cliente detallados en la sección 6, '
+        : ' y sobre la documentación de debida diligencia obrante en el legajo, ')
     + 'el equipo de Compliance de GOAT S.A. concluye que las operaciones del cliente '
     + (legajo.razonSocial||'')
     + ' presentan indicios de operaciones inusuales que no cuentan con justificación económica o jurídica aparente, '
-    + 'configurando los supuestos del artículo 21 de la Ley 25.246. '
+    + 'operatoria identificada como inusual que, luego del análisis y la evaluación realizados, no permite justificar la inusualidad detectada, en los términos del artículo 21 inciso b) de la Ley N° 25.246 (texto conforme Ley N° 27.739). '
     + 'En virtud de lo expuesto, se procede a la formulación del presente Reporte de Operación Sospechosa ante la Unidad de Información Financiera (UIF). '
     + '[Completar con fundamentos adicionales específicos del caso.]'
     + '</div>'
     + '<div style="margin-top:8px;padding:6px 10px;background:#FEF9E7;border:1px solid #F39C12;border-radius:3px;font-size:8.5pt">'
-    + '⚠ <strong>Recordatorio:</strong> El presente es un borrador de trabajo. Antes de la presentación formal ante la UIF a través del sistema SIROS, '
+    + '⚠ <strong>Recordatorio:</strong> El presente es un borrador de trabajo. Antes de la presentación formal ante la UIF a través del sistema SRO, '
     + 'debe ser revisado y aprobado por el Oficial de Cumplimiento designado.'
     + '</div></div>';
 
   // ── SECCIÓN 8: FIRMA ──────────────────────────────────────────────────────────
-  html += '<h2>8. Firma del Oficial de Cumplimiento</h2>'
+  html += '<h2>9. Firma del Oficial de Cumplimiento</h2>'
     + '<table style="margin-top:20px"><tbody><tr>'
     + '<td style="padding:30px 20px;border:1px solid #ddd;text-align:center;width:50%">'
     + '<div style="border-bottom:1px solid #333;margin:0 auto 8px;width:200px;height:40px"></div>'
@@ -1008,7 +1083,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     + '<span>GOAT S.A. — Compliance &amp; AML</span>'
     + '</div>'
     + '<div style="text-align:center;margin-top:6px;font-size:7pt;color:#aaa">'
-    + 'Este documento es un borrador de trabajo. Para la presentación formal utilizar el sistema SIROS de la UIF.'
+    + 'Este documento es un borrador de trabajo. Para la presentación formal utilizar el sistema SRO de la UIF.'
     + '</div>'
     + '</body></html>';
 

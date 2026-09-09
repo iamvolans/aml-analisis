@@ -1622,8 +1622,24 @@ function LegajosView(props) {
                             body: JSON.stringify({k:yearKey, v:num})
                           });
                         } catch(e){}
+                        // Las transacciones se guardan aparte y no se cargan al
+                        // listar legajos. Sin ellas el reporte no puede exhibir
+                        // las operaciones que sustentan cada señal, que es lo que
+                        // lo vuelve verificable ante la autoridad.
+                        toast('Recuperando las operaciones de ' + rosSelPer.length + ' período(s)…');
+                        var persRos = [];
+                        for (var iR = 0; iR < periodos.length; iR++) {
+                          var pr = periodos[iR];
+                          if (rosSelPer.indexOf(pr.id) < 0) { persRos.push(pr); continue; }
+                          if (pr.txns && pr.txns.length) { persRos.push(pr); continue; }
+                          try {
+                            var txR = await serverLoadTxns(pr.id);
+                            persRos.push(txR && txR.length ? Object.assign({}, pr, { txns: txR }) : pr);
+                          } catch (eR) { persRos.push(pr); }
+                        }
+
                         // Generar ROS
-                        var html = genROS(sel, periodos, rosSelPer, rfisLegajo, currentUser, num);
+                        var html = genROS(sel, persRos, rosSelPer, rfisLegajo, currentUser, num);
                         onReport(html);
                         auditLog(currentUser,'generar_ros','legajo',sel.id,{razonSocial:sel.razonSocial,rosNum:'ROS-'+new Date().getFullYear()+'-'+String(num).padStart(3,'0'),periodos:rosSelPer.length});
                         setRosOpen(false);

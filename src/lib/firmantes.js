@@ -13,6 +13,18 @@
 //
 // Al cambiar de titular o de responsable, se edita únicamente este archivo.
 
+// Datos registrales del sujeto obligado. Se declaran en cada reporte que se
+// presenta ante la autoridad, de modo que viven junto a los firmantes y no
+// dispersos en las plantillas.
+var ENTIDAD = {
+  razonSocial: 'GOAT S.A.',
+  cuit: '30-71703953-6',
+  // N° de inscripción ante la UIF. Sin este dato el reporte no puede
+  // presentarse: el generador lo señala en lugar de emitirlo en blanco.
+  inscripcionUIF: '',
+  registroPSPCP: '33.706',
+};
+
 var FIRMANTES = {
   // Oficial de Cumplimiento titular ante la UIF
   oficialCumplimiento: {
@@ -56,4 +68,4 @@ function firmanteAnalista(usuario) {
 function firmanteOC() { return FIRMANTES.oficialCumplimiento; }
 function firmanteResponsable() { return FIRMANTES.responsableCompliance; }
 
-export { FIRMANTES, ROLES_ANALISIS, firmanteAnalista, firmanteOC, firmanteResponsable };
+export { ENTIDAD, FIRMANTES, ROLES_ANALISIS, firmanteAnalista, firmanteOC, firmanteResponsable };
