@@ -379,3 +379,63 @@ describe('marco normativo del documento', () => {
     expect(h).not.toMatch(/lavó|lavado de activos por parte del cliente/i);
   });
 });
+
+// ── Consolidación de varios períodos ──────────────────────────────────────
+// El ROS puede abarcar varios períodos. Antes, una señal detectada en cuatro de
+// ellos figuraba con un único período: la repetición se descartaba en lugar de
+// consolidarse, cuando es precisamente lo que agrava el hallazgo. Y los
+// períodos se enumeraban en el orden de carga, no cronológico.
+describe('ROS sobre varios períodos', () => {
+  function periodo(id, nombre, creado, contraparte) {
+    const ops = [];
+    for (let i = 0; i < 6; i++) {
+      ops.push({ tipo:'IN', monto: 700000 + i, fecha:'2026-08-0' + (i % 9 + 1), hora:'11:25',
+                 contraparte_nombre: contraparte, contraparte_cuit:'30-71234567-8' });
+    }
+    return { id, nombre, legajoId:'L1', createdAt: creado, txns: ops, metricas: calcMetricas(ops) };
+  }
+  // Deliberadamente cargados fuera de orden
+  const PERS = [ periodo('p3','Julio 2026','1/8/2026','PROV JULIO'),
+                 periodo('p1','Mayo 2026','1/6/2026','PROV MAYO'),
+                 periodo('p2','Junio 2026','1/7/2026','PROV JUNIO') ];
+  const LEG = { id:'L1', razonSocial:'Grupo Pampeano S.R.L.', cuit:'30-71703334-1',
+                facturacionMensual: 5000000, checklist:{} };
+  const H = genROS(LEG, PERS, ['p1','p2','p3'], [], { nombre:'Gaston Rosa' }, '007');
+
+  it('enumera los períodos en orden cronológico', () => {
+    expect(H).toMatch(/Mayo 2026, Junio 2026, Julio 2026/);
+  });
+
+  it('una señal repetida declara en cuántos períodos se detectó', () => {
+    expect(H).toContain('3 períodos');
+  });
+
+  it('la evidencia se exhibe para cada período, no solo el primero', () => {
+    const i = H.indexOf('5. Operaciones que Sustentan');
+    const j = H.indexOf('5.1 Operaciones');
+    const sec5 = H.slice(i, j);
+    ['PROV MAYO', 'PROV JUNIO', 'PROV JULIO'].forEach(cp => {
+      expect(sec5, cp + ' no aparece en la sección 5').toContain(cp);
+    });
+  });
+
+  it('cada bloque adicional identifica a qué período pertenece', () => {
+    expect(H).toMatch(/período «(Mayo|Junio|Julio) 2026»/);
+  });
+
+  it('el total de operaciones suma todos los períodos', () => {
+    expect(H).toContain('18 transacciones');
+  });
+
+  it('con un solo período no agrega la leyenda de varios', () => {
+    const h1 = genROS(LEG, PERS, ['p1'], [], { nombre:'G' }, '008');
+    expect(h1).not.toContain('3 períodos');
+    expect(h1).toContain('Mayo 2026');
+  });
+
+  it('se emite completo', () => {
+    expect(H.trim().endsWith('</html>')).toBe(true);
+    expect(H).not.toContain('undefined');
+    expect(H).not.toContain('NaN');
+  });
+});

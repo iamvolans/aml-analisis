@@ -2,7 +2,7 @@ import { calcMetricas, calcScoring, detectPatrones, operacionesDeSenal, resumenE
 import { CHECKLIST_ITEMS, KYB_FACTORS, PAT_UIF_MAP, SCREENING, getEstado } from "./constants";
 import { ENTIDAD, firmanteAnalista, firmanteOC, firmanteResponsable } from "./firmantes";
 import { T } from "./theme";
-import { fmtM, safeArr, segColor, sevColor, todayStr } from "./utils";
+import { fmtM, parseFechaAR, safeArr, segColor, sevColor, todayStr } from "./utils";
 
 // PDF STYLES
 function pStyles() {
@@ -791,8 +791,25 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
       if (res && res.estado === 'RESUELTA') return;
       // Se deduplica por señal y no por patrón: PAT-06 y PAT-10 emiten variante
       // de entrada y de salida, y colapsarlas perdía una de las dos.
+      // Una señal que se repite período tras período es MÁS relevante, no
+      // menos. Antes se conservaba la primera aparición y las demás se perdían,
+      // de modo que el reporte mostraba un único período aunque el patrón fuera
+      // sostenido en el tiempo. Ahora se consolida.
       var yaEsta = sigsList.find(function(x){ return x.pat === s.pat && x.titulo === s.titulo; });
-      if (!yaEsta) sigsList.push(Object.assign({}, s, { periodo: p.nombre }));
+      if (!yaEsta) {
+        sigsList.push(Object.assign({}, s, {
+          periodo: p.nombre,
+          periodos: [p.nombre],
+          // Las posiciones de la evidencia son relativas al archivo de cada
+          // período, así que se conserva por separado.
+          evidenciaPorPeriodo: (s.ops || []).length ? [{ periodoId: p.id, nombre: p.nombre, senal: s }] : [],
+        }));
+      } else {
+        if (yaEsta.periodos.indexOf(p.nombre) < 0) yaEsta.periodos.push(p.nombre);
+        if ((s.ops || []).length) {
+          yaEsta.evidenciaPorPeriodo.push({ periodoId: p.id, nombre: p.nombre, senal: s });
+        }
+      }
     });
   });
 
@@ -801,8 +818,16 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   sel.forEach(function(p){ if(p.txns&&p.txns.length) p.txns.forEach(function(t){ allTxns.push(Object.assign({},t,{periodo:p.nombre})); }); });
   var topTxns = allTxns.slice().sort(function(a,b){return b.monto-a.monto;}).slice(0,20);
 
-  // Períodos abarcados
-  var nomPers = sel.map(function(p){return p.nombre;}).join(', ');
+  // Períodos abarcados, en orden cronológico. Sin ordenarlos, el reporte los
+  // enumeraba en el orden de carga —"Abril, Marzo, Julio, Agosto, Mayo,
+  // Junio"—, que en un documento que describe una secuencia temporal se lee
+  // como un descuido.
+  var selOrdenado = sel.slice().sort(function(a, b){
+    var fa = parseFechaAR(a.createdAt) || 0, fb = parseFechaAR(b.createdAt) || 0;
+    if (fa && fb && fa - fb !== 0) return fa - fb;
+    return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
+  });
+  var nomPers = selOrdenado.map(function(p){return p.nombre;}).join(', ');
   var est = getEstado(legajo.estadoCuenta||'ACTIVA');
 
   // RFIs relevantes
@@ -892,7 +917,9 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
       html += '<tr><td style="font-weight:bold;white-space:nowrap">'+s.pat+'<br/><span style="font-size:8pt;color:#888">'+uif.tip+'</span></td>'
         + '<td style="font-weight:bold">'+s.titulo+'</td>'
         + '<td style="font-size:8.5pt">'+uif.desc+'<br/><em style="color:#555">Detalle: '+s.desc+'</em></td>'
-        + '<td style="font-size:8.5pt;white-space:nowrap">'+s.periodo+'</td></tr>';
+        + '<td style="font-size:8.5pt">'+((s.periodos && s.periodos.length > 1)
+            ? '<strong>' + s.periodos.length + ' períodos</strong><br/><span style="font-size:7.5pt;color:#555">' + s.periodos.join(', ') + '</span>'
+            : s.periodo)+'</td></tr>';
     });
     html += '</tbody></table>';
   }
@@ -908,17 +935,36 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   // Las métricas guardadas de un período anterior al registro por operación no
   // traen la evidencia. Se completa desde las transacciones sin recalcular las
   // señales, para que el reporte exhiba exactamente las que se analizaron.
+  // Índice de evidencia por señal y período.
+  //
+  // Se enriquece la lista COMPLETA contra las transacciones de cada período, no
+  // solo las señales cuyo primer período coincide. Filtrar por `periodo` dejaba
+  // sin evidencia a todos los períodos salvo aquel en que la señal se detectó
+  // primero, que es justamente lo que este reporte necesita mostrar cuando el
+  // patrón se sostiene en el tiempo.
   var porPer = {};
   sel.forEach(function(pp){
     if (!pp.txns || !pp.txns.length) return;
-    var delPer = sigsList.filter(function(x){ return x.periodo === pp.nombre || x.periodoId === pp.id; });
-    enriquecerEvidencia(delPer, pp.txns, legajo).forEach(function(e){
+    // Se parte de las señales del propio período: las posiciones de la
+    // evidencia son relativas a su archivo.
+    var mPer = pp.metricas;
+    if (!mPer) return;
+    var sigsPer = enriquecerEvidencia(detectPatrones(mPer, legajo), pp.txns, legajo);
+    sigsPer.forEach(function(e){
       porPer[e.pat + '::' + e.titulo + '::' + pp.id] = e;
     });
   });
 
   sigsList.forEach(function(sg0){
-    var per = sel.find(function(pp){ return pp.nombre === sg0.periodo || pp.id === sg0.periodoId; });
+    // Una señal puede haberse detectado en varios períodos, y las posiciones de
+    // la evidencia son relativas al archivo de cada uno. Se recorren todos: un
+    // patrón sostenido en el tiempo debe exhibir las operaciones de cada período
+    // y no solo las del primero en que apareció.
+    var periodosSenal = (sg0.periodos && sg0.periodos.length)
+      ? sel.filter(function(pp){ return sg0.periodos.indexOf(pp.nombre) >= 0; })
+      : sel.filter(function(pp){ return pp.nombre === sg0.periodo || pp.id === sg0.periodoId; });
+
+    var per = periodosSenal[0];
     var sg = (per && porPer[sg0.pat + '::' + sg0.titulo + '::' + per.id]) || sg0;
     var txnsPer = per && per.txns ? per.txns : null;
     if (sg.estructural) {
@@ -963,6 +1009,33 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
       html += '<p style="font-size:7.5pt;color:#888;margin:2px 0 6px">Se detallan las primeras 20 de '
         + ops.length + '. El detalle íntegro consta en el sistema y se acompaña a requerimiento.</p>';
     }
+
+    // Los demás períodos en que se detectó la misma señal
+    periodosSenal.slice(1).forEach(function(pp){
+      if (!pp.txns || !pp.txns.length) return;
+      var sgN = porPer[sg0.pat + '::' + sg0.titulo + '::' + pp.id];
+      if (!sgN) return;
+      var opsN = operacionesDeSenal(sgN, pp.txns);
+      if (!opsN.length) return;
+      var sumaN = opsN.reduce(function(a, t){ return a + (Number(t.monto) || 0); }, 0);
+      html += '<p style="font-size:8pt;margin:8px 0 2px;color:#2C4A7C">' + sg0.pat
+        + ' — período «' + pp.nombre + '» <span style="color:#555">(' + opsN.length
+        + ' operaciones por ' + fmtM(sumaN) + ')</span></p>'
+        + '<table><thead><tr><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Monto</th><th>Contraparte</th><th>CUIT/CVU</th></tr></thead><tbody>';
+      opsN.slice(0, 20).forEach(function(t){
+        html += '<tr><td style="white-space:nowrap">' + fechaCorta(t.fecha) + '</td>'
+          + '<td style="white-space:nowrap">' + (t.hora || '—') + '</td>'
+          + '<td>' + (t.tipo || '—') + '</td>'
+          + '<td style="white-space:nowrap;font-weight:bold">' + fmtM(t.monto) + '</td>'
+          + '<td>' + (t.contraparte_nombre || '—') + '</td>'
+          + '<td style="font-size:8pt">' + (t.contraparte_cuit || '—') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      if (opsN.length > 20) {
+        html += '<p style="font-size:7.5pt;color:#888;margin:2px 0 6px">Se detallan las primeras 20 de '
+          + opsN.length + '.</p>';
+      }
+    });
   });
   if (!huboEvidencia) {
     html += '<p style="color:#888;font-style:italic;font-size:8.5pt">El detalle por operación no se encuentra '
