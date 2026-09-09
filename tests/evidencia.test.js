@@ -243,3 +243,46 @@ describe('cada variante de señal lleva su propia evidencia', () => {
     expect(s.ops).toEqual([]);
   });
 });
+
+// ── Orden de las operaciones ──────────────────────────────────────────────
+// En el orden del archivo, las operaciones de una misma contraparte quedan
+// dispersas y el analista tiene que rastrearlas a ojo — justamente el trabajo
+// que la evidencia viene a evitar. Se agrupan por contraparte y, dentro de cada
+// una, cronológicamente.
+describe('orden de la evidencia', () => {
+  const t2 = (cp, monto, fecha) =>
+    ({ tipo:'IN', monto, fecha, hora:'14:00', contraparte_nombre: cp });
+  // Deliberadamente desordenado
+  const ops = [t2('ZETA',100000,'3/6/2026'), t2('ALFA',200000,'5/6/2026'),
+               t2('ZETA',300000,'1/6/2026'), t2('ALFA',100000,'2/6/2026'),
+               t2('ZETA',100000,'2/6/2026'), t2('ALFA',100000,'1/6/2026')];
+  const senal = { ops: [0,1,2,3,4,5], opsTotal: 6 };
+  const orden = operacionesDeSenal(senal, ops);
+
+  it('agrupa las operaciones de una misma contraparte', () => {
+    const nombres = orden.map(o => o.contraparte_nombre);
+    // Cada contraparte aparece en un bloque contiguo
+    const bloques = nombres.filter((n, i) => i === 0 || n !== nombres[i-1]);
+    expect(bloques.length).toBe(new Set(nombres).size);
+  });
+
+  it('dentro de cada contraparte ordena por fecha', () => {
+    const alfa = orden.filter(o => o.contraparte_nombre === 'ALFA').map(o => o.fecha);
+    expect(alfa).toEqual(['1/6/2026','2/6/2026','5/6/2026']);
+  });
+
+  it('conserva la posición original de cada operación', () => {
+    expect(orden.map(o => o._i).sort((a,b) => a-b)).toEqual([0,1,2,3,4,5]);
+  });
+
+  it('no pierde ni duplica operaciones al ordenar', () => {
+    expect(orden.length).toBe(6);
+    expect(new Set(orden.map(o => o._i)).size).toBe(6);
+  });
+
+  it('opera igual sin fechas válidas', () => {
+    const sinFecha = [t2('B',100,''), t2('A',200,'')];
+    const r = operacionesDeSenal({ ops:[0,1] }, sinFecha);
+    expect(r.map(o => o.contraparte_nombre)).toEqual(['A','B']);
+  });
+});

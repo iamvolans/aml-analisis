@@ -7,7 +7,7 @@ import { auditLog, puedeAprobar, puedeEliminar } from "../lib/auth";
 import { CHECKLIST_ITEMS, ESTADOS_CUENTA, KYB_FACTORS, TIPOS_OPERATORIA, getEstado } from "../lib/constants";
 import { genINF01, genINF07Cierre, genLegajoCompleto, genROS } from "../lib/reports";
 import { authHeaders } from "../lib/session";
-import { gzipPayload, serverLoadKV } from "../lib/sync";
+import { gzipPayload, serverLoadKV, serverLoadTxns } from "../lib/sync";
 import { C, T } from "../lib/theme";
 import { fileToBase64, fmtM, parseFechaAR, safeArr, segColor, todayStr, uid } from "../lib/utils";
 import { VIGENCIA_DOCS, vencimientosDeLegajo } from "../lib/vencimientos";
@@ -111,9 +111,28 @@ function LegajosView(props) {
 
       // Señales por período, con el mismo criterio único que el resto de la app
       var senalesPorPeriodo = {};
-      periodos.filter(function(p){ return p.legajoId === leg.id; }).forEach(function(p){
-        senalesPorPeriodo[p.id] = senalesActivas(p, leg, periodos);
-      });
+      // Las transacciones se guardan aparte y no se cargan al listar legajos.
+      // Sin ellas el expediente muestra las señales pero no las operaciones que
+      // las sustentan, que es justamente lo que lo vuelve verificable. Se traen
+      // acá, en el momento de exportar.
+      var persLeg = periodos.filter(function(p){ return p.legajoId === leg.id; });
+      if (persLeg.some(function(p){ return !p.txns || !p.txns.length; })) {
+        toast('Recuperando las operaciones de ' + persLeg.length + ' período(s)…');
+      }
+      var conTxns = [];
+      for (var iP = 0; iP < persLeg.length; iP++) {
+        var pp = persLeg[iP];
+        senalesPorPeriodo[pp.id] = senalesActivas(pp, leg, periodos);
+        if (pp.txns && pp.txns.length) { conTxns.push(pp); continue; }
+        try {
+          var tx = await serverLoadTxns(pp.id);
+          conTxns.push(tx && tx.length ? Object.assign({}, pp, { txns: tx }) : pp);
+        } catch (e) {
+          // Si un período no se puede traer, el expediente sale igual: mostrará
+          // sus señales sin el detalle, que es preferible a no emitirse.
+          conTxns.push(pp);
+        }
+      }
 
       // Los adjuntos pueden no estar cargados si se exporta desde la tabla
       var docsLeg = docs.length && docs[0].legajo_id === leg.id ? docs : await listarDocumentos(leg.id);
@@ -121,7 +140,7 @@ function LegajosView(props) {
       var html = genLegajoCompleto({
         legajo: leg,
         documentos: docsLeg,
-        periodos: periodos,
+        periodos: conTxns,
         casos: casos,
         rfis: rfis,
         screening: ultScreening,

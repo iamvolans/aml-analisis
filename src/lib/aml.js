@@ -1,6 +1,6 @@
 import { C, T } from "./theme.js";
 import { U, franjaUmbral } from "./umbrales.js";
-import { fmtM, uid } from "./utils.js";
+import { fmtM, uid, parseFechaAR } from "./utils.js";
 
 function calcMetricas(txns, perfil) {
   if (!txns || !txns.length) return null;
@@ -163,10 +163,23 @@ return { evidencia:evidencia, cpIdentificable:cpIdentificable, pctSinCp:pctSinCp
 // analista abre el detalle o genera un caso.
 function operacionesDeSenal(senal, txns) {
   if (!senal || !txns || !txns.length) return [];
-  return (senal.ops || [])
-    .map(function(i){ return txns[i]; })
-    .filter(Boolean)
-    .map(function(t, k){ return Object.assign({ _i: senal.ops[k] }, t); });
+  var ops = (senal.ops || [])
+    .map(function(i){ return { _i: i, t: txns[i] }; })
+    .filter(function(x){ return !!x.t; })
+    .map(function(x){ return Object.assign({ _i: x._i }, x.t); });
+
+  // Se agrupan por contraparte y, dentro de cada una, por fecha. En el orden
+  // original del archivo las operaciones de un mismo tercero quedan dispersas y
+  // el analista tiene que rastrearlas a ojo, que es justamente el trabajo que
+  // esta función viene a evitar.
+  return ops.sort(function(a, b) {
+    var ca = (a.contraparte_nombre || a.contraparte_cuit || '').toUpperCase();
+    var cb = (b.contraparte_nombre || b.contraparte_cuit || '').toUpperCase();
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    var fa = parseFechaAR(a.fecha), fb = parseFechaAR(b.fecha);
+    if (fa && fb && fa - fb !== 0) return fa - fb;
+    return (Number(a.monto) || 0) - (Number(b.monto) || 0);
+  });
 }
 
 // Resumen textual de las operaciones implicadas, para el detalle de un caso o
