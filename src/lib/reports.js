@@ -37,6 +37,16 @@ function rpH(e, f) { return '<div class="hdr"><span>GOAT S.A. — Informe Compli
 function rpF() { return '<div class="ftr"><span>Confidencial — Uso interno</span><span>GOAT S.A. — Compliance & AML — Design System v2.1.3</span></div>'; }
 
 
+// Los archivos de operaciones suelen traer marcas de tiempo completas
+// ("2026-08-19 11:25:51.980 -0300"). En un reporte se muestra la fecha.
+function fechaCorta(f) {
+  if (!f) return '—';
+  var t = String(f).trim();
+  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+  if (m) return m[3] + '/' + m[2] + '/' + m[1];
+  return t.split(' ')[0] || t;
+}
+
 // ─── EVIDENCIA DE UNA SEÑAL ─────────────────────────────────────────────────
 // Un informe que afirma "se detectó fraccionamiento" sin adjuntar las
 // operaciones obliga al lector a confiar. Adjuntarlas convierte la afirmación
@@ -750,7 +760,11 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   var sel = todosLosPeriodos.filter(function(p){ return selectedIds.indexOf(p.id) >= 0; });
   var rfis = rfisLegajo || [];
   var numRos = rosNum || '001';
-  var oficial = currentUser ? currentUser.nombre : 'Oficial de Cumplimiento';
+  // Quien genera el borrador y quien lo suscribe no son la misma persona. El
+  // encabezado mostraba al usuario de la sesión como Oficial de Cumplimiento,
+  // en contradicción con la firma al pie del propio documento.
+  var generador = currentUser && currentUser.nombre ? currentUser.nombre : 'N/D';
+  var oficial = firmanteOC().nombre;
   var hoy = todayStr();
   var year = new Date().getFullYear();
   var numDoc = 'ROS-' + year + '-' + String(numRos).padStart(3,'0');
@@ -793,7 +807,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:3px solid #1B2A4A;padding-bottom:10px">'
     + '<div><h1>REPORTE DE OPERACIÓN SOSPECHOSA — BORRADOR</h1>'
     + '<div style="font-size:9pt;color:#555">Resolución UIF N° 156/2018 y modificatorias · Art. 20 Ley 25.246</div></div>'
-    + '<div style="text-align:right;font-size:9pt"><strong>N° '+numDoc+'</strong><br/>Fecha: '+hoy+'<br/>Generado por: '+oficial+'</div></div>';
+    + '<div style="text-align:right;font-size:9pt"><strong>N° '+numDoc+'</strong><br/>Fecha: '+hoy+'<br/>Generado por: '+generador+'</div></div>';
 
   html += '<div class="confidencial">⚠ CONFIDENCIAL — USO EXCLUSIVO DEL SUJETO OBLIGADO — NO DIVULGAR</div>';
 
@@ -828,7 +842,19 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     + '<div contenteditable="true" style="margin-top:6px">Durante el/los período/s '+nomPers+', el cliente '+(legajo.razonSocial||'')
     + ' (CUIT '+(legajo.cuit||'')+')'
     + ' registró un volumen de operaciones de '+fmtM(totalIn)+' de ingresos y '+fmtM(totalOut)+' de egresos'
-    + ', lo que '+(legajo.facturacionMensual && totalIn > legajo.facturacionMensual ? 'excede en forma significativa el perfil económico declarado de '+fmtM(legajo.facturacionMensual)+' mensuales' : 'se observa incompatible con el perfil esperado del cliente')+'.'
+    // La afirmación sobre el perfil debe seguir a los números, no precederlos.
+    // La versión anterior sostenía incompatibilidad incluso cuando el volumen
+    // coincidía con la facturación declarada: una afirmación falsa dentro de un
+    // reporte que se presenta ante la autoridad.
+    + (function(){
+        var fm = Number(legajo.facturacionMensual) || 0;
+        if (!fm) return ', sin que el legajo registre una facturación mensual declarada que permita contrastar el volumen operado.';
+        var veces = totalIn / fm;
+        if (veces >= 1.5) return ', volumen que representa ' + veces.toFixed(1) + ' veces la facturación mensual declarada de ' + fmtM(fm) + ' y excede en forma significativa el perfil económico informado.';
+        if (veces >= 1.1) return ', volumen superior a la facturación mensual declarada de ' + fmtM(fm) + ' (' + veces.toFixed(1) + ' veces).';
+        if (veces <= 0.3) return ', volumen marcadamente inferior a la facturación mensual declarada de ' + fmtM(fm) + ' (' + (veces*100).toFixed(0) + '%).';
+        return ', volumen consistente con la facturación mensual declarada de ' + fmtM(fm) + '. La inusualidad no surge del volumen sino de los patrones que se detallan a continuación.';
+      })()
     + ' Se detectaron patrones transaccionales inusuales que motivaron la presente comunicación. [Completar con detalles adicionales de la investigación.]</div></div>';
 
   // ── SECCIÓN 4: SEÑALES DE ALERTA ─────────────────────────────────────────────
@@ -849,18 +875,65 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   html += '</div>';
 
   // ── SECCIÓN 5: OPERACIONES MÁS RELEVANTES ────────────────────────────────────
-  html += '<h2>5. Operaciones Más Relevantes</h2><div class="sec">';
+  // ── SECCIÓN 5: OPERACIONES QUE SUSTENTAN CADA SEÑAL ──────────────────────────
+  // El top por monto no coincide necesariamente con lo que disparó las señales.
+  // Un reporte que afirma fraccionamiento debe exhibir las operaciones
+  // fraccionadas, no las más grandes del período.
+  html += '<h2>5. Operaciones que Sustentan las Señales</h2><div class="sec">';
+  var huboEvidencia = false;
+  sigsList.forEach(function(sg){
+    var per = sel.find(function(pp){ return pp.nombre === sg.periodo || pp.id === sg.periodoId; });
+    var txnsPer = per && per.txns ? per.txns : null;
+    if (sg.estructural) {
+      html += '<p style="font-size:8.5pt;margin:8px 0 2px"><strong>' + sg.pat + ' — ' + sg.titulo + '</strong></p>'
+        + '<p style="font-size:8pt;color:#555;margin:0 0 8px">Este patrón describe la estructura del flujo del período '
+        + 'en su conjunto y no se corresponde con un subconjunto determinado de operaciones. '
+        + 'Los indicadores que lo sustentan constan en la sección 4.</p>';
+      huboEvidencia = true;
+      return;
+    }
+    if (!txnsPer || !(sg.ops || []).length) return;
+    var ops = operacionesDeSenal(sg, txnsPer);
+    if (!ops.length) return;
+    huboEvidencia = true;
+    var suma = ops.reduce(function(a, t){ return a + (Number(t.monto) || 0); }, 0);
+    html += '<p style="font-size:8.5pt;margin:10px 0 2px"><strong>' + sg.pat + ' — ' + sg.titulo + '</strong>'
+      + ' <span style="color:#555;font-weight:normal">(' + ops.length
+      + (sg.opsTotal > ops.length ? ' de ' + sg.opsTotal : '')
+      + ' operaciones por ' + fmtM(suma) + ')</span></p>'
+      + '<table><thead><tr><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Monto</th><th>Contraparte</th><th>CUIT/CVU</th></tr></thead><tbody>';
+    ops.slice(0, 20).forEach(function(t){
+      html += '<tr><td style="white-space:nowrap">' + fechaCorta(t.fecha) + '</td>'
+        + '<td style="white-space:nowrap">' + (t.hora || '—') + '</td>'
+        + '<td>' + (t.tipo || '—') + '</td>'
+        + '<td style="white-space:nowrap;font-weight:bold">' + fmtM(t.monto) + '</td>'
+        + '<td>' + (t.contraparte_nombre || '—') + '</td>'
+        + '<td style="font-size:8pt">' + (t.contraparte_cuit || '—') + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    if (ops.length > 20) {
+      html += '<p style="font-size:7.5pt;color:#888;margin:2px 0 6px">Se detallan las primeras 20 de '
+        + ops.length + '. El detalle íntegro consta en el sistema y se acompaña a requerimiento.</p>';
+    }
+  });
+  if (!huboEvidencia) {
+    html += '<p style="color:#888;font-style:italic;font-size:8.5pt">El detalle por operación no se encuentra '
+      + 'disponible para los períodos seleccionados. Corresponde acompañarlo por separado al momento de la presentación.</p>';
+  }
+  html += '</div>';
+
+  html += '<h2>5.1 Operaciones de Mayor Monto</h2><div class="sec">';
   if (topTxns.length === 0) {
     html += '<p style="color:#888;font-style:italic">Transacciones no disponibles en este dispositivo. Adjuntar detalle de operaciones al momento de presentar el ROS.</p>';
   } else {
     html += '<p style="font-size:8.5pt;color:#555;margin-bottom:4px">Top '+topTxns.length+' operaciones por monto en los períodos seleccionados (de '+allTxns.length.toLocaleString('es-AR')+' totales):</p>'
       + '<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Contraparte</th><th>CUIT/CVU</th><th>Período</th></tr></thead><tbody>';
     topTxns.forEach(function(t){
-      html += '<tr><td style="white-space:nowrap">'+(t.fecha||'—')+'</td>'
+      html += '<tr><td style="white-space:nowrap">'+fechaCorta(t.fecha)+'</td>'
         + '<td style="white-space:nowrap">'+(t.tipo||'—')+'</td>'
         + '<td style="white-space:nowrap;font-weight:bold">'+(typeof t.monto==='number'?fmtM(t.monto):(t.monto||'—'))+'</td>'
-        + '<td>'+(t.cpNombre||t.nombre||'—')+'</td>'
-        + '<td style="font-size:8pt">'+(t.cpCuit||'—')+'</td>'
+        + '<td>'+(t.contraparte_nombre||t.cpNombre||t.nombre||'—')+'</td>'
+        + '<td style="font-size:8pt">'+(t.contraparte_cuit||t.cpCuit||'—')+'</td>'
         + '<td style="font-size:8pt">'+(t.periodo||'—')+'</td></tr>';
     });
     html += '</tbody></table>';
@@ -932,7 +1005,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   // ── FOOTER ────────────────────────────────────────────────────────────────────
   html += '<div class="footer">'
     + '<span>CONFIDENCIAL — '+numDoc+' — Generado '+hoy+'</span>'
-    + '<span>GOAT S.A. — Compliance &amp; AML — Sistema AML — GOAT S.A.</span>'
+    + '<span>GOAT S.A. — Compliance &amp; AML</span>'
     + '</div>'
     + '<div style="text-align:center;margin-top:6px;font-size:7pt;color:#aaa">'
     + 'Este documento es un borrador de trabajo. Para la presentación formal utilizar el sistema SIROS de la UIF.'

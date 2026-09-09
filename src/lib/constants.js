@@ -30,7 +30,7 @@ var SCREENING = [{n:'REPET - Registro Público de Personas y Entidades vinculada
 // ─── GENERADOR ROS — REPORTE DE OPERACIÓN SOSPECHOSA ─────────────────────────
 var PAT_UIF_MAP = {
   'PAT-01': { tip:'T-02', desc:'Fraccionamiento de operaciones para eludir umbrales de reporte (structuring)' },
-  'PAT-02': { tip:'T-01', desc:'Operaciones con montos exactos o redondeados en forma sistemática y reiterada' },
+  'PAT-02': { tip:'T-09', desc:'Cuenta utilizada como embudo: múltiples orígenes de fondos que confluyen en un número reducido de destinos' },
   'PAT-03': { tip:'T-04', desc:'Posible circularidad de fondos entre contrapartes relacionadas (layering)' },
   'PAT-04': { tip:'T-02', desc:'Smurfing: uso de múltiples contrapartes únicas para fragmentar transacciones de alto monto' },
   'PAT-05': { tip:'T-05', desc:'Volumen de operaciones manifiestamente superior al perfil económico declarado' },
@@ -39,8 +39,8 @@ var PAT_UIF_MAP = {
   'PAT-08': { tip:'T-06', desc:'Actividad transaccional concentrada en horarios atípicos (nocturnos o fines de semana)' },
   'PAT-09': { tip:'T-07', desc:'Uso de la cuenta como intermediario de paso (pass-through): fondos que ingresan y egresan en forma inmediata' },
   'PAT-10': { tip:'T-02', desc:'Near-threshold structuring: acumulación de 5 o más operaciones por debajo del umbral UIF ($800K) con la misma contraparte' },
-  'PAT-11': { tip:'T-08', desc:'Incorporación masiva de nuevas contrapartes en un período reducido, sin correlato operativo aparente' },
-  'PAT-12': { tip:'T-09', desc:'Comportamiento transaccional atípico en relación al perfil histórico del cliente' },
+  'PAT-11': { tip:'T-08', desc:'Velocidad operativa anómala: concentración de un elevado número de operaciones diarias respecto de la operatoria habitual' },
+  'PAT-12': { tip:'T-09', desc:'Embudo múltiple: un número elevado de contrapartes de origen converge en muy pocos destinos' },
   'PAT-13': { tip:'T-09', desc:'Desvío significativo del volumen operado respecto de la línea base histórica del propio cliente' },
   'PAT-14': { tip:'T-03', desc:'Concentración del flujo en una contraparte sin antecedentes operativos con el cliente' },
   // Códigos separados de PAT-05 y PAT-07, que emitían hallazgos de significado
