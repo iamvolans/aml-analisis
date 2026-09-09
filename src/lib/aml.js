@@ -168,17 +168,60 @@ function operacionesDeSenal(senal, txns) {
     .filter(function(x){ return !!x.t; })
     .map(function(x){ return Object.assign({ _i: x._i }, x.t); });
 
-  // Se agrupan por contraparte y, dentro de cada una, por fecha. En el orden
-  // original del archivo las operaciones de un mismo tercero quedan dispersas y
-  // el analista tiene que rastrearlas a ojo, que es justamente el trabajo que
-  // esta función viene a evitar.
+  // El criterio de agrupación depende de lo que la señal quiere mostrar. En el
+  // orden original del archivo las operaciones relacionadas quedan dispersas y
+  // el analista tiene que rastrearlas a ojo, que es el trabajo que esta función
+  // viene a evitar.
+  var porMonto = senal.orden === 'monto';
+  var cp = function(t){ return (t.contraparte_nombre || t.contraparte_cuit || '').toUpperCase(); };
+  var fec = function(t){ return parseFechaAR(t.fecha); };
+
   return ops.sort(function(a, b) {
-    var ca = (a.contraparte_nombre || a.contraparte_cuit || '').toUpperCase();
-    var cb = (b.contraparte_nombre || b.contraparte_cuit || '').toUpperCase();
-    if (ca !== cb) return ca < cb ? -1 : 1;
-    var fa = parseFechaAR(a.fecha), fb = parseFechaAR(b.fecha);
+    if (porMonto) {
+      // Los importes iguales van juntos, del más repetido al menos: es lo que
+      // la señal está afirmando.
+      var ma = Number(a.monto) || 0, mb = Number(b.monto) || 0;
+      if (ma !== mb) return mb - ma;
+      var c1 = cp(a), c2 = cp(b);
+      if (c1 !== c2) return c1 < c2 ? -1 : 1;
+    } else {
+      var ca = cp(a), cb2 = cp(b);
+      if (ca !== cb2) return ca < cb2 ? -1 : 1;
+    }
+    var fa = fec(a), fb = fec(b);
     if (fa && fb && fa - fb !== 0) return fa - fb;
     return (Number(a.monto) || 0) - (Number(b.monto) || 0);
+  });
+}
+
+// Completa la evidencia de señales que se emitieron desde métricas guardadas
+// sin ella —períodos analizados antes de que existiera el registro por
+// operación—.
+//
+// Deliberadamente NO se recalculan las señales: hacerlo cambiaría cuáles
+// aparecen en el informe respecto de las que el analista vio y resolvió. Se
+// recalculan las métricas solo para extraer la evidencia, y se copia sobre las
+// señales existentes emparejando por patrón y título.
+function enriquecerEvidencia(senales, txns, legajo) {
+  if (!senales || !senales.length || !txns || !txns.length) return senales || [];
+  var yaTiene = senales.some(function(s){ return (s.ops || []).length; });
+  if (yaTiene) return senales;
+
+  var frescas;
+  try {
+    frescas = detectPatrones(calcMetricas(txns, legajo), legajo || {});
+  } catch (e) { return senales; }
+
+  var porClave = {};
+  frescas.forEach(function(f){ porClave[f.pat + '::' + f.titulo] = f; });
+
+  return senales.map(function(s){
+    var f = porClave[s.pat + '::' + s.titulo];
+    if (!f) return s;
+    return Object.assign({}, s, {
+      ops: f.ops || [], opsTotal: f.opsTotal || 0,
+      orden: f.orden, estructural: f.estructural,
+    });
   });
 }
 
@@ -298,12 +341,19 @@ function detectPatrones(m, perfil, base) {
   // PAT-07 emite "montos redondos" y "montos repetidos", y PAT-06 y PAT-10
   // tienen variante de entrada y de salida. Sin esta distinción, una señal de
   // cash-in mostraría operaciones de salida.
+  // Cómo conviene agrupar la evidencia de cada señal. Para casi todas, por
+  // contraparte: es el eje del hallazgo. Para las de importe —montos repetidos,
+  // montos redondos— agrupar por contraparte dispersa justamente lo que la
+  // señal quiere mostrar, que son los importes que se repiten.
+  var ORDEN_POR_MONTO = ['PAT-17', 'PAT-07:redondos'];
+
   function add(pat, sev, titulo, desc, tip, claveEv) {
     var ev = (m.evidencia && m.evidencia[claveEv || pat]) || null;
     sigs.push({
       id: uid(), pat: pat, sev: sev, titulo: titulo, desc: desc, tip: tip,
       ops: ev ? ev.ops : [],
       opsTotal: ev ? ev.total : 0,
+      orden: ORDEN_POR_MONTO.indexOf(claveEv || pat) >= 0 ? 'monto' : 'contraparte',
       // true = el patrón describe la forma del período y no operaciones puntuales
       estructural: ESTRUCTURALES.indexOf(pat) >= 0,
     });
@@ -558,4 +608,4 @@ function contarAlta(periodo, legajo, periodos) {
   return senalesActivas(periodo, legajo, periodos).filter(function(s){ return s.sev === 'ALTA'; }).length;
 }
 
-export { calcMetricas, detectPatrones, calcScoring, metricasDe, senalesActivas, contarAlta, lineaBase, COMPORTAMIENTO, claveResolucion, resolucionDe, CLAVES_HISTORICAS, periodosDuplicados, operacionesDeSenal, resumenEvidencia };
+export { calcMetricas, detectPatrones, enriquecerEvidencia, calcScoring, metricasDe, senalesActivas, contarAlta, lineaBase, COMPORTAMIENTO, claveResolucion, resolucionDe, CLAVES_HISTORICAS, periodosDuplicados, operacionesDeSenal, resumenEvidencia };

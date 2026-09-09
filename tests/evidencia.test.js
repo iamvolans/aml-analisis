@@ -11,7 +11,7 @@
 // multiplicaría el tamaño de cada período.
 
 import { describe, it, expect } from 'vitest';
-import { calcMetricas, detectPatrones, operacionesDeSenal, resumenEvidencia } from '../src/lib/aml.js';
+import { calcMetricas, detectPatrones, operacionesDeSenal, resumenEvidencia, enriquecerEvidencia } from '../src/lib/aml.js';
 import { casosPendientesDeCrear } from '../src/lib/casos.js';
 
 const tx = (cp, monto, tipo, fecha, hora) =>
@@ -284,5 +284,87 @@ describe('orden de la evidencia', () => {
     const sinFecha = [t2('B',100,''), t2('A',200,'')];
     const r = operacionesDeSenal({ ops:[0,1] }, sinFecha);
     expect(r.map(o => o.contraparte_nombre)).toEqual(['A','B']);
+  });
+});
+
+// ── Criterio de agrupación según la señal ─────────────────────────────────
+// Agrupar siempre por contraparte no sirve para las señales de importe: en
+// "montos exactamente repetidos" lo que hay que ver juntos son los importes que
+// se repiten, y ordenar por contraparte los dispersa justamente cuando la señal
+// afirma lo contrario.
+describe('agrupación según lo que la señal afirma', () => {
+  const t3 = (cp, monto, fecha) =>
+    ({ tipo:'OUT', monto, fecha, hora:'14:00', contraparte_nombre: cp });
+  const ops = [t3('ZETA',77777,'1/6/2026'), t3('ALFA',55555,'2/6/2026'),
+               t3('BETA',77777,'3/6/2026'), t3('ALFA',77777,'4/6/2026'),
+               t3('ZETA',55555,'5/6/2026'), t3('BETA',55555,'6/6/2026')];
+  const sigs = detectPatrones(calcMetricas(ops), {});
+
+  it('la señal de montos repetidos declara agrupación por importe', () => {
+    const s = sigs.find(x => /repetid/i.test(x.titulo));
+    expect(s).toBeDefined();
+    expect(s.orden).toBe('monto');
+  });
+
+  it('los importes iguales salen juntos', () => {
+    const s = sigs.find(x => /repetid/i.test(x.titulo));
+    const montos = operacionesDeSenal(s, ops).map(o => o.monto);
+    const bloques = montos.filter((mn, i) => i === 0 || mn !== montos[i-1]);
+    expect(bloques.length).toBe(new Set(montos).size);
+  });
+
+  it('las demás señales siguen agrupando por contraparte', () => {
+    sigs.filter(x => !/repetid|redondo/i.test(x.titulo) && !x.estructural)
+        .forEach(s => expect(s.orden, s.titulo).toBe('contraparte'));
+  });
+});
+
+// ── Evidencia en períodos con métricas guardadas sin ella ─────────────────
+// El legajo completo emitía "el período fue analizado con anterioridad al
+// registro del detalle" incluso teniendo las transacciones, porque las señales
+// se calculan desde las métricas persistidas y éstas no traían la evidencia.
+describe('completar la evidencia sin alterar las señales', () => {
+  const t4 = (cp, monto, tipo, fecha) =>
+    ({ tipo, monto, fecha, hora:'14:00', contraparte_nombre: cp });
+  const ops = [];
+  for (let i = 0; i < 6; i++) ops.push(t4('PROV-A', 700000 + i, 'IN', '1/6/2026'));
+  ops.push(t4('PROV-A', 300000, 'OUT', '2/6/2026'));
+
+  // Período viejo: métricas sin el campo evidencia
+  const viejas = calcMetricas(ops);
+  delete viejas.evidencia;
+  const originales = detectPatrones(viejas, {});
+
+  it('las señales originales no traen evidencia', () => {
+    expect(originales.every(s => (s.ops || []).length === 0)).toBe(true);
+  });
+
+  it('al completarla, aparecen las operaciones', () => {
+    const r = enriquecerEvidencia(originales, ops, {});
+    expect(r.some(s => s.ops.length > 0)).toBe(true);
+  });
+
+  it('NO cambia qué señales se muestran', () => {
+    // Recalcular las señales alteraría el informe respecto de lo que el
+    // analista vio y resolvió
+    const r = enriquecerEvidencia(originales, ops, {});
+    expect(r.length).toBe(originales.length);
+    expect(r.map(s => s.pat + s.titulo)).toEqual(originales.map(s => s.pat + s.titulo));
+    expect(r.map(s => s.sev)).toEqual(originales.map(s => s.sev));
+  });
+
+  it('deja intactas las señales que ya tienen evidencia', () => {
+    const frescas = detectPatrones(calcMetricas(ops), {});
+    expect(enriquecerEvidencia(frescas, ops, {})).toBe(frescas);
+  });
+
+  it('sin transacciones devuelve las señales sin tocar', () => {
+    expect(enriquecerEvidencia(originales, [], {})).toBe(originales);
+    expect(enriquecerEvidencia(originales, null, {})).toBe(originales);
+  });
+
+  it('con señales vacías no rompe', () => {
+    expect(enriquecerEvidencia([], ops, {})).toEqual([]);
+    expect(enriquecerEvidencia(null, ops, {})).toEqual([]);
   });
 });

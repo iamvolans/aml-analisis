@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { toast, uiConfirm } from "../components/feedback";
 import { Badge, Card, Pill } from "../components/ui";
 import { _KEYS, callProxyOrDirect, extractWithClaude, extractWithGPT } from "../lib/ai";
-import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase, senalesActivas } from "../lib/aml";
+import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase, senalesActivas, enriquecerEvidencia } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEliminar } from "../lib/auth";
 import { CHECKLIST_ITEMS, ESTADOS_CUENTA, KYB_FACTORS, TIPOS_OPERATORIA, getEstado } from "../lib/constants";
 import { genINF01, genINF07Cierre, genLegajoCompleto, genROS } from "../lib/reports";
@@ -123,15 +123,22 @@ function LegajosView(props) {
       for (var iP = 0; iP < persLeg.length; iP++) {
         var pp = persLeg[iP];
         senalesPorPeriodo[pp.id] = senalesActivas(pp, leg, periodos);
-        if (pp.txns && pp.txns.length) { conTxns.push(pp); continue; }
-        try {
-          var tx = await serverLoadTxns(pp.id);
-          conTxns.push(tx && tx.length ? Object.assign({}, pp, { txns: tx }) : pp);
-        } catch (e) {
-          // Si un período no se puede traer, el expediente sale igual: mostrará
-          // sus señales sin el detalle, que es preferible a no emitirse.
-          conTxns.push(pp);
+        var conOps = pp;
+        if (!(pp.txns && pp.txns.length)) {
+          try {
+            var tx = await serverLoadTxns(pp.id);
+            if (tx && tx.length) conOps = Object.assign({}, pp, { txns: tx });
+          } catch (e) {
+            // Si un período no se puede traer, el expediente sale igual: mostrará
+            // sus señales sin el detalle, que es preferible a no emitirse.
+          }
         }
+        conTxns.push(conOps);
+        // Las métricas guardadas de un período viejo no registran la evidencia.
+        // Se completa a partir de las transacciones sin recalcular las señales,
+        // para que el informe muestre exactamente las que el analista resolvió.
+        senalesPorPeriodo[pp.id] = enriquecerEvidencia(
+          senalesPorPeriodo[pp.id], conOps.txns, leg);
       }
 
       // Los adjuntos pueden no estar cargados si se exporta desde la tabla
