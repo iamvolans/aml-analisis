@@ -767,7 +767,12 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   var oficial = firmanteOC().nombre;
   var hoy = todayStr();
   var year = new Date().getFullYear();
-  var numDoc = 'ROS-' + year + '-' + String(numRos).padStart(3,'0');
+  // El número puede llegar como secuencia ("003") o ya formateado
+  // ("ROS-2026-003"). Anteponer el prefijo sin verificar producía
+  // "ROS-2026-ROS-2026-003" en el encabezado y en el pie.
+  var numDoc = /^ROS-\d{4}-/.test(String(numRos))
+    ? String(numRos)
+    : 'ROS-' + year + '-' + String(numRos).padStart(3, '0');
 
   // Agregar métricas de períodos seleccionados
   var totalIn = 0, totalOut = 0, totalOps = 0;
@@ -843,7 +848,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     + '<div style="font-size:9pt;color:#555">Ley N° 25.246 (texto conf. Ley N° 27.739) — arts. 20, 21 inc. b) y 21 bis · Resolución UIF N° 200/2024 · Resolución UIF N° 56/2024</div></div>'
     + '<div style="text-align:right;font-size:9pt"><strong>N° '+numDoc+'</strong><br/>Fecha: '+hoy+'<br/>Generado por: '+generador+'</div></div>';
 
-  html += '<div class="confidencial">⚠ CONFIDENCIAL — USO EXCLUSIVO DEL SUJETO OBLIGADO — NO DIVULGAR</div>';
+  html += '<div class="confidencial">⚠ RESERVA ABSOLUTA — ART. 21 INC. c) LEY N° 25.246 — NO DIVULGAR AL CLIENTE NI A TERCEROS</div>';
 
   // ── SECCIÓN 1: SUJETO OBLIGADO ────────────────────────────────────────────────
   html += '<h2>1. Datos del Sujeto Obligado</h2><div class="sec">'
@@ -1062,7 +1067,117 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   html += '</div>';
 
   // ── SECCIÓN 6: DILIGENCIAS REALIZADAS ────────────────────────────────────────
-  html += '<h2>6. Diligencias Realizadas</h2><div class="sec">';
+  // ── CONTROL DE PLAZOS LEGALES ────────────────────────────────────────────────
+  // Res. UIF 56/2024 art. 1: 24 horas desde que se forma la convicción, y en
+  // ningún caso más de 90 días corridos desde la operación. El segundo plazo se
+  // puede calcular hoy: la operación más antigua del conjunto fija la fecha
+  // límite. Mostrarlo evita que el tope se descubra cuando ya venció.
+  var fechasOps = [];
+  sel.forEach(function(p){
+    if (!p.txns) return;
+    p.txns.forEach(function(t){
+      var f = parseFechaAR(fechaCorta(t.fecha));
+      if (f) fechasOps.push(f.getTime());
+    });
+  });
+  var masAntigua = fechasOps.length ? new Date(Math.min.apply(null, fechasOps)) : null;
+  var limite90 = masAntigua ? new Date(masAntigua.getTime() + 90 * 86400000) : null;
+  var diasRest = limite90 ? Math.floor((limite90 - new Date()) / 86400000) : null;
+  var fmtF = function(d){ return d ? d.getDate() + '/' + (d.getMonth()+1) + '/' + d.getFullYear() : '—'; };
+
+  html += '<h2>6. Control de Plazos Legales</h2><div class="sec">'
+    + '<p style="font-size:8.5pt;color:#555;margin-bottom:6px">Resolución UIF N° 56/2024, art. 1: el reporte debe '
+    + 'presentarse dentro de las <strong>24 horas</strong> de formada la convicción, y en ningún caso más allá de '
+    + '<strong>90 días corridos</strong> contados desde la fecha de la operación.</p>'
+    + '<table>'
+    + '<tr><td class="label">Operación más antigua analizada</td><td>'
+      + (masAntigua ? fmtF(masAntigua) : '<em style="color:#888">no determinable: detalle de operaciones no disponible</em>') + '</td></tr>'
+    + '<tr><td class="label">Fecha límite por el tope de 90 días</td><td>'
+      + (limite90
+          ? '<strong style="color:' + (diasRest <= 7 ? '#B03030' : diasRest <= 15 ? '#B8860B' : '#1B2A4A') + '">' + fmtF(limite90) + '</strong>'
+            + (diasRest < 0
+                ? ' <span style="color:#B03030;font-weight:bold">— VENCIDO hace ' + Math.abs(diasRest) + ' días</span>'
+                : ' <span style="color:#555">(' + diasRest + ' días restantes)</span>')
+          : '—')
+      + '</td></tr>'
+    + '<tr><td class="label">Fecha en que se formó la convicción</td><td><em style="color:#888">a completar — dispara el plazo de 24 horas</em></td></tr>'
+    + '<tr><td class="label">Fecha y hora de presentación en SRO+</td><td><em style="color:#888">a completar al presentar</em></td></tr>'
+    + '<tr><td class="label">N° de constancia SRO+</td><td><em style="color:#888">a completar con la constancia del sistema</em></td></tr>'
+    + '</table>'
+    + (diasRest !== null && diasRest <= 15
+        ? '<div style="background:#FDEEEE;border-left:3px solid #B03030;padding:8px 11px;margin-top:8px;font-size:8.5pt">'
+          + '<strong>Atención al plazo.</strong> '
+          + (diasRest < 0
+              ? 'El tope de 90 días corridos desde la operación más antigua se encuentra vencido.'
+              : 'Restan ' + diasRest + ' días para el tope de 90 días corridos.')
+          + '</div>'
+        : '')
+    + '</div>';
+
+  // ── PRE-CARGA EN SRO+ ────────────────────────────────────────────────────────
+  // El formulario tiene bloques definidos. Presentar los datos con esa misma
+  // estructura evita que el Oficial de Cumplimiento traduzca el informe al
+  // formulario mientras carga, que es donde se cometen omisiones.
+  html += '<h2>7. Pre-carga en SRO+ — Mapeo al Formulario</h2><div class="sec">'
+    + '<p style="font-size:8.5pt;color:#555;margin-bottom:8px">'
+    + 'Ingresar a <strong>sro.uif.gob.ar</strong> con el CUIT del Sujeto Obligado, tipo de sujeto '
+    + '«Proveedores de Servicios de Pago que Ofrecen Cuentas de Pago», solapa <strong>ROS/RFT/RFP/RRA</strong> → '
+    + '<strong>Nueva operación</strong> → <strong>«Lavado de activos (ROS)»</strong>.</p>'
+    + '<h3 style="font-size:9.5pt;color:#1B2A4A;margin:10px 0 4px">Datos de la operación — campos obligatorios</h3>'
+    + '<table>'
+    + '<tr><td class="label">Exteriorización Voluntaria Ley 26.860</td><td><em style="color:#888">a determinar</em></td></tr>'
+    + '<tr><td class="label">Operación</td><td><em style="color:#888">tipo a seleccionar del desplegable</em></td></tr>'
+    + '<tr><td class="label">Conoce Existencia de Posible Delito Precedente</td><td><em style="color:#888">a determinar</em></td></tr>'
+    + '</table>'
+    + '<h3 style="font-size:9.5pt;color:#1B2A4A;margin:12px 0 4px">Bloque «Persona Jurídica»</h3>'
+    + '<table>'
+    + '<tr><td class="label">Razón social</td><td>' + (legajo.razonSocial || '—') + '</td></tr>'
+    + '<tr><td class="label">CUIT</td><td>' + (legajo.cuit || '—') + '</td></tr>'
+    + '<tr><td class="label">Actividad declarada</td><td>' + (legajo.actividad || '—') + '</td></tr>'
+    + '<tr><td class="label">Domicilio</td><td>' + (legajo.domicilio || '<em style="color:#B03030">no registrado en el legajo</em>') + '</td></tr>'
+    + '</table>';
+
+  var fisicas = [];
+  if (legajo.representanteLegal) fisicas.push(['Representante legal', legajo.representanteLegal]);
+  if (legajo.presidente) fisicas.push(['Presidente / Gerente', legajo.presidente]);
+  if (legajo.beneficiarioFinal) fisicas.push(['Beneficiario final', legajo.beneficiarioFinal]);
+  if (legajo.vinculados) {
+    String(legajo.vinculados).split(/[,;]/).map(function(x){ return x.trim(); }).filter(Boolean)
+      .forEach(function(v){ fisicas.push(['Persona vinculada', v]); });
+  }
+  html += '<h3 style="font-size:9.5pt;color:#1B2A4A;margin:12px 0 4px">Bloque «Persona Física»</h3>';
+  if (!fisicas.length) {
+    html += '<p style="font-size:8.5pt;color:#B03030">El legajo no registra personas humanas. El formulario exige '
+      + 'cargar a quienes representan o controlan a la persona jurídica reportada.</p>';
+  } else {
+    html += '<table><thead><tr><th>Carácter</th><th>Nombre</th><th>Documento</th></tr></thead><tbody>'
+      + fisicas.map(function(f){
+          return '<tr><td>' + f[0] + '</td><td>' + f[1] + '</td>'
+               + '<td><em style="color:#888">a completar</em></td></tr>';
+        }).join('')
+      + '</tbody></table>'
+      + '<p style="font-size:7.5pt;color:#B03030;margin:2px 0 0">El formulario requiere documento de cada persona '
+      + 'humana. Completar antes de la carga.</p>';
+  }
+
+  html += '<h3 style="font-size:9.5pt;color:#1B2A4A;margin:12px 0 4px">Bloque «Operaciones y Productos»</h3>'
+    + '<table>'
+    + '<tr><td class="label">Producto</td><td>Cuenta de pago con CVU</td></tr>'
+    + '<tr><td class="label">Períodos comprendidos</td><td>' + nomPers + '</td></tr>'
+    + '<tr><td class="label">Cantidad de operaciones</td><td>' + totalOps.toLocaleString('es-AR') + '</td></tr>'
+    + '<tr><td class="label">Monto total ingresado</td><td>' + fmtM(totalIn) + '</td></tr>'
+    + '<tr><td class="label">Monto total egresado</td><td>' + fmtM(totalOut) + '</td></tr>'
+    + '</table>'
+    + '<h3 style="font-size:9.5pt;color:#1B2A4A;margin:12px 0 4px">Bloque «Delito Precedente»</h3>'
+    + '<p style="font-size:8.5pt;color:#555">Se carga solo si se identificó un delito previo concreto vinculado a la '
+    + 'operación (art. 6, Ley N° 25.246). <em style="color:#888">A determinar por el Oficial de Cumplimiento.</em></p>'
+    + '<div style="background:#FDF5E6;border-left:3px solid #B8860B;padding:8px 11px;margin-top:10px;font-size:8.5pt">'
+    + '<strong>«Guardar borrador» no cumple la obligación de reportar.</strong> La presentación se concreta con '
+    + '«Reportar operación»; el borrador conserva lo cargado sin presentarlo y no interrumpe ni suspende los plazos. '
+    + 'Confirmada la presentación, descargar la constancia y archivarla junto con el análisis interno.</div>'
+    + '</div>';
+
+  html += '<h2>8. Diligencias Realizadas</h2><div class="sec">';
 
   // Checklist KYB
   var cl = legajo.checklist || {};
@@ -1093,7 +1208,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   // ── SECCIÓN 7: MEDIDAS ADOPTADAS ─────────────────────────────────────────────
   // Un reporte que describe la inusualidad sin declarar qué hizo la entidad al
   // respecto deja sin acreditar la parte que corresponde al sujeto obligado.
-  html += '<h2>7. Medidas Adoptadas por el Sujeto Obligado</h2><div class="sec">'
+  html += '<h2>9. Medidas Adoptadas por el Sujeto Obligado</h2><div class="sec">'
     + '<p style="font-size:8.5pt;color:#555;margin-bottom:6px">Consignar las medidas efectivamente '
     + 'adoptadas, con su fecha. De no adoptarse ninguna, dejar constancia expresa del fundamento.</p>'
     + '<table><thead><tr><th style="width:54%">Medida</th><th style="width:22%">Adoptada</th><th>Fecha</th></tr></thead><tbody>'
@@ -1112,7 +1227,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     + '<div contenteditable="true" style="min-height:34px"></div>'
     + '</div>';
 
-  html += '<h2>8. Conclusión y Fundamento del Reporte</h2><div class="sec">'
+  html += '<h2>10. Conclusión y Fundamento del Reporte</h2><div class="sec">'
     + '<div contenteditable="true">'
     + 'Con base en el análisis transaccional realizado sobre los períodos '+nomPers
     // El relato no puede afirmar diligencias que el propio legajo desmiente:
@@ -1129,12 +1244,12 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     + '[Completar con fundamentos adicionales específicos del caso.]'
     + '</div>'
     + '<div style="margin-top:8px;padding:6px 10px;background:#FEF9E7;border:1px solid #F39C12;border-radius:3px;font-size:8.5pt">'
-    + '⚠ <strong>Recordatorio:</strong> El presente es un borrador de trabajo. Antes de la presentación formal ante la UIF a través del sistema SRO, '
+    + '⚠ <strong>Recordatorio:</strong> El presente es un borrador de trabajo. Antes de la presentación formal ante la UIF a través del sistema SRO+, '
     + 'debe ser revisado y aprobado por el Oficial de Cumplimiento designado.'
     + '</div></div>';
 
   // ── SECCIÓN 8: FIRMA ──────────────────────────────────────────────────────────
-  html += '<h2>9. Firma del Oficial de Cumplimiento</h2>'
+  html += '<h2>11. Firma del Oficial de Cumplimiento</h2>'
     + '<table style="margin-top:20px"><tbody><tr>'
     + '<td style="padding:30px 20px;border:1px solid #ddd;text-align:center;width:50%">'
     + '<div style="border-bottom:1px solid #333;margin:0 auto 8px;width:200px;height:40px"></div>'
@@ -1156,7 +1271,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     + '<span>GOAT S.A. — Compliance &amp; AML</span>'
     + '</div>'
     + '<div style="text-align:center;margin-top:6px;font-size:7pt;color:#aaa">'
-    + 'Este documento es un borrador de trabajo. Para la presentación formal utilizar el sistema SRO de la UIF.'
+    + 'Este documento es un borrador de trabajo. Para la presentación formal utilizar el sistema SRO+ de la UIF.'
     + '</div>'
     + '</body></html>';
 

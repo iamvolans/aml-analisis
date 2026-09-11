@@ -218,7 +218,7 @@ describe('medidas adoptadas', () => {
   });
 
   it('la numeración de secciones queda correlativa', () => {
-    ['7. Medidas Adoptadas', '8. Conclusión', '9. Firma'].forEach(t => {
+    ['9. Medidas Adoptadas', '10. Conclusión', '11. Firma'].forEach(t => {
       expect(h, 'falta ' + t).toContain(t);
     });
   });
@@ -437,5 +437,151 @@ describe('ROS sobre varios períodos', () => {
     expect(H.trim().endsWith('</html>')).toBe(true);
     expect(H).not.toContain('undefined');
     expect(H).not.toContain('NaN');
+  });
+});
+
+// ── Correspondencia con el formulario de SRO+ ─────────────────────────────
+// El borrador se transcribe a un formulario con bloques definidos. Presentar
+// los datos con otra estructura obliga al Oficial de Cumplimiento a traducir
+// mientras carga, que es donde se cometen las omisiones que el procedimiento
+// enumera como error frecuente.
+describe('pre-carga en SRO+', () => {
+  const ops = [];
+  for (let i = 0; i < 6; i++) {
+    ops.push({ tipo:'IN', monto: 700000 + i, fecha:'2026-07-0' + (i % 9 + 1), hora:'11:25',
+               contraparte_nombre:'PROV SUR SA', contraparte_cuit:'30-71234567-8' });
+  }
+  const PER = { id:'p1', nombre:'Julio 2026', legajoId:'L1', createdAt:'1/8/2026',
+                txns: ops, metricas: calcMetricas(ops) };
+  const LEG = { id:'L1', razonSocial:'Grupo Pampeano S.R.L.', cuit:'30-71703334-1',
+                actividad:'Venta mayorista', domicilio:'Av. Corrientes 1393, CABA',
+                representanteLegal:'Ana Gomez', presidente:'Matias Pucheta',
+                beneficiarioFinal:'Matias Ezequiel Pucheta', vinculados:'Juan Perez, Luis Diaz',
+                facturacionMensual: 5000000, checklist:{} };
+  const H = genROS(LEG, [PER], ['p1'], [], { nombre:'Gaston Rosa' }, '008');
+
+  it('indica el acceso y el tipo de sujeto correctos', () => {
+    expect(H).toContain('sro.uif.gob.ar');
+    expect(H).toContain('Ofrecen Cuentas de Pago');
+    expect(H).toContain('Lavado de activos (ROS)');
+  });
+
+  it('presenta los tres campos obligatorios de «Datos de la operación»', () => {
+    expect(H).toContain('Exteriorización Voluntaria Ley 26.860');
+    expect(H).toContain('Conoce Existencia de Posible Delito Precedente');
+  });
+
+  it('mapea el bloque Persona Jurídica desde el legajo', () => {
+    expect(H).toContain('Bloque «Persona Jurídica»');
+    expect(H).toContain('30-71703334-1');
+    expect(H).toContain('Av. Corrientes 1393');
+  });
+
+  it('lista todas las personas humanas, incluidos los vinculados', () => {
+    expect(H).toContain('Bloque «Persona Física»');
+    ['Ana Gomez', 'Matias Pucheta', 'Matias Ezequiel Pucheta', 'Juan Perez', 'Luis Diaz']
+      .forEach(n => expect(H, n).toContain(n));
+  });
+
+  it('señala que falta el documento de cada persona humana', () => {
+    // El formulario lo exige y el legajo no lo registra
+    expect(H).toContain('requiere documento de cada persona');
+  });
+
+  it('advierte cuando el legajo no registra domicilio', () => {
+    const sinDom = Object.assign({}, LEG, { domicilio: '' });
+    const h = genROS(sinDom, [PER], ['p1'], [], { nombre:'G' }, '009');
+    expect(h).toContain('no registrado en el legajo');
+  });
+
+  it('incluye los bloques de operaciones y de delito precedente', () => {
+    expect(H).toContain('Bloque «Operaciones y Productos»');
+    expect(H).toContain('Bloque «Delito Precedente»');
+  });
+
+  it('advierte que guardar borrador no cumple la obligación', () => {
+    // Es el primer error frecuente que enumera el procedimiento
+    expect(H).toContain('no cumple la obligación de reportar');
+    expect(H).toContain('Reportar operación');
+  });
+});
+
+describe('control de plazos legales', () => {
+  function conFecha(fechaOp) {
+    const ops = [{ tipo:'IN', monto:700000, fecha: fechaOp, hora:'11:25',
+                   contraparte_nombre:'X', contraparte_cuit:'30-1' },
+                 { tipo:'IN', monto:700001, fecha: fechaOp, hora:'11:26',
+                   contraparte_nombre:'X', contraparte_cuit:'30-1' },
+                 { tipo:'IN', monto:700002, fecha: fechaOp, hora:'11:27',
+                   contraparte_nombre:'X', contraparte_cuit:'30-1' }];
+    const per = { id:'p1', nombre:'P', legajoId:'L1', txns: ops, metricas: calcMetricas(ops) };
+    const leg = { id:'L1', razonSocial:'T', cuit:'30-1', facturacionMensual: 5000000, checklist:{} };
+    return genROS(leg, [per], ['p1'], [], { nombre:'G' }, '010');
+  }
+
+  it('cita la resolución y ambos plazos', () => {
+    const h = conFecha('2026-07-01');
+    expect(h).toContain('56/2024');
+    expect(h).toContain('24 horas');
+    expect(h).toContain('90 días corridos');
+  });
+
+  it('calcula la fecha límite desde la operación más antigua', () => {
+    const h = conFecha('2026-07-01');
+    expect(h).toContain('Operación más antigua analizada');
+    expect(h).toContain('Fecha límite por el tope de 90 días');
+  });
+
+  it('con una operación antigua advierte el vencimiento', () => {
+    const vieja = new Date(Date.now() - 200 * 86400000);
+    const f = vieja.getFullYear() + '-' + String(vieja.getMonth()+1).padStart(2,'0')
+            + '-' + String(vieja.getDate()).padStart(2,'0');
+    const h = conFecha(f);
+    expect(h).toContain('VENCIDO');
+  });
+
+  it('con una operación reciente no advierte', () => {
+    const hoy = new Date();
+    const f = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0')
+            + '-' + String(hoy.getDate()).padStart(2,'0');
+    const h = conFecha(f);
+    expect(h).not.toContain('VENCIDO');
+    expect(h).toContain('días restantes');
+  });
+
+  it('reserva los campos que solo el Oficial de Cumplimiento puede completar', () => {
+    const h = conFecha('2026-07-01');
+    expect(h).toContain('dispara el plazo de 24 horas');
+    expect(h).toContain('constancia SRO+');
+  });
+});
+
+describe('deber de reserva', () => {
+  it('el encabezado invoca el artículo 21 inciso c)', () => {
+    const h = ros(MET.tIn);
+    expect(h).toContain('RESERVA ABSOLUTA');
+    expect(h).toContain('21 INC. c)');
+    expect(h).toContain('NO DIVULGAR AL CLIENTE');
+  });
+});
+
+describe('numeración del reporte', () => {
+  const per = { id:'p1', nombre:'P', legajoId:'L1', metricas: MET, txns: OPS };
+  const leg = legCon(MET.tIn);
+
+  it('formatea una secuencia simple', () => {
+    expect(genROS(leg, [per], ['p1'], [], USUARIO, '3')).toContain('ROS-' + new Date().getFullYear() + '-003');
+  });
+
+  it('no duplica el prefijo si ya viene formateado', () => {
+    const h = genROS(leg, [per], ['p1'], [], USUARIO, 'ROS-2026-003');
+    expect(h).toContain('ROS-2026-003');
+    expect(h).not.toContain('ROS-2026-ROS-2026-003');
+  });
+
+  it('identifica el sistema como SRO+', () => {
+    const h = genROS(leg, [per], ['p1'], [], USUARIO, '003');
+    expect(h).toContain('SRO+');
+    expect(h).not.toMatch(/sistema SRO(?!\+)/);
   });
 });
