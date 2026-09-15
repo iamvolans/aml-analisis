@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { SevBadge, SortTh, TableCard, Drawer, EmptyState, TD } from "../components/ui";
 import { toast, uiConfirm } from "../components/feedback";
 import { auditLog, puedeAprobar } from "../lib/auth";
-import { nuevoCaso, refCaso } from "../lib/casos";
+import { nuevoCaso, refCaso, casosHuerfanos, cambiarEstadoCaso } from "../lib/casos";
 import { senalesActivas, claveResolucion, periodosDuplicados, operacionesDeSenal, huellaEvidencia, evidenciaCambio } from "../lib/aml";
 import { serverLoadTxns } from "../lib/sync";
 import { serverLoadKVPrefix } from "../lib/sync";
@@ -654,6 +654,68 @@ function AlertasView(props) {
             })}
             {dups.length > 6 && (
               <div style={{fontSize:10.5,color:T.TEXT3,marginTop:7}}>y {dups.length-6} más.</div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Casos cuyo período de origen ya no existe. Siguen abiertos, computan
+          en los indicadores y no se puede llegar al análisis que los originó. */}
+      {(function(){
+        var huerfanos = casosHuerfanos(casos, periodos);
+        if (!huerfanos.length) return null;
+        return (
+          <div style={{background:'rgba(255,184,48,0.07)',border:'1px solid rgba(255,184,48,0.3)',
+            borderLeft:'3px solid '+T.AMBER,borderRadius:T.RADIUS.md,padding:'12px 15px',marginBottom:14}}>
+            <div style={{fontSize:11.5,fontWeight:700,color:T.AMBER,marginBottom:7}}>
+              ⚠ {huerfanos.length} caso(s) abierto(s) de períodos eliminados
+            </div>
+            <div style={{fontSize:11.5,color:T.TEXT2,lineHeight:1.7,marginBottom:10}}>
+              El período que los originó ya no existe, de modo que no se puede llegar al análisis que
+              los fundamentó. Siguen abiertos y computan en los indicadores de gestión.
+              <div style={{marginTop:5,color:T.TEXT3}}>
+                Ocurre al cargar parciales del mes —los primeros diez días, luego los segundos— y
+                eliminarlos al subir el extracto completo.
+              </div>
+            </div>
+            {huerfanos.slice(0,5).map(function(c,i){
+              var leg = legajos.find(function(l){ return l.id === c.legajoId; });
+              return (
+                <div key={i} style={{display:'flex',gap:10,padding:'4px 0',fontSize:11,
+                  borderTop:i?'1px solid '+T.BORDER:'none',alignItems:'center'}}>
+                  <span style={{fontFamily:T.MONO,fontSize:10,color:T.TEXT3,width:74,flexShrink:0}}>{c.pat||'—'}</span>
+                  <span style={{flex:1,color:T.TEXT2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                    {(leg && leg.razonSocial) || 'N/D'} — {c.titulo || 'sin título'}
+                  </span>
+                </div>
+              );
+            })}
+            {huerfanos.length > 5 && (
+              <div style={{fontSize:10.5,color:T.TEXT3,marginTop:6}}>y {huerfanos.length-5} más.</div>
+            )}
+            {puedeAprobar(currentUser.rol) && (
+              <button onClick={async function(){
+                  if (!(await uiConfirm(
+                    'Cerrar los ' + huerfanos.length + ' caso(s) cuyo período fue eliminado.\n\n' +
+                    'Quedan asentados como cerrados sin reporte, con el motivo registrado. ' +
+                    'No se eliminan: se conserva la constancia del análisis.',
+                    {confirmLabel:'Cerrar ' + huerfanos.length + ' caso(s)'}))) return;
+                  var ids = {};
+                  huerfanos.forEach(function(c){ ids[c.id] = true; });
+                  var motivo = 'Cierre por período eliminado: el análisis que originó el caso ya no consta en el sistema.';
+                  var nuevos = casos.map(function(c){
+                    return ids[c.id] ? cambiarEstadoCaso(c, 'CERRADA_SIN_ROS', currentUser, motivo) : c;
+                  });
+                  setCasos(nuevos);
+                  if (onSyncCasos) onSyncCasos(nuevos);
+                  auditLog(currentUser, 'cerrar_casos_huerfanos', 'casos', '', { cantidad: huerfanos.length });
+                  toast('✓ ' + huerfanos.length + ' caso(s) cerrado(s)');
+                }}
+                style={{marginTop:10,background:'rgba(255,184,48,0.14)',color:T.AMBER,
+                  border:'1px solid rgba(255,184,48,0.4)',borderRadius:T.RADIUS.sm,
+                  padding:'7px 13px',cursor:'pointer',fontSize:11.5,fontWeight:600,fontFamily:T.SANS}}>
+                Cerrar los {huerfanos.length} con constancia
+              </button>
             )}
           </div>
         );

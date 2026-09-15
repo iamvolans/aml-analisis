@@ -196,6 +196,59 @@ function refCaso(legajoNom, n) {
 // Clave de deduplicación: un caso por (período, patrón)
 function claveSenal(periodoId, pat) { return periodoId + '::' + pat; }
 
+// ─── CASOS Y PERÍODOS ELIMINADOS ────────────────────────────────────────────
+// Al eliminar un período, sus transacciones se borran pero los casos que generó
+// quedan con una referencia a algo que ya no existe: siguen abiertos, computan
+// en los indicadores y no se puede llegar al análisis que los originó.
+//
+// Es frecuente en la operatoria: el analista carga los primeros diez días del
+// mes, después los segundos, y al final el extracto completo. Los parciales se
+// eliminan, pero sus casos permanecen duplicando lo que el extracto completo ya
+// detectó.
+
+// Casos originados en un período determinado.
+function casosDePeriodo(casos, periodoId) {
+  return (casos || []).filter(function(c){ return c.periodoId === periodoId; });
+}
+
+// Un caso se considera trabajado cuando registra algo más que su apertura:
+// comentarios, cambios de estado o asignación. Eliminarlo destruiría la
+// constancia de ese análisis, de modo que la decisión no puede ser automática.
+function casoTrabajado(c) {
+  if (!c) return false;
+  if ((c.comentarios || []).length) return true;
+  // Un caso nace con un asiento en el historial: más de uno significa que hubo
+  // al menos una transición registrada.
+  if ((c.historial || []).length > 1) return true;
+  if (c.asignadoA) return true;
+  // El primer estado del ciclo es NUEVA; cualquier otro implica intervención.
+  if (c.estado && c.estado !== 'NUEVA') return true;
+  return false;
+}
+
+// Casos cuyo período de origen ya no existe.
+function casosHuerfanos(casos, periodos) {
+  var vivos = {};
+  (periodos || []).forEach(function(p){ vivos[p.id] = true; });
+  return (casos || []).filter(function(c){
+    if (!c.periodoId) return false;              // los que no nacen de un período no son huérfanos
+    if (vivos[c.periodoId]) return false;
+    var e = getEstadoCaso(c.estado);
+    return !e || e.abierto;                      // solo importan los que siguen abiertos
+  });
+}
+
+// Reparto de los casos de un período entre los que pueden eliminarse sin perder
+// trabajo y los que conviene conservar o cerrar con constancia.
+function clasificarCasosDePeriodo(casos, periodoId) {
+  var delPer = casosDePeriodo(casos, periodoId);
+  return {
+    total: delPer.length,
+    sinTrabajar: delPer.filter(function(c){ return !casoTrabajado(c); }),
+    trabajados: delPer.filter(casoTrabajado),
+  };
+}
+
 // ─── GENERACIÓN AUTOMÁTICA DESDE SEÑALES ────────────────────────────────────
 // Devuelve los casos que FALTAN crear para las señales ALTA activas. No crea
 // nada por sí solo: la vista muestra el preview y el usuario confirma. En un
@@ -267,5 +320,6 @@ export {
   SLA, DIAS_AVISO, antelacion,
   ESTADOS_CASO, getEstadoCaso, ORIGENES, getOrigen, PRIORIDADES, getPrioridad,
   hitosSLA, slaCritico, colorSLA, fmtFecha, diasHasta, sumarDias,
-  nuevoCaso, refCaso, claveSenal, casosPendientesDeCrear, cambiarEstadoCaso
+  nuevoCaso, refCaso, claveSenal, casosPendientesDeCrear, cambiarEstadoCaso,
+  casosDePeriodo, casoTrabajado, casosHuerfanos, clasificarCasosDePeriodo
 };

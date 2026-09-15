@@ -6,6 +6,7 @@ import { Card, Pill, SevBadge, chartGrid, chartAxis, chartTooltip } from "../com
 import { calcMetricas, calcScoring, contarAlta, detectPatrones, lineaBase, operacionesDeSenal, evidenciaCambio, contrapartesRecurrentes } from "../lib/aml";
 import { auditLog, puedeAprobar, puedeEditar } from "../lib/auth";
 import { parseCsv, parseExcelFile } from "../lib/parsers";
+import { clasificarCasosDePeriodo, cambiarEstadoCaso } from "../lib/casos";
 import { analizarConvenio, unificarOperaciones, esRecaudacion } from "../lib/cobranza";
 import { genINF02, genNotaDD } from "../lib/reports";
 import { authHeaders } from "../lib/session";
@@ -25,6 +26,7 @@ function getEstadoPeriodo(id) { return ESTADOS_PERIODO.find(function(e){return e
 
 function AnalisisView(props) {
   var legajos=props.legajos, periodos=props.periodos, setPeriodos=props.setPeriodos, onReport=props.onReport, onSync=props.onSync||function(){}, currentUser=props.currentUser||{rol:'analista',nombre:'Analista'};
+  var casos = props.casos || [];
   var slState = useState(props.initLegajo||null); var selLegajo=slState[0]; var setSelLegajo=slState[1];
   var spState = useState(props.initPeriodo||null); var selPeriodo=spState[0]; var setSelPeriodo=spState[1];
   var pnState = useState(''); var periodoNombre=pnState[0]; var setPeriodoNombre=pnState[1];
@@ -449,9 +451,44 @@ function AnalisisView(props) {
                 )}
                 <button
                   onClick={async function(){
-                    if (!(await uiConfirm('Eliminar período "' + selPeriodo.nombre + '"?\n\nEsto elimina el período y sus transacciones. No se puede deshacer.', {danger:true, confirmLabel:'Eliminar período'}))) return;
+                    // Al eliminar un período hay que hacerse cargo de los casos que
+                    // generó: si quedan, siguen abiertos apuntando a un análisis que
+                    // ya no existe y computan en los indicadores.
+                    var cl = clasificarCasosDePeriodo(casos, selPeriodo.id);
+                    var aviso = 'Eliminar período "' + selPeriodo.nombre + '"?\n\n'
+                      + 'Se eliminan el período y sus transacciones. No se puede deshacer.';
+                    if (cl.total) {
+                      aviso += '\n\nEste período generó ' + cl.total + ' caso(s):';
+                      if (cl.sinTrabajar.length) {
+                        aviso += '\n · ' + cl.sinTrabajar.length + ' sin trabajar, que se eliminan junto con el período.';
+                      }
+                      if (cl.trabajados.length) {
+                        aviso += '\n · ' + cl.trabajados.length + ' con análisis registrado, que se CIERRAN dejando '
+                          + 'constancia del motivo. No se eliminan: destruiría el trabajo asentado.';
+                      }
+                    }
+                    if (!(await uiConfirm(aviso, {danger:true, confirmLabel:'Eliminar período'}))) return;
                     var updatedPers = periodos.filter(function(p){return p.id!==selPeriodo.id;});
                     props.setPeriodos(updatedPers);
+
+                    if (cl.total && props.setCasos) {
+                      var idsBorrar = {};
+                      cl.sinTrabajar.forEach(function(c){ idsBorrar[c.id] = true; });
+                      var motivoCierre = 'Cierre automático: se eliminó el período «' + selPeriodo.nombre + '» que originó el caso.';
+                      var nuevosCasos = casos
+                        .filter(function(c){ return !idsBorrar[c.id]; })
+                        .map(function(c){
+                          if (c.periodoId !== selPeriodo.id) return c;
+                          return cambiarEstadoCaso(c, 'CERRADA_SIN_ROS', currentUser, motivoCierre);
+                        });
+                      props.setCasos(nuevosCasos);
+                      if (props.onSyncCasos) props.onSyncCasos(nuevosCasos, Object.keys(idsBorrar));
+                      auditLog(currentUser, 'eliminar_periodo', 'periodo', selPeriodo.id, {
+                        nombre: selPeriodo.nombre,
+                        casosEliminados: cl.sinTrabajar.length,
+                        casosCerrados: cl.trabajados.length,
+                      });
+                    }
                     fetch('/api/sync?action=txns', {
                       method:'POST',
                       headers: await authHeaders({'Content-Type':'application/json'}),
