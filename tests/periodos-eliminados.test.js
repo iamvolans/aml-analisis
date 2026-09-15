@@ -116,3 +116,38 @@ describe('casos huérfanos', () => {
     expect(h.every(c => c.periodoId !== 'mensual')).toBe(true);
   });
 });
+
+// ── Orden de las bajas en el servidor ─────────────────────────────────────
+// Las transacciones de un período se guardan en una tabla aparte que referencia
+// al período. Lanzar ambas bajas en paralelo hacía que el borrado del período
+// compitiera con el de sus transacciones: con la clave foránea vigente, el
+// período no se podía eliminar mientras sus filas existieran, la operación
+// fallaba, y el período reaparecía en la siguiente carga.
+//
+// El handler de legajos ya encadenaba correctamente; el de períodos no.
+describe('handler de bajas del servidor', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const RUTA = path.resolve(__dirname, '..', 'api', 'sync.js');
+  const existe = fs.existsSync(RUTA);
+  const src = existe ? fs.readFileSync(RUTA, 'utf8') : '';
+
+  it.skipIf(!existe)('la baja de un período encadena transacciones y período', () => {
+    const bloque = /deletedPeriodoIds\?\.length[\s\S]*?\n      \}/.exec(src);
+    expect(bloque, 'no se encontró el bloque de bajas de período').not.toBeNull();
+    // Debe haber un .then() encadenando, no dos ops.push independientes
+    expect(bloque[0]).toMatch(/\.then\(/);
+  });
+
+  it.skipIf(!existe)('la baja de un legajo también encadena', () => {
+    const bloque = /deletedLegajoIds\?\.length[\s\S]*?\n      \}/.exec(src);
+    expect(bloque[0]).toMatch(/\.then\(/);
+  });
+
+  it.skipIf(!existe)('un fallo se informa al cliente en lugar de perderse', () => {
+    // Promise.all rechaza al primer fallo y deja el resto sin ejecutar ni
+    // informar: una baja que no se aplicó tiene que llegar al cliente.
+    expect(src).toContain('allSettled');
+    expect(src).toMatch(/status\(500\)/);
+  });
+});

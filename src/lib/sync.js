@@ -76,12 +76,22 @@ async function serverSave(data) {
     var CHUNK_LEGS = 5;
     var CHUNK_PERS = 8;
     var allOk = true;
+    var borradoFallido = false;
 
     // Deletions primero (payload chico)
     if (delLegs.length || delPers.length) {
       var gz0 = await gzipPayload({ legajos:[], periodos:[], deletedLegajoIds:delLegs, deletedPeriodoIds:delPers });
       var r0 = await fetchRetry('/api/sync', { method:'POST', headers:gz0.headers, body:gz0.body });
-      if (!r0.ok) { console.warn('[Sync] Error borrando:', r0._error); allOk = false; }
+      if (!r0.ok) {
+        // Una baja que falla es más grave que un guardado que falla: el usuario
+        // ya vio desaparecer el registro de la pantalla y da por hecho que se
+        // eliminó. Si el servidor lo rechazó, reaparece en la próxima carga.
+        var detalle = '';
+        try { detalle = (await r0.clone().json()).detalle || ''; } catch (e) {}
+        console.error('[Sync] LA ELIMINACIÓN NO SE APLICÓ:', r0._error || r0.status, detalle);
+        allOk = false;
+        borradoFallido = true;
+      }
     }
 
     // Legajos en chunks de 5
@@ -101,6 +111,7 @@ async function serverSave(data) {
     }
 
     if (!allOk) console.warn('[Sync] Sync parcial — algunos chunks fallaron');
+    if (borradoFallido) return { ok: false, borradoFallido: true };
     return allOk;
   } catch(e) { console.warn('[Sync] Error guardando:', e.message); return false; }
 }

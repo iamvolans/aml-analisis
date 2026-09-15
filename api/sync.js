@@ -195,12 +195,32 @@ export default async function handler(req, res) {
 
       if (deletedPeriodoIds?.length) {
         for (const id of deletedPeriodoIds) {
-          ops.push(sb('periodos_txns', 'DELETE', null, `?periodo_id=eq.${id}`));
-          ops.push(sb('periodos',      'DELETE', null, `?id=eq.${id}`));
+          // Las dos bajas van ENCADENADAS, no en paralelo. Lanzarlas juntas
+          // hacía que el borrado del período compitiera con el de sus
+          // transacciones: con la clave foránea de periodos_txns hacia periodos,
+          // eliminar el período mientras sus filas todavía existen falla, y el
+          // período reaparecía en la siguiente carga. La baja de legajos, más
+          // arriba, ya las encadenaba.
+          ops.push(
+            sb('periodos_txns', 'DELETE', null, `?periodo_id=eq.${id}`).then(() =>
+            sb('periodos',      'DELETE', null, `?id=eq.${id}`))
+          );
         }
       }
 
-      await Promise.all(ops);
+      // Promise.all rechaza al primer fallo y deja el resto sin informar. Con
+      // allSettled se completa todo y se devuelve qué falló: una baja que no se
+      // aplicó tiene que llegar al cliente, no desaparecer en un 500 genérico.
+      const resultados = await Promise.allSettled(ops);
+      const fallidas = resultados.filter(r => r.status === 'rejected');
+      if (fallidas.length) {
+        console.error('[sync] operaciones fallidas:', fallidas.map(f => String(f.reason)).join(' | '));
+        return res.status(500).json({
+          ok: false,
+          error: 'Algunas operaciones no se aplicaron',
+          detalle: fallidas.map(f => String(f.reason && f.reason.message || f.reason)).slice(0, 5),
+        });
+      }
       return res.json({ ok: true });
     }
 

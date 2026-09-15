@@ -233,6 +233,14 @@ export default function App() {
       syncPendingRef.current = null;
       if (!data) return;
       serverSave(data).then(function(ok) {
+        // Una baja rechazada por el servidor deja al usuario creyendo que el
+        // registro se eliminó: desapareció de la pantalla pero vuelve en la
+        // próxima carga. Se avisa expresamente.
+        if (ok && ok.borradoFallido) {
+          setSyncStatus('error');
+          toast('La eliminación no pudo aplicarse en el servidor. El registro va a reaparecer al recargar.');
+          return;
+        }
         setSyncStatus(ok ? 'ok' : 'error');
       }).catch(function(){ setSyncStatus('error'); });
     }, 2000); // 2 segundos de debounce
