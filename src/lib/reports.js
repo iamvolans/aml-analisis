@@ -1,7 +1,7 @@
 import { calcMetricas, calcScoring, detectPatrones, operacionesDeSenal, resumenEvidencia, enriquecerEvidencia, resolucionDe } from "./aml";
 import { CHECKLIST_ITEMS, KYB_FACTORS, PAT_UIF_MAP, SCREENING, getEstado } from "./constants";
 import { ENTIDAD, firmanteAnalista, firmanteOC, firmanteResponsable } from "./firmantes";
-import { leyendaMismoTitular } from "./mismotitular";
+import { leyendaMismoTitular, separarMismoTitular } from "./mismotitular";
 import { T } from "./theme";
 import { fmtM, parseFechaAR, safeArr, segColor, sevColor, todayStr } from "./utils";
 
@@ -781,6 +781,7 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
 
   // Señales ALTA no resueltas en períodos seleccionados
   var sigsList = [];
+  var metricasUsadas = {};
   sel.forEach(function(p){
     var m = p.metricas;
     if (!m) return;
@@ -788,6 +789,17 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     // traen evidencia, y sin ella la sección 5 solo puede mostrar los patrones
     // estructurales. Se completa desde las transacciones sin recalcular las
     // señales, para no alterar cuáles se reportan.
+    // Las métricas guardadas antes de la regla de mismo titular computan los
+    // movimientos del propio cliente como si fueran de terceros: el titular se
+    // detecta a sí mismo en concentración, circularidad y fraccionamiento. Si el
+    // período tiene las transacciones disponibles, se recalcula.
+    if (p.txns && p.txns.length && m && !m.mismoTitular) {
+      m = calcMetricas(p.txns, legajo);
+    }
+    // Se conservan las métricas efectivamente utilizadas: el resto del informe
+    // debe leer de éstas y no de las guardadas, que pueden ser anteriores a la
+    // regla de mismo titular.
+    metricasUsadas[p.id] = m;
     var sigs = enriquecerEvidencia(detectPatrones(m, legajo), p.txns, legajo);
     sigs.filter(function(s){ return s.sev==='ALTA'; }).forEach(function(s){
       // La resolución se busca con la clave por señal: leerla solo por código
@@ -822,7 +834,12 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   // Top 20 operaciones por monto en períodos seleccionados
   var allTxns = [];
   sel.forEach(function(p){ if(p.txns&&p.txns.length) p.txns.forEach(function(t){ allTxns.push(Object.assign({},t,{periodo:p.nombre})); }); });
-  var topTxns = allTxns.slice().sort(function(a,b){return b.monto-a.monto;}).slice(0,20);
+  // Los movimientos entre cuentas del propio titular no son operaciones con
+  // terceros: encabezar el reporte con ellas presenta como relevante lo que no
+  // cambió de dueño. Se apartan del ranking y se informan por separado.
+  var repartoTop = separarMismoTitular(allTxns, legajo);
+  var topTxns = repartoTop.terceros.slice().sort(function(a,b){return b.monto-a.monto;}).slice(0,20);
+  var topPropias = repartoTop.propias.slice().sort(function(a,b){return b.monto-a.monto;}).slice(0,10);
 
   // Períodos abarcados, en orden cronológico. Sin ordenarlos, el reporte los
   // enumeraba en el orden de carga —"Abril, Marzo, Julio, Agosto, Mayo,
@@ -919,13 +936,14 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
   var mtTotal = { cantidad:0, montoTotal:0, porDocumento:0, porDenominacion:0, pct:0 };
   var totalConPropias = 0;
   sel.forEach(function(p){
-    var mt = p.metricas && p.metricas.mismoTitular;
+    var mUsada = metricasUsadas[p.id] || p.metricas;
+    var mt = mUsada && mUsada.mismoTitular;
     if (!mt) return;
     mtTotal.cantidad += mt.cantidad || 0;
     mtTotal.montoTotal += mt.montoTotal || 0;
     mtTotal.porDocumento += mt.porDocumento || 0;
     mtTotal.porDenominacion += mt.porDenominacion || 0;
-    totalConPropias += (p.metricas.totalTxnsConPropias || 0);
+    totalConPropias += (mUsada.totalTxnsConPropias || 0);
   });
   if (mtTotal.cantidad) {
     mtTotal.pct = totalConPropias ? (mtTotal.cantidad / totalConPropias) * 100 : 0;
@@ -1087,6 +1105,28 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     html += '</tbody></table>';
   }
   html += '</div>';
+  // Movimientos entre cuentas del propio titular. Se exhiben porque un volumen
+  // relevante puede ameritar análisis por sí mismo, pero separados de las
+  // operaciones con terceros, que son las que sustentan el reporte.
+  if (topPropias.length) {
+    html += '<h2>5.2 Movimientos entre Cuentas del Propio Titular</h2><div class="sec">'
+      + '<p style="font-size:8.5pt;color:#555;margin-bottom:4px">'
+      + repartoTop.propias.length + ' operación(es) por '
+      + fmtM(repartoTop.resumen.montoTotal) + '. No importan transferencia de fondos a terceros: '
+      + 'se apartan del cómputo de concentración, circularidad, fraccionamiento y tránsito de fondos. '
+      + 'Se exhiben las de mayor monto.</p>'
+      + '<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Denominación</th><th>CUIT/CVU</th><th>Reconocido por</th></tr></thead><tbody>';
+    topPropias.forEach(function(t){
+      html += '<tr><td style="white-space:nowrap">' + fechaCorta(t.fecha) + '</td>'
+        + '<td>' + (t.tipo || '—') + '</td>'
+        + '<td style="white-space:nowrap;font-weight:bold">' + fmtM(t.monto) + '</td>'
+        + '<td>' + (t.contraparte_nombre || '—') + '</td>'
+        + '<td style="font-size:8pt">' + (t.contraparte_cuit || '—') + '</td>'
+        + '<td style="font-size:8pt">' + (t._mismoTitular || '—') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
 
   // ── SECCIÓN 6: DILIGENCIAS REALIZADAS ────────────────────────────────────────
   // ── CONTROL DE PLAZOS LEGALES ────────────────────────────────────────────────

@@ -116,6 +116,34 @@ async function serverSave(data) {
   } catch(e) { console.warn('[Sync] Error guardando:', e.message); return false; }
 }
 
+// Guarda UN período de inmediato, sin esperar al envío general.
+//
+// La sincronización general está diferida dos segundos y arma su carga con los
+// períodos que tenga a mano en ese momento: si otra parte de la aplicación la
+// dispara dentro de esa ventana, puede reemplazarla por un estado anterior y la
+// resolución se pierde sin que nadie se entere.
+//
+// Cerrar una alerta no admite esa incertidumbre. Se envía el período afectado
+// solo, se espera la respuesta, y se informa si falló.
+async function serverSavePeriodo(periodo) {
+  if (!periodo || !periodo.id) return { ok: false, error: 'período sin identificador' };
+  try {
+    var limpio = Object.assign({}, periodo);
+    delete limpio.txns;                    // se guardan aparte
+    var gz = await gzipPayload({ legajos: [], periodos: [limpio],
+                                 deletedLegajoIds: [], deletedPeriodoIds: [] });
+    var r = await fetchRetry('/api/sync', { method:'POST', headers:gz.headers, body:gz.body }, 2);
+    if (r && r.ok) return { ok: true };
+    var detalle = '';
+    try { detalle = (await r.clone().text()).slice(0, 200); } catch (e) {}
+    console.error('[Sync] El período no se guardó:', (r && r.status) || r && r._error, detalle);
+    return { ok: false, error: detalle || 'el servidor rechazó el guardado' };
+  } catch (e) {
+    console.error('[Sync] Error guardando período:', e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
 async function serverSaveTxns(periodoId, txns) {
   try {
     var gz = await gzipPayload({ periodo_id: periodoId, txns: txns });
@@ -298,4 +326,4 @@ async function fetchServerConfig() {
   } catch(e) { return null; }
 }
 
-export { gzipPayload, fetchRetry, serverSave, serverSaveTxns, serverLoadTxns, serverSaveKV, serverLoadKV, serverLoadKVPrefix, serverLoad, serverLoadCasos, serverSaveCasos, serverLoadListas, serverSaveLista, serverDeleteLista, serverLoadRuns, serverLoadRun, serverSaveRun, fetchServerConfig };
+export { gzipPayload, fetchRetry, serverSave, serverSaveTxns, serverLoadTxns, serverSaveKV, serverLoadKV, serverLoadKVPrefix, serverLoad, serverLoadCasos, serverSaveCasos, serverLoadListas, serverSaveLista, serverDeleteLista, serverLoadRuns, serverLoadRun, serverSaveRun, fetchServerConfig, serverSavePeriodo };

@@ -4,7 +4,7 @@ import { toast, uiConfirm } from "../components/feedback";
 import { auditLog, puedeAprobar } from "../lib/auth";
 import { nuevoCaso, refCaso, casosHuerfanos, cambiarEstadoCaso } from "../lib/casos";
 import { senalesActivas, claveResolucion, periodosDuplicados, operacionesDeSenal, huellaEvidencia, evidenciaCambio } from "../lib/aml";
-import { serverLoadTxns } from "../lib/sync";
+import { serverLoadTxns, serverSavePeriodo } from "../lib/sync";
 import { serverLoadKVPrefix } from "../lib/sync";
 import { uid } from "../lib/utils";
 import { T } from "../lib/theme";
@@ -179,7 +179,20 @@ function AlertasView(props) {
     });
 
     setPeriodos(updated);
-    onSync(legajos, updated);
+    // Un guardado por cada período afectado, verificando cada respuesta: si uno
+    // falla, esas alertas reaparecen y el analista tiene que saberlo.
+    var idsAfectados = Object.keys(porPeriodo);
+    var fallidos = [];
+    for (var iA = 0; iA < idsAfectados.length; iA++) {
+      var perA = updated.find(function(p){ return p.id === idsAfectados[iA]; });
+      if (!perA) continue;
+      var rA = await serverSavePeriodo(perA);
+      if (!rA.ok) fallidos.push(perA.nombre || perA.id);
+    }
+    if (fallidos.length) {
+      toast('No se pudieron guardar ' + fallidos.length + ' período(s): ' + fallidos.join(', ') +
+            '. Esas alertas van a reaparecer al recargar.');
+    }
     setMSel([]); setVerMasivo(false); setMFund(''); setMResp(''); setMHasta('');
     auditLog(currentUser, 'regularizacion_masiva_senales', 'alertas', lote, {
       lote: lote, cantidad: lista.length,
@@ -401,7 +414,17 @@ function AlertasView(props) {
       return Object.assign({}, p, {sigsResolucion: newRes});
     });
     setPeriodos(updatedPers);
-    onSync(legajos, updatedPers);
+    // Se guarda el período afectado de inmediato y se verifica la respuesta. El
+    // envío general está diferido y puede armarse con un estado anterior; para
+    // el cierre de una alerta eso significa perder el trabajo sin aviso.
+    var perAfectado = updatedPers.find(function(p){ return p.id === sig.periodoId; });
+    if (perAfectado) {
+      serverSavePeriodo(perAfectado).then(function(r){
+        if (!r.ok) {
+          toast('La alerta no pudo cerrarse en el servidor: va a reaparecer al recargar. ' + (r.error || ''));
+        }
+      });
+    }
     var newMap = Object.assign({}, justMap);
     delete newMap[sig.key];
     setJustMap(newMap);

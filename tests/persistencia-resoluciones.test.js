@@ -53,20 +53,22 @@ describe('una resolución no sincronizada se pierde', () => {
 describe('toda vista que resuelve debe sincronizar', () => {
   function fuente(rel) { return fs.readFileSync(path.join(RAIZ, rel), 'utf8'); }
 
-  it('Alertas sincroniza tras resolver individualmente', () => {
+  it('Alertas persiste tras resolver individualmente', () => {
     const src = fuente('views/Alertas.jsx');
     const i = src.indexOf('function resolverSenal');
     expect(i).toBeGreaterThan(-1);
     const cuerpo = src.slice(i, i + 1600);
-    expect(cuerpo, 'resolverSenal no sincroniza').toMatch(/onSync\(/);
+    // Vale cualquier vía que efectivamente persista: el envío general o el
+    // guardado directo del período afectado.
+    expect(cuerpo, 'resolverSenal no persiste').toMatch(/serverSavePeriodo\(|onSync\(/);
   });
 
-  it('Alertas sincroniza tras regularizar en lote', () => {
+  it('Alertas persiste tras regularizar en lote', () => {
     const src = fuente('views/Alertas.jsx');
     const i = src.indexOf('regularizarSeleccionadas');
     expect(i).toBeGreaterThan(-1);
     const cuerpo = src.slice(i, i + 3000);
-    expect(cuerpo, 'la regularización en lote no sincroniza').toMatch(/onSync\(/);
+    expect(cuerpo, 'la regularización en lote no persiste').toMatch(/serverSavePeriodo\(|onSync\(/);
   });
 
   it('Análisis sincroniza tras resolver', () => {
@@ -76,7 +78,7 @@ describe('toda vista que resuelve debe sincronizar', () => {
     expect(src.slice(i, i + 900)).toMatch(/onSync\(/);
   });
 
-  it('ninguna vista escribe sigsResolucion sin sincronizar cerca', () => {
+  it('ninguna vista escribe sigsResolucion sin persistirla', () => {
     const fallos = [];
     ['views/Alertas.jsx', 'views/Analisis.jsx'].forEach(rel => {
       const lineas = fuente(rel).split('\n');
@@ -86,10 +88,10 @@ describe('toda vista que resuelve debe sincronizar', () => {
         // de la sincronización dentro de las diez líneas siguientes.
         const ventana = lineas.slice(Math.max(0, i - 12), i + 10).join('\n');
         if (!/sigsResolucion/.test(ventana)) return;
-        if (!/onSync\(/.test(ventana)) fallos.push(path.basename(rel) + ':' + (i + 1));
+        if (!/serverSavePeriodo\(|onSync\(/.test(ventana)) fallos.push(path.basename(rel) + ':' + (i + 1));
       });
     });
-    expect(fallos, 'cambios de resolución sin sincronizar:\n' + fallos.join('\n')).toEqual([]);
+    expect(fallos, 'cambios de resolución sin persistir:\n' + fallos.join('\n')).toEqual([]);
   });
 });
 

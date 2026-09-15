@@ -17,6 +17,7 @@ import { describe, it, expect } from 'vitest';
 import { claveNombre, soloDigitos, identidadesDe, motivoMismoTitular,
          separarMismoTitular, leyendaMismoTitular } from '../src/lib/mismotitular.js';
 import { calcMetricas, detectPatrones } from '../src/lib/aml.js';
+import { genROS } from '../src/lib/reports.js';
 
 const LEG = { razonSocial:'GOAT S.A.', cuit:'30-71703953-6' };
 const tx = (cp, cuit, monto, tipo) =>
@@ -191,5 +192,65 @@ describe('declaración en los informes', () => {
   it('sin movimientos propios no hay leyenda que agregar', () => {
     expect(leyendaMismoTitular({ cantidad: 0 })).toBe('');
     expect(leyendaMismoTitular(null)).toBe('');
+  });
+});
+
+// ── El ROS no puede reportar al cliente contra sí mismo ───────────────────
+// Un reporte emitido desde métricas anteriores a la regla presentaba las
+// transferencias del cliente hacia sus propias cuentas como las operaciones más
+// relevantes, y emitía señales cuya "contraparte" era el CUIT del propio
+// titular. Si el período conserva sus transacciones, se recalcula.
+describe('ROS y movimientos del propio titular', () => {
+  const tx2 = (cp, cuit, monto, tipo) =>
+    ({ tipo, monto, fecha:'2026-08-01', hora:'12:00', contraparte_nombre: cp, contraparte_cuit: cuit });
+
+  const LEGR = { id:'L1', razonSocial:'CRAVERO NEGOCIOS S.A.', cuit:'30-71813032-4',
+                 facturacionMensual: 5000000000, checklist:{} };
+  const ops = [];
+  for (let i = 0; i < 10; i++) {
+    ops.push(tx2('Cravero Negocios SA', '30718130324', 90000000, 'IN'));
+    ops.push(tx2('Cravero Negocios SA', '30718130324', 90000000, 'OUT'));
+  }
+  for (let i = 0; i < 8; i++) ops.push(tx2('PERSONA ' + i, '20' + (300000000 + i), 700000, 'IN'));
+
+  // Período anterior a la regla: métricas sin el campo
+  const viejas = calcMetricas(ops, {});
+  delete viejas.mismoTitular;
+  const PER = { id:'p1', nombre:'Agosto 26', legajoId:'L1', txns: ops, metricas: viejas };
+  const H = genROS(LEGR, [PER], ['p1'], [], { nombre:'Axel' }, '017');
+
+  function seccion(desde, hasta) {
+    const m = new RegExp(desde + '([\\s\\S]*?)' + hasta).exec(H);
+    return m ? m[1] : '';
+  }
+
+  it('el ranking de mayor monto no encabeza con el propio titular', () => {
+    expect(seccion('5\\.1 Operaciones de Mayor Monto', '(5\\.2|<h2>6)')).not.toMatch(/Cravero/i);
+  });
+
+  it('ninguna señal toma al propio CUIT como contraparte', () => {
+    expect(seccion('4\\. Señales de Alerta', '5\\. Operaciones')).not.toContain('30718130324');
+  });
+
+  it('los movimientos propios se exhiben en su propia sección', () => {
+    expect(H).toContain('Movimientos entre Cuentas del Propio Titular');
+    expect(H).toContain('Cravero Negocios SA');   // visibles, no ocultos
+  });
+
+  it('el informe declara qué se apartó y por qué', () => {
+    expect(H).toContain('titularidad del propio cliente');
+  });
+
+  it('se emite completo', () => {
+    expect(H.trim().endsWith('</html>')).toBe(true);
+    expect(H).not.toContain('undefined');
+  });
+
+  it('un período con métricas ya correctas no se recalcula de más', () => {
+    const buenas = calcMetricas(ops, LEGR);
+    expect(buenas.mismoTitular.cantidad).toBe(20);
+    const per2 = { id:'p2', nombre:'X', legajoId:'L1', txns: ops, metricas: buenas };
+    const h2 = genROS(LEGR, [per2], ['p2'], [], { nombre:'Axel' }, '018');
+    expect(h2).toContain('Movimientos entre Cuentas del Propio Titular');
   });
 });
