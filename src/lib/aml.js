@@ -1,9 +1,44 @@
 import { C, T } from "./theme.js";
+import { separarMismoTitular } from "./mismotitular.js";
 import { U, franjaUmbral } from "./umbrales.js";
 import { fmtM, uid, parseFechaAR } from "./utils.js";
 
 function calcMetricas(txns, perfil) {
   if (!txns || !txns.length) return null;
+
+  // ══ MOVIMIENTOS ENTRE CUENTAS DEL PROPIO TITULAR ══════════════════════════
+  // Una transferencia del cliente hacia otra cuenta de su misma titularidad no
+  // tiene contraparte: el dinero no cambia de dueño. Computarla como si la
+  // tuviera hace que el cliente figure como origen Y destino de sus propios
+  // fondos, que es exactamente la forma del patrón de circularidad — una señal
+  // de severidad alta, emitida sobre una operatoria que no tiene nada de
+  // irregular, y capaz de fundar un reporte ante la autoridad.
+  //
+  // Se apartan del cómputo de TODO lo que dependa de la contraparte, y se
+  // conservan íntegras para informarlas por separado. Clasificar, no descartar:
+  // un volumen elevado de movimientos entre cuentas propias puede ser en sí
+  // mismo un hecho a analizar, y ocultarlo cambiaría un falso positivo por un
+  // falso negativo.
+  var reparto = separarMismoTitular(txns, perfil);
+  var propias = reparto.propias;
+  var mismoTitular = reparto.resumen;
+  // A partir de acá, `txns` son las operaciones con TERCEROS.
+  var txnsTotales = txns;
+  txns = reparto.terceros;
+
+  // Un período íntegramente compuesto por movimientos propios no deja nada que
+  // analizar en términos de contraparte, pero sigue siendo un hecho informable.
+  if (!txns.length) {
+    return {
+      sinTerceros: true,
+      mismoTitular: mismoTitular,
+      totalTxns: 0, totalTxnsConPropias: txnsTotales.length,
+      tIn: 0, tOut: 0, tVol: 0,
+      evidencia: {}, cpIn: {}, cpOut: {},
+      cpIdentificable: true, pctSinCp: 0,
+    };
+  }
+
   var ins = txns.filter(function(t) { return t.tipo === 'IN'; });
   var outs = txns.filter(function(t) { return t.tipo === 'OUT'; });
   var tIn = ins.reduce(function(s,t) { return s+t.monto; }, 0);
@@ -154,7 +189,8 @@ function calcMetricas(txns, perfil) {
   var atypical = withHour.filter(function(t) { var h=parseInt((t.hora||'').split(':')[0]); return h < U.HORARIO_DESDE || h >= U.HORARIO_HASTA; });
   // PAT-08 — operaciones fuera del horario habitual
   marcar('PAT-08', pos(atypical));
-return { evidencia:evidencia, cpIdentificable:cpIdentificable, pctSinCp:pctSinCp, tIn:tIn, tOut:tOut, tVol:tVol, balanceNeto:tIn-tOut, countIn:ins.length, countOut:outs.length, totalTxns:txns.length, avg:avg, maxMonto:montos[montos.length-1]||0, minMonto:montos[0]||0, cpIn:cpIn, cpOut:cpOut, sortedIn:sortedIn, sortedOut:sortedOut, uniqueCpIn:Object.keys(cpIn).length, uniqueCpOut:Object.keys(cpOut).length, top1In:tIn>0?(sortedIn[0]?sortedIn[0][1]:0)/tIn*100:0, top1Out:tOut>0?(sortedOut[0]?sortedOut[0][1]:0)/tOut*100:0, hhiIn:hhiIn, hhiOut:hhiOut, ratioCpEmbudo:Object.keys(cpIn).length/(Object.keys(cpOut).length||1), ratioIO:tVol>0?tIn/tVol:0.5, ratioVP:perfil&&perfil.facturacionMensual>0?tVol/Number(perfil.facturacionMensual):null, splitDays:splitDays, splitGroupsCount:splitGroups.length, pctRound:txns.length>0?roundCount/txns.length*100:0, pctOneShot:totalUcp>0?oneShotCnt/totalUcp*100:0, repeatedAmts:repeatedAmts, circularCps:circularCps, circularCount:circularCps.length, activeDays:dates.length, opsByDay:txns.length/(dates.length||1), dates:dates, dailyVol:dailyVol, passThrough:tIn>0?tOut/tIn:0, pctAtypicalHour:withHour.length>0?atypical.length/withHour.length*100:null, ntGroupsIn:ntGroupsIn, ntGroupsOut:ntGroupsOut };
+return { mismoTitular:mismoTitular, totalTxnsConPropias:txnsTotales.length,
+    evidencia:evidencia, cpIdentificable:cpIdentificable, pctSinCp:pctSinCp, tIn:tIn, tOut:tOut, tVol:tVol, balanceNeto:tIn-tOut, countIn:ins.length, countOut:outs.length, totalTxns:txns.length, avg:avg, maxMonto:montos[montos.length-1]||0, minMonto:montos[0]||0, cpIn:cpIn, cpOut:cpOut, sortedIn:sortedIn, sortedOut:sortedOut, uniqueCpIn:Object.keys(cpIn).length, uniqueCpOut:Object.keys(cpOut).length, top1In:tIn>0?(sortedIn[0]?sortedIn[0][1]:0)/tIn*100:0, top1Out:tOut>0?(sortedOut[0]?sortedOut[0][1]:0)/tOut*100:0, hhiIn:hhiIn, hhiOut:hhiOut, ratioCpEmbudo:Object.keys(cpIn).length/(Object.keys(cpOut).length||1), ratioIO:tVol>0?tIn/tVol:0.5, ratioVP:perfil&&perfil.facturacionMensual>0?tVol/Number(perfil.facturacionMensual):null, splitDays:splitDays, splitGroupsCount:splitGroups.length, pctRound:txns.length>0?roundCount/txns.length*100:0, pctOneShot:totalUcp>0?oneShotCnt/totalUcp*100:0, repeatedAmts:repeatedAmts, circularCps:circularCps, circularCount:circularCps.length, activeDays:dates.length, opsByDay:txns.length/(dates.length||1), dates:dates, dailyVol:dailyVol, passThrough:tIn>0?tOut/tIn:0, pctAtypicalHour:withHour.length>0?atypical.length/withHour.length*100:null, ntGroupsIn:ntGroupsIn, ntGroupsOut:ntGroupsOut };
 }
 
 // ─── EVIDENCIA DE UNA SEÑAL ─────────────────────────────────────────────────
@@ -432,6 +468,24 @@ function lineaBase(periodo, legajo, periodos) {
 
 function detectPatrones(m, perfil, base) {
   if (!m) return [];
+
+  // Un período compuesto íntegramente por movimientos entre cuentas del propio
+  // titular no deja operaciones con terceros que analizar. No es un error ni un
+  // período vacío: es un hecho informable, y se emite como tal en lugar de
+  // intentar calcular patrones sobre un conjunto inexistente.
+  if (m.sinTerceros) {
+    var mt = m.mismoTitular || {};
+    return [{
+      id: uid(), pat: 'DATA-02', sev: 'BAJA',
+      titulo: 'Período sin operaciones con terceros',
+      desc: 'La totalidad de las ' + (mt.cantidad || 0) + ' operación(es) del período, por ' +
+            Math.round(mt.montoTotal || 0).toLocaleString('es-AR') + ', corresponde a movimientos entre ' +
+            'cuentas de titularidad del propio cliente. No hay contrapartes de terceros sobre las cuales ' +
+            'evaluar concentración, fraccionamiento, circularidad ni tránsito de fondos. ' +
+            'Un volumen relevante de movimientos entre cuentas propias puede ameritar análisis por sí mismo.',
+      tip: 'T-00', ops: [], opsTotal: 0, estructural: true,
+    }];
+  }
 
   // ── Convenios de recaudación ─────────────────────────────────────────────
   // El flujo de un convenio es, por diseño, un embudo: muchos libradores hacia

@@ -51,6 +51,7 @@ var PAT_UIF_MAP = {
   'PAT-15': { tip:'T-06', desc:'Cambio abrupto en la distribución horaria de las operaciones respecto del comportamiento habitual' },
   // No es una tipología: es una alerta de calidad del dato. Se incluye para que
   // los informes no la muestren sin descripción, y NO debe integrar un ROS.
+  'DATA-02': { tip:'T-00', desc:'Calidad del dato: la totalidad del período corresponde a movimientos entre cuentas del propio titular, sin contrapartes de terceros que analizar' },
   'DATA-01': { tip:'T-00', desc:'Calidad del dato: el archivo cargado no permite identificar las contrapartes, por lo que los análisis de concentración y fraccionamiento no son concluyentes' },
 };
 

@@ -967,6 +967,29 @@ function AnalisisView(props) {
         {tab === 'senales' ? <Card title={'Senales AML detectadas (' + sigs.length + ')' + (Object.keys(selPeriodo.sigsResolucion||{}).length > 0 ? ' — ' + Object.values(selPeriodo.sigsResolucion||{}).filter(function(r){return r.estado==='RESUELTA';}).length + ' resueltas' : '')}>
           {sigs.length === 0 ? <p style={{color:T.GREEN,fontWeight:700,textAlign:'center',padding:'20px 0'}}>✅ Sin senales AML detectadas</p> :
           [(function(){
+            // Movimientos entre cuentas del propio titular apartados del cómputo.
+            var mt = m && m.mismoTitular;
+            if (!mt || !mt.cantidad) return null;
+            return (
+              <div key="__mt" style={{background:T.ACCENT_SOFT,border:'1px solid '+T.ACCENT_DIM,
+                borderLeft:'3px solid '+T.ACCENT,borderRadius:T.RADIUS.md,padding:'11px 14px',marginBottom:12}}>
+                <div style={{fontSize:11.5,fontWeight:700,color:T.ACCENT,marginBottom:4}}>
+                  {mt.cantidad} operación(es) entre cuentas del mismo titular
+                </div>
+                <div style={{fontSize:11,color:T.TEXT2,lineHeight:1.65}}>
+                  {fmtM(mt.montoTotal)} · {mt.porDocumento} por CUIT
+                  {mt.porDenominacion ? ' · ' + mt.porDenominacion + ' por denominación' : ''}
+                  {' '}({mt.pct.toFixed(1)}% del total).
+                  <div style={{marginTop:4,color:T.TEXT3}}>
+                    No tienen contraparte: el dinero no cambia de dueño. Se apartan del cómputo de
+                    concentración, circularidad, fraccionamiento y tránsito de fondos. Siguen contando
+                    en el volumen operado.
+                  </div>
+                </div>
+              </div>
+            );
+          })(),
+          (function(){
             // Cada señal se lee por separado; una contraparte presente en la
             // evidencia de varias no resulta visible en esa lectura.
             var rec = contrapartesRecurrentes(sigs, selPeriodo.txns, 2);

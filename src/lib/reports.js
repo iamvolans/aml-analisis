@@ -1,6 +1,7 @@
 import { calcMetricas, calcScoring, detectPatrones, operacionesDeSenal, resumenEvidencia, enriquecerEvidencia, resolucionDe } from "./aml";
 import { CHECKLIST_ITEMS, KYB_FACTORS, PAT_UIF_MAP, SCREENING, getEstado } from "./constants";
 import { ENTIDAD, firmanteAnalista, firmanteOC, firmanteResponsable } from "./firmantes";
+import { leyendaMismoTitular } from "./mismotitular";
 import { T } from "./theme";
 import { fmtM, parseFechaAR, safeArr, segColor, sevColor, todayStr } from "./utils";
 
@@ -912,6 +913,27 @@ function genROS(legajo, todosLosPeriodos, selectedIds, rfisLegajo, currentUser, 
     + ' Se detectaron patrones transaccionales inusuales que motivaron la presente comunicación. [Completar con detalles adicionales de la investigación.]</div></div>';
 
   // ── SECCIÓN 4: SEÑALES DE ALERTA ─────────────────────────────────────────────
+  // Movimientos entre cuentas del propio titular apartados del cómputo. Se
+  // informa expresamente: un lector debe poder saber que hubo operaciones
+  // excluidas del análisis de patrones y por qué motivo.
+  var mtTotal = { cantidad:0, montoTotal:0, porDocumento:0, porDenominacion:0, pct:0 };
+  var totalConPropias = 0;
+  sel.forEach(function(p){
+    var mt = p.metricas && p.metricas.mismoTitular;
+    if (!mt) return;
+    mtTotal.cantidad += mt.cantidad || 0;
+    mtTotal.montoTotal += mt.montoTotal || 0;
+    mtTotal.porDocumento += mt.porDocumento || 0;
+    mtTotal.porDenominacion += mt.porDenominacion || 0;
+    totalConPropias += (p.metricas.totalTxnsConPropias || 0);
+  });
+  if (mtTotal.cantidad) {
+    mtTotal.pct = totalConPropias ? (mtTotal.cantidad / totalConPropias) * 100 : 0;
+    html += '<div style="background:#EEF4FC;border-left:3px solid #1B3A8C;padding:9px 12px;margin:8px 0 14px;font-size:8.5pt;line-height:1.6">'
+      + '<strong>Movimientos entre cuentas del mismo titular.</strong> ' + leyendaMismoTitular(mtTotal)
+      + '</div>';
+  }
+
   html += '<h2>4. Señales de Alerta Detectadas</h2><div class="sec">';
   if (sigsList.length === 0) {
     html += '<p style="color:#888;font-style:italic">No se detectaron señales ALTA activas en los períodos seleccionados.</p>';

@@ -211,7 +211,7 @@ function LegajosView(props) {
   function mkNew() {
     var cl = {}; CHECKLIST_ITEMS.forEach(function(item){cl[item]='Pendiente';});
     var kybSc = {}; KYB_FACTORS.forEach(function(f){kybSc[f]=2;});
-    return { id:uid(), razonSocial:'', cuit:'', actividad:'', tipoOperatoria:'CUENTA_PAGO', comisionPactada:0.6, facturacionMensual:0, limiteDiario:0, limiteMensual:0, segmento:'MEDIO', dictamen:'CONDICIONAL', beneficiarioFinal:'', domicilio:'',
+    return { id:uid(), razonSocial:'', cuit:'', actividad:'', cuentasPropias:'', tipoOperatoria:'CUENTA_PAGO', comisionPactada:0.6, facturacionMensual:0, limiteDiario:0, limiteMensual:0, segmento:'MEDIO', dictamen:'CONDICIONAL', beneficiarioFinal:'', domicilio:'',
       representanteLegal:'', presidente:'', vinculados:'', tipoSociedad:'SA', paisConstitucion:'Argentina', cotizaBolsa:false, grupoEconomico:'',
       limitesHistorial:[],
       checklist:cl, kybScores:kybSc, redFlags:[], observaciones:[], docsIA:[], createdAt:todayStr(), estadoCuenta:'EN_ONBOARDING', estadoCuentaUpdatedAt:todayStr(), estadoHistorial:[{estado:'EN_ONBOARDING', fecha:todayStr(), hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}), analista:'Sistema'}] };
@@ -456,7 +456,7 @@ function LegajosView(props) {
 
       // Calcular qué campos fueron efectivamente llenados por IA
       var filledFields = [];
-      var datosKeys = ['razonSocial','cuit','actividad','tipoOperatoria','comisionPactada','facturacionMensual','limiteDiario','limiteMensual','beneficiarioFinal','domicilio','segmento','dictamen','representanteLegal','presidente','vinculados','tipoSociedad','paisConstitucion','grupoEconomico'];
+      var datosKeys = ['razonSocial','cuit','actividad','cuentasPropias','tipoOperatoria','comisionPactada','facturacionMensual','limiteDiario','limiteMensual','beneficiarioFinal','domicilio','segmento','dictamen','representanteLegal','presidente','vinculados','tipoSociedad','paisConstitucion','grupoEconomico'];
       datosKeys.forEach(function(k){ if(extracted[k]!==undefined&&extracted[k]!==''&&extracted[k]!==0) filledFields.push(k); });
       var okChecklist = Object.values(extracted.checklist||{}).filter(function(v){return v==='OK';}).length;
       var bloqChecklist = Object.values(extracted.checklist||{}).filter(function(v){return v==='Bloqueante';}).length;
@@ -702,6 +702,8 @@ function LegajosView(props) {
             {key:'actividad',label:'Actividad / Giro comercial',type:'text',placeholder:'',full:true},
             {key:'beneficiarioFinal',label:'Beneficiario final (>10%)',type:'text',placeholder:''},
             {key:'__operatoria',label:'Tipo de operatoria',type:'operatoria',full:true},
+            {key:'cuentasPropias',label:'Otras cuentas del mismo titular',type:'textarea',full:true,
+             placeholder:'Una por línea. Denominación y/o CUIT: por ejemplo "GOAT SA, 30-71703953-6".\nSirve cuando el extracto identifica una cuenta propia con otra grafía o con un CUIT distinto.'},
             {key:'representanteLegal',label:'Representante legal / Apoderado',type:'text',placeholder:'Nombre completo y DNI/CUIT'},
             {key:'presidente',label:'Presidente / Gerente',type:'text',placeholder:'Nombre completo'},
             {key:'vinculados',label:'Otros directores / socios vinculados',type:'text',placeholder:'Nombres separados por coma',full:true},
@@ -717,6 +719,26 @@ function LegajosView(props) {
             // Un convenio de recaudación tiene forma de embudo por diseño, y su
             // control propio es aritmético —que lo liquidado se corresponda con
             // lo cobrado menos la comisión—, no de forma del flujo.
+            if (fdef.type === 'textarea') {
+              return (
+                <div key={i} style={{gridColumn:'1/-1'}}>
+                  <label style={{fontSize:11,color:T.TEXT2,display:'block',marginBottom:2}}>{fdef.label}</label>
+                  <textarea
+                    value={form[fdef.key]||''}
+                    onChange={function(e){fld(fdef.key,e.target.value);}}
+                    placeholder={fdef.placeholder}
+                    rows={3}
+                    style={Object.assign({},iS,{width:'100%',resize:'vertical',lineHeight:1.6,fontFamily:T.SANS})}/>
+                  <div style={{fontSize:10.5,color:T.TEXT3,marginTop:4,lineHeight:1.6}}>
+                    Los movimientos hacia cuentas del mismo titular no tienen contraparte: el dinero no
+                    cambia de dueño. Se apartan del cómputo de concentración, circularidad y tránsito de
+                    fondos, y se informan por separado. La razón social y el CUIT del legajo ya se
+                    reconocen solos; acá se declaran las variantes que el extracto pueda traer.
+                  </div>
+                </div>
+              );
+            }
+
             if (fdef.type === 'operatoria') {
               var esRec = (form.tipoOperatoria || 'CUENTA_PAGO') === 'RECAUDACION';
               return (
