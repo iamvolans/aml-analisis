@@ -30,6 +30,9 @@ function AlertasView(props) {
   var casos = props.casos || [];
   var setCasos = props.setCasos;
   var onSyncCasos = props.onSyncCasos;
+  // Resolver una señal modifica el período que la contiene. Sin sincronizar, el
+  // cambio vive solo en memoria y la alerta reaparece en la siguiente carga.
+  var onSync = props.onSync || function(){};
   var onVerCaso = props.onVerCaso;
 
   // Índice de casos ya abiertos por (período, patrón) — vínculo señal ↔ caso
@@ -176,6 +179,7 @@ function AlertasView(props) {
     });
 
     setPeriodos(updated);
+    onSync(legajos, updated);
     setMSel([]); setVerMasivo(false); setMFund(''); setMResp(''); setMHasta('');
     auditLog(currentUser, 'regularizacion_masiva_senales', 'alertas', lote, {
       lote: lote, cantidad: lista.length,
@@ -397,6 +401,7 @@ function AlertasView(props) {
       return Object.assign({}, p, {sigsResolucion: newRes});
     });
     setPeriodos(updatedPers);
+    onSync(legajos, updatedPers);
     var newMap = Object.assign({}, justMap);
     delete newMap[sig.key];
     setJustMap(newMap);
