@@ -16,7 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import { claveNombre, soloDigitos, identidadesDe, motivoMismoTitular,
          separarMismoTitular, leyendaMismoTitular } from '../src/lib/mismotitular.js';
-import { calcMetricas, detectPatrones } from '../src/lib/aml.js';
+import { calcMetricas, detectPatrones, operacionesDeSenal } from '../src/lib/aml.js';
 import { genROS } from '../src/lib/reports.js';
 
 const LEG = { razonSocial:'GOAT S.A.', cuit:'30-71703953-6' };
@@ -252,5 +252,59 @@ describe('ROS y movimientos del propio titular', () => {
     const per2 = { id:'p2', nombre:'X', legajoId:'L1', txns: ops, metricas: buenas };
     const h2 = genROS(LEGR, [per2], ['p2'], [], { nombre:'Axel' }, '018');
     expect(h2).toContain('Movimientos entre Cuentas del Propio Titular');
+  });
+});
+
+// ── La evidencia se resuelve contra el archivo completo ───────────────────
+// Las posiciones registradas al detectar un patrón se resuelven después contra
+// las transacciones tal como se cargaron. Al apartar los movimientos del propio
+// titular, el índice pasó a armarse sobre el subconjunto de terceros y las
+// posiciones quedaron corridas: la tabla del informe exhibía operaciones que no
+// eran las que sustentaban la señal.
+//
+// En un reporte que se presenta ante la autoridad, exhibir las operaciones
+// equivocadas es peor que no exhibir ninguna.
+describe('alineación de la evidencia con el archivo original', () => {
+  const tx3 = (cp, cuit, monto, tipo, fecha) =>
+    ({ tipo, monto, fecha: fecha || '1/8/2026', hora:'12:00',
+       contraparte_nombre: cp, contraparte_cuit: cuit });
+  const LEGC = { razonSocial:'CRAVERO NEGOCIOS S.A.', cuit:'30-71813032-4' };
+
+  // Propias primero, terceros después: cualquier corrimiento se hace visible
+  const ops = [];
+  for (let i = 0; i < 5; i++) ops.push(tx3('Cravero Negocios SA', '30718130324', 90000000, 'IN'));
+  for (let i = 0; i < 6; i++) ops.push(tx3('PROV FRACCIONA', '20300000001', 700000 + i, 'IN', '2/8/2026'));
+  for (let i = 0; i < 4; i++) ops.push(tx3('OTRO ' + i, '20' + (400000000 + i), 50000, 'OUT', '3/8/2026'));
+
+  const sigs = detectPatrones(calcMetricas(ops, LEGC), LEGC);
+
+  it('ninguna señal exhibe operaciones del propio titular', () => {
+    sigs.forEach(s => {
+      const o = operacionesDeSenal(s, ops);
+      const propias = o.filter(x => x.contraparte_cuit === '30718130324');
+      expect(propias.length, s.pat + ' exhibe ' + propias.length + ' movimientos del titular').toBe(0);
+    });
+  });
+
+  it('las posiciones apuntan a la operación correcta del archivo', () => {
+    sigs.filter(s => s.ops.length).forEach(s => {
+      s.ops.forEach(i => {
+        expect(ops[i], s.pat + ': posición ' + i + ' fuera de rango').toBeDefined();
+      });
+    });
+  });
+
+  it('el fraccionamiento señala las operaciones del tercero que lo produjo', () => {
+    const s = sigs.find(x => x.pat === 'PAT-01');
+    expect(s).toBeDefined();
+    const o = operacionesDeSenal(s, ops);
+    expect(o.length).toBeGreaterThan(0);
+    expect(o.every(x => x.contraparte_nombre === 'PROV FRACCIONA')).toBe(true);
+  });
+
+  it('sin movimientos propios las posiciones siguen siendo correctas', () => {
+    const soloTerceros = ops.filter(o => o.contraparte_cuit !== '30718130324');
+    const s2 = detectPatrones(calcMetricas(soloTerceros, LEGC), LEGC).find(x => x.ops.length);
+    operacionesDeSenal(s2, soloTerceros).forEach(o => expect(o).toBeDefined());
   });
 });

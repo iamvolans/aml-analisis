@@ -122,8 +122,17 @@ function calcMetricas(txns, perfil) {
     evidencia[pat] = prev;
   }
   // Índice de cada operación dentro del array original
+  // El índice se arma sobre el archivo COMPLETO, no sobre las operaciones ya
+  // filtradas. Quien resuelve la evidencia —el informe, la bandeja de alertas—
+  // lo hace contra las transacciones tal como se cargaron, de modo que una
+  // posición relativa al subconjunto de terceros apunta a otra operación: la
+  // tabla exhibía movimientos que no eran los que sustentaban la señal, y en un
+  // reporte eso es peor que no exhibir ninguno.
+  //
+  // `terceros` conserva las mismas referencias que el array original, así que
+  // indexar por objeto devuelve la posición verdadera.
   var idx = new Map();
-  txns.forEach(function(t, i){ idx.set(t, i); });
+  txnsTotales.forEach(function(t, i){ idx.set(t, i); });
   function pos(lista) { return (lista || []).map(function(t){ return idx.get(t); })
     .filter(function(i){ return i !== undefined; }); }
 
